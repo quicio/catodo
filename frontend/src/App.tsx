@@ -46,10 +46,8 @@ export default function App() {
   };
 
   const goHome = () => {
-    const cur = stateRef.current?.current_channel_id;
-    if (cur) {
-      fetch(`/api/channels/${cur}/close`, { method: "POST" }).catch(() => {});
-    }
+    // No cerrar el canal al volver al Home: Spotify sigue sonando.
+    // Al cambiar a otro canal, el backend cierra el actual (pausa).
     setState((prev) => (prev ? { ...prev, current_channel_id: null } : prev));
   };
 
