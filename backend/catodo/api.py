@@ -187,6 +187,27 @@ async def volume(request: Request) -> dict:
     return {"ok": True, "volume": new}
 
 
+@router.get("/config")
+async def get_config() -> dict:
+    from catodo import runtime_config
+
+    return runtime_config.all()
+
+
+@router.post("/config")
+async def set_config(request: Request) -> dict:
+    from catodo import runtime_config
+
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="invalid JSON body")
+    for k, v in payload.items():
+        if k in runtime_config.KEYS:
+            runtime_config.set(k, v)
+    return runtime_config.all()
+
+
 @router.websocket("/ws")
 async def ws_endpoint(websocket: WebSocket) -> None:
     await websocket.accept()

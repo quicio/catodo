@@ -19,6 +19,10 @@ class Settings:
     )
     chromium_bin: str = os.getenv("CATODO_CHROMIUM_BIN", "chromium")
     anime_dir: str = os.getenv("CATODO_ANIME_DIR", os.path.expanduser("~/Anime"))
+    data_dir: str = os.getenv(
+        "CATODO_DATA_DIR",
+        os.path.join(os.path.expanduser("~"), ".local", "share", "catodo"),
+    )
     channels: List[str] = field(
         default_factory=lambda: os.getenv("CATODO_CHANNELS", "spotify,youtube,anime,tv").split(",")
     )

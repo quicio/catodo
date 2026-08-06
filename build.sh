@@ -8,6 +8,9 @@ FRONTEND_DIR="$ROOT_DIR/frontend"
 BACKEND_DIR="$ROOT_DIR/backend"
 RELEASE_DIR="$ROOT_DIR/release"
 
+echo "==> Descargando wallpapers nuevos si hace falta"
+python3 "$ROOT_DIR/scripts/fetch_wallpapers.py" 2 2>/dev/null || true
+
 echo "==> Build frontend"
 (cd "$FRONTEND_DIR" && npm run build)
 

@@ -2,14 +2,27 @@ import { useEffect, useState } from "react";
 import type { ChannelInfo } from "../api/client";
 import { MorphIcon } from "morphicons/react";
 import { Music, MonitorPlay, Clapperboard, Tv, Play } from "lucide";
-import wp1 from "../wallpapers/72we8y.jpg";
-import wp2 from "../wallpapers/95j2v1.jpg";
-import wp3 from "../wallpapers/l3kz22.jpg";
-import wp4 from "../wallpapers/4vo7vl.jpg";
-import wp5 from "../wallpapers/o59z35.jpg";
-import wp6 from "../wallpapers/zmgv6v.jpg";
+import { ThumbsUp, ThumbsDown } from "lucide-react";
 
-const WALLPAPERS = [wp1, wp2, wp3, wp4, wp5, wp6];
+// Los wallpapers se cargan dinámicamente del backend (que los sirve desde
+// frontend/src/wallpapers/), así los nuevos descargados aparecen sin rebuild.
+const MIN_VISIBLE = 3;
+
+type Rating = "up" | "down";
+const RATINGS_KEY = "catodo.wallpaper.ratings";
+
+function loadRatings(): Record<number, Rating> {
+  try {
+    return JSON.parse(localStorage.getItem(RATINGS_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+function saveRatings(r: Record<number, Rating>) {
+  try {
+    localStorage.setItem(RATINGS_KEY, JSON.stringify(r));
+  } catch {}
+}
 
 const ICONS: Record<string, typeof Music> = {
   spotify: Music,
@@ -33,14 +46,77 @@ export default function Home({
   onPick: (id: string) => void;
 }) {
   const [hovered, setHovered] = useState<string | null>(null);
-  const [wpIndex, setWpIndex] = useState(() => Math.floor(Math.random() * WALLPAPERS.length));
+  const [ratings, setRatings] = useState<Record<number, Rating>>(loadRatings);
+  const [wallpapers, setWallpapers] = useState<string[]>([]);
+  const [wpIndex, setWpIndex] = useState(0);
+  const [loadingWp, setLoadingWp] = useState(false);
+
+  // Cargar la lista de wallpapers del backend
+  const loadList = () =>
+    fetch("/api/wallpapers/list")
+      .then((r) => r.json())
+      .then((d: { wallpapers: string[] }) => setWallpapers(d.wallpapers))
+      .catch(() => {});
+
+  useEffect(() => {
+    loadList();
+  }, []);
+
+  // Gatillar descarga de más si quedan pocos aprobados, luego refrescar
+  useEffect(() => {
+    const visible = wallpapers.filter((_, i) => ratings[i] !== "down").length;
+    if (visible < MIN_VISIBLE && !loadingWp && wallpapers.length > 0) {
+      setLoadingWp(true);
+      fetch("/api/wallpapers/fetch?n=4", { method: "POST" })
+        .then(() => loadList())
+        .catch(() => {})
+        .finally(() => setLoadingWp(false));
+    }
+  }, [ratings, wallpapers, loadingWp]);
+
+  useEffect(() => {
+    if (wallpapers.length === 0) return;
+    // arrancar en el primer no rechazado
+    const idx = wallpapers.findIndex((_, i) => ratings[i] !== "down");
+    setWpIndex(idx >= 0 ? idx : 0);
+  }, [wallpapers]);
 
   useEffect(() => {
     const id = setInterval(() => {
-      setWpIndex((i) => (i + 1) % WALLPAPERS.length);
+      setWpIndex((prev) => {
+        for (let step = 1; step <= wallpapers.length; step++) {
+          const n = (prev + step) % wallpapers.length;
+          if (ratings[n] !== "down") return n;
+        }
+        return prev;
+      });
     }, 12000);
     return () => clearInterval(id);
-  }, []);
+  }, [ratings, wallpapers.length]);
+
+  const rate = (i: number, r: Rating) => {
+    setRatings((prev) => {
+      const next = { ...prev };
+      if (r === "up") {
+        // si le diste up, se conserva (solo registra)
+        next[i] = "up";
+      } else {
+        // down → no volver a mostrar; si era el actual, saltar
+        next[i] = "down";
+      }
+      saveRatings(next);
+      return next;
+    });
+    // si rechazamos el actual, ir al siguiente no rechazado
+    setWpIndex((prev) => {
+      if (prev !== i) return prev;
+      for (let step = 1; step <= wallpapers.length; step++) {
+        const n = (prev + step) % wallpapers.length;
+        if (ratings[n] !== "down" && n !== i) return n;
+      }
+      return prev;
+    });
+  };
 
   return (
     <div
@@ -58,7 +134,7 @@ export default function Home({
       }}
     >
       {/* Fondos rotativos con crossfade */}
-      {WALLPAPERS.map((wp, i) => (
+      {wallpapers.map((wp, i) => (
         <div
           key={i}
           style={{
@@ -191,6 +267,61 @@ export default function Home({
         }}
       >
         PRECIONÁ 1-4 O HACÉ CLICK · ESC PARA VOLVER
+      </div>
+
+      {/* Calificación de wallpaper */}
+      <div
+        style={{
+          position: "fixed",
+          right: 24,
+          top: "50%",
+          transform: "translateY(-50%)",
+          display: "flex",
+          flexDirection: "column",
+          gap: 10,
+          zIndex: 3,
+        }}
+      >
+        <button
+          onClick={() => rate(wpIndex, "up")}
+          title="Me gusta este wallpaper"
+          style={{
+            width: 46,
+            height: 46,
+            borderRadius: "50%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: ratings[wpIndex] === "up" ? "rgba(29,185,84,0.35)" : "rgba(255,255,255,0.1)",
+            border: `1px solid ${ratings[wpIndex] === "up" ? "#1db954" : "rgba(255,255,255,0.25)"}`,
+            color: ratings[wpIndex] === "up" ? "#1db954" : "#fff",
+            cursor: "pointer",
+            transition: "all 0.15s ease",
+          }}
+        >
+          <ThumbsUp size={22} />
+        </button>
+        <button
+          onClick={() => rate(wpIndex, "down")}
+          title="No me gusta este wallpaper (no vuelve a salir)"
+          style={{
+            width: 46,
+            height: 46,
+            borderRadius: "50%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(255,255,255,0.1)",
+            border: "1px solid rgba(255,255,255,0.25)",
+            color: "#fff",
+            cursor: "pointer",
+            transition: "all 0.15s ease",
+          }}
+          onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "rgba(255,60,60,0.25)")}
+          onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.1)")}
+        >
+          <ThumbsDown size={22} />
+        </button>
       </div>
     </div>
   );

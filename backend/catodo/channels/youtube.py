@@ -28,7 +28,12 @@ class YouTubeChannel(Channel):
 
     def __init__(self) -> None:
         self._open = False
-        self._url: str = settings.youtube_url
+
+    @property
+    def _url(self) -> str:
+        from catodo import runtime_config
+
+        return runtime_config.get("youtube_url") or settings.youtube_url
 
     @staticmethod
     def _launch(url: str) -> None:
@@ -74,7 +79,9 @@ class YouTubeChannel(Channel):
 
     async def command(self, cmd: str, **kwargs) -> None:
         if cmd == "set_url":
-            self._url = kwargs.get("url", self._url)
+            from catodo import runtime_config
+
+            runtime_config.set("youtube_url", kwargs.get("url", self._url))
         elif cmd == "launch":
             await asyncio.to_thread(self._launch, self._url)
         else:

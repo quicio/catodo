@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 
 from catodo.api import router as api_router
 from catodo.lyrics import router as lyrics_router
+from catodo.wallpapers import router as wallpapers_router
 from catodo.config import settings
 from catodo.events import EventBroker
 from catodo.manager import ChannelManager
@@ -53,6 +54,7 @@ def create_app() -> "FastAPI":
     )
     app.include_router(api_router)
     app.include_router(lyrics_router, prefix="/api")
+    app.include_router(wallpapers_router, prefix="/api")
     if STATIC_DIR.exists():
         app.mount(
             "/",

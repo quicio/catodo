@@ -49,7 +49,9 @@ class AnimeChannel(Channel):
     type = "app"
 
     def __init__(self) -> None:
-        self._base = Path(settings.anime_dir)
+        from catodo import runtime_config
+
+        self._base = Path(runtime_config.get("anime_dir") or settings.anime_dir)
         self._current: Optional[dict] = None
         self._episodes: list[dict] = []
         self._playing = False
