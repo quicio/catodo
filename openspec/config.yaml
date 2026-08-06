@@ -1,0 +1,38 @@
+schema: spec-driven
+
+context: |
+  Project: Cátodo — A multimedia shell for Linux, inspired by old CRT TVs.
+
+  Concept:
+  - The application turns any monitor into a "smart TV" controlled via API.
+  - Each app is a "channel" (Spotify, YouTube, Browser, etc.).
+  - The user never sees the Linux desktop, only Cátodo.
+  - Minimalist, fast, designed to run 24/7.
+
+  Tech stack:
+  - Frontend: Tauri v2, TypeScript, React, Vite
+  - Backend: Python 3.12, FastAPI, Uvicorn
+  - Package manager: uv (Python)
+  - Communication: HTTP REST API + WebSocket for events
+  - OS: Linux exclusively, runs as kiosk/fullscreen
+
+  Architecture:
+  - Clean Architecture (light, KISS)
+  - Frontend: UI only
+  - Backend: domain, channels (plugins), API
+  - Channels are independent plugins that implement a common interface.
+  - Channel types: media (Spotify, YouTube), web, dashboard, app, etc.
+
+  Conventions:
+  - The system uses "channels" as the main abstraction.
+  - Hotkeys: 1-6 switch channels (Ch1=Spotify, Ch2=YouTube, etc.).
+  - Modular: adding a new channel only requires creating a new plugin.
+  - The project is in `~/projects/catodo/`.
+
+rules:
+  proposal:
+    - Keep proposals under 500 words
+    - Include a "Non-goals" section
+  tasks:
+    - Break tasks into chunks of max 2 hours
+    - Each task should be independently testable

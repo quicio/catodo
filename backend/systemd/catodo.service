@@ -1,0 +1,16 @@
+[Unit]
+Description=Catodo Backend
+After=default.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/projects/catodo/backend
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/%U/bus
+ExecStart=%h/.local/bin/uv run --directory %h/projects/catodo/backend python -m catodo
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=5
+KillSignal=SIGKILL
+
+[Install]
+WantedBy=default.target
