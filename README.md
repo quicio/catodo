@@ -26,18 +26,18 @@ frontend/   Electron app (Chromium) loading http://127.0.0.1:8765
 - **Frontend**: React + Vite, built into static HTML/JS, served by the backend.
 - **Shell**: Electron opens a frameless, fullscreen, kiosk window pointing at the backend. In-app `<webview>` tags handle YouTube and TV.
 
-**DRM note**: The TV channel (Movistar) requires Widevine. The dev `run-dev.sh` launcher uses Electron castLabs (AUR: `electron-castlab-bin`). The packaged AppImage uses stock Electron which does **not** include Widevine — install castLabs separately for TV playback.
+**DRM note**: The TV channel (Movistar) requires Widevine. Install Electron castLabs with `bash scripts/install_castlab.sh` (or `bash install.sh --castlab`); `run-dev.sh` uses it automatically. The packaged AppImage uses stock Electron which does **not** include Widevine — use the dev launcher or run the castLabs binary directly for TV playback.
 
 ## Quickstart
 
 ```bash
-# 1. Backend
-cd ~/projects/catodo/backend
+# 1. Backend (desde la raíz del repo clonado)
+cd backend
 uv sync
 uv run python -m catodo          # serves http://127.0.0.1:8765
 
 # 2. Electron app
-cd ~/projects/catodo/frontend
+cd ../frontend
 npm install
 npm run electron:build:linux    # builds .AppImage + .deb into release/
 ./release/catodo-frontend-*.AppImage
@@ -46,7 +46,7 @@ npm run electron:build:linux    # builds .AppImage + .deb into release/
 Or in dev mode (faster iteration):
 
 ```bash
-cd ~/projects/catodo/frontend
+cd frontend
 npm run dev          # Vite on :1420 with HMR
 # In another terminal, point Electron at the Vite dev server:
 CATODO_BACKEND_URL=http://127.0.0.1:1420 npm run electron:dev
@@ -55,16 +55,45 @@ CATODO_BACKEND_URL=http://127.0.0.1:1420 npm run electron:dev
 ## Production install
 
 ```bash
-cd ~/projects/catodo
+# Verificar requisitos sin modificar el sistema (recomendado primero)
+bash install.sh --check
+
+# Instalación completa (detección de distro + deps del sistema + service + AppImage)
 bash install.sh
+
+# Opciones
+bash install.sh --autostart   # habilita arranque automático del backend al login
+bash install.sh --yes         # instala deps del sistema sin confirmar
 ```
 
-This will:
-1. Set up the Python venv
-2. Build the frontend
-3. Install + enable the systemd user service (`catodo.service`)
-4. Build the Electron AppImage
-5. Optionally create an autostart entry for the AppImage
+Esto detecta la distro (`/etc/os-release`) y el gestor de paquetes (`pacman` /
+`apt` / `dnf` / `zypper`), verifica e instala las dependencias del sistema
+(python3 ≥3.12, uv, node/npm, PyGObject, openssl, iproute2, xdotool/ydotool,
+pipewire/pulseaudio), y luego:
+
+1. Set up del venv Python con `uv`
+2. Build del frontend
+3. Genera el unit `catodo.service` con las rutas reales del repo y de `uv`
+4. Instala y arranca el servicio de usuario (`systemctl --user enable --now`)
+5. Build del Electron AppImage
+
+El instalador resuelve las rutas desde la ubicación real del repositorio, así
+que funciona clonando el proyecto en cualquier directorio (no depende de
+`~/projects/catodo`).
+
+**Requisitos manuales fuera del instalador:** los canales DRM (Movistar TV,
+HBO Max) necesitan Widevine. Cátodo incluye un instalador que baja el binario
+oficial de Electron castLabs desde GitHub (funciona en cualquier distro):
+
+```bash
+bash scripts/install_castlab.sh                     # última versión estable
+bash scripts/install_castlab.sh --version v42.8.0+wvcus   # versión específica
+```
+
+O incluirlo en la instalación: `bash install.sh --castlab`. El binario queda
+en `frontend/electron-castlab/` (ignorado por git) y `run-dev.sh` lo detecta
+automáticamente. Sin él, el repo funciona igual pero los canales con DRM no
+reproducen.
 
 ## Hotkeys (inside the Cátodo window)
 
@@ -298,7 +327,7 @@ arrancar.
 ### CLI
 
 ```bash
-cd ~/projects/catodo/backend
+cd backend
 uv run python -m catodo plugin list           # ver instalados
 uv run python -m catodo plugin install <id>   # instalar desde el repo
 uv run python -m catodo plugin remove <id>

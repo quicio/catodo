@@ -1,7 +1,8 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-const BACKEND = "http://127.0.0.1:8765";
+const BACKEND =
+  process.env.CATODO_BACKEND_URL || `http://${process.env.CATODO_HOST || "127.0.0.1"}:${process.env.CATODO_PORT || "8765"}`;
 
 export default defineConfig({
   plugins: [react()],

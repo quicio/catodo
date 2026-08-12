@@ -56,8 +56,9 @@ done
 echo "==> Lanzando Electron castLabs (Widevine) apuntando a Vite"
 CASTLAB_ELECTRON="$FRONTEND_DIR/electron-castlab/usr/lib/electron-castlab/electron"
 if [ ! -x "$CASTLAB_ELECTRON" ]; then
-    echo "    Electron castLabs no encontrado en $CASTLAB_ELECTRON"
-    echo "    Extraelo del paquete AUR electron-castlab-bin en $FRONTEND_DIR/electron-castlab/"
+    echo "    Electron castLabs no encontrado."
+    echo "    Los canales DRM (Movistar TV, HBO Max) no tendrán Widevine."
+    echo "    Instalalo con: bash scripts/install_castlab.sh"
     CASTLAB_ELECTRON=""
 fi
 (

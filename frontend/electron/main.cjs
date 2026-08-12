@@ -29,13 +29,24 @@ app.commandLine.appendSwitch("disable-vulkan");
 // El shell usa Electron castLabs (ECS) que incluye Widevine para DRM.
 // No hace falta nada extra acá.
 
+// El backend se resuelve desde una única fuente: CATODO_BACKEND_URL, o el
+// host/puerto por defecto (CATODO_HOST/CATODO_PORT). El host/puerto solo se
+// usan para el probe de autodetección HTTPS y como default cuando no hay
+// override.
+const BACKEND_HOST = process.env.CATODO_HOST || "127.0.0.1";
+const BACKEND_PORT = process.env.CATODO_PORT || "8765";
+const BACKEND_URL_OVERRIDE = process.env.CATODO_BACKEND_URL || null;
+
 // Auto-detección: si el backend sirve HTTPS (self-signed, necesario para /cast
 // y getDisplayMedia), la app se conecta por https e ignora el cert del kiosk.
 const https = require("https");
 function detectHttps() {
+  if (BACKEND_URL_OVERRIDE) {
+    return Promise.resolve(/^https:/.test(BACKEND_URL_OVERRIDE));
+  }
   return new Promise((resolve) => {
     const req = https.get(
-      "https://127.0.0.1:8765/api/health",
+      `https://${BACKEND_HOST}:${BACKEND_PORT}/api/health`,
       { rejectUnauthorized: false, timeout: 2000 },
       () => { req.destroy(); resolve(true); }
     );
@@ -43,7 +54,8 @@ function detectHttps() {
     req.on("timeout", () => { req.destroy(); resolve(false); });
   });
 }
-const BACKEND_URL = process.env.CATODO_BACKEND_URL || null; // se resuelve tras detectar
+// Se asigna tras detectHttps(): "http(s)://host:port" sin barra final.
+let BACKEND_URL = null;
 
 // Icono de la aplicación
 const APP_ICON = path.join(__dirname, "..", "..", "catodo.png");
@@ -69,23 +81,28 @@ const WEBVIEW_ACTIVITY_QUERY = `(() => {
 
 function reportWebviewActivity() {
   try {
-    const body = "{}";
-    const req = http.request({
-      hostname: "127.0.0.1",
-      port: 8765,
-      path: "/api/activity",
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Content-Length": Buffer.byteLength(body),
-      },
-    });
-    req.on("error", () => {});
-    req.write(body);
-    req.end();
+    postToBackend("/api/activity", "{}");
   } catch (e) {
     fs.appendFileSync("/tmp/catodo-dev.log", "\n[ACT-ERR] " + e + "\n");
   }
+}
+
+// POST JSON al backend usando el módulo http/https según el scheme de
+// BACKEND_URL. Usado por el poller de actividad y la notificación de
+// navegación de los webviews.
+function postToBackend(apiPath, body) {
+  const url = new URL(apiPath, BACKEND_URL);
+  const mod = url.protocol === "https:" ? https : http;
+  const req = mod.request(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Content-Length": Buffer.byteLength(body),
+    },
+  });
+  req.on("error", () => {});
+  req.write(body);
+  req.end();
 }
 
 setInterval(() => {
@@ -129,7 +146,7 @@ function patchNavigator(contents) {
   });
 }
 
-function createWindow(backendUrl) {
+function createWindow() {
   const display = screen.getPrimaryDisplay();
   const { width, height } = display.workAreaSize;
 
@@ -158,7 +175,7 @@ function createWindow(backendUrl) {
   win.webContents.setUserAgent(CHROME_UA);
   patchNavigator(win.webContents);
 
-  win.loadURL(backendUrl || BACKEND_URL);
+  win.loadURL(BACKEND_URL);
 
   win.webContents.on("did-fail-load", (_e, code, desc, url) => {
     console.error(`[catodo] failed to load ${url}: ${desc} (${code})`);
@@ -250,17 +267,8 @@ function createWindow(backendUrl) {
       if (channelId) {
         contents.on("did-navigate", (_ev, url) => {
           try {
-            const http = require("http");
             const body = JSON.stringify({ command: "navigate", url: url });
-            const req = http.request({
-              hostname: "127.0.0.1", port: 8765,
-              path: `/api/channels/${channelId}/command`,
-              method: "POST",
-              headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) },
-            });
-            req.on("error", () => {});
-            req.write(body);
-            req.end();
+            postToBackend(`/api/channels/${channelId}/command`, body);
           } catch (e) {
             fs.appendFileSync("/tmp/catodo-dev.log", "\n[NAV-ERR] " + e + "\n");
           }
@@ -325,16 +333,17 @@ ipcMain.handle("open-login", async (_e, url) => {
 });
 
 detectHttps().then((useHttps) => {
-  const backendUrl =
-    process.env.CATODO_BACKEND_URL || (useHttps ? "https://127.0.0.1:8765" : "http://127.0.0.1:8765");
+  BACKEND_URL =
+    BACKEND_URL_OVERRIDE ||
+    (useHttps ? `https://${BACKEND_HOST}:${BACKEND_PORT}` : `http://${BACKEND_HOST}:${BACKEND_PORT}`);
   app.whenReady().then(() => {
     if (useHttps) {
       // Aceptar el cert self-signed del kiosk en fetch, WS y el loadURL inicial.
       session.defaultSession.setCertificateVerifyProc((request, callback) => callback(0));
     }
-    createWindow(backendUrl);
+    createWindow();
     app.on("activate", () => {
-      if (BrowserWindow.getAllWindows().length === 0) createWindow(backendUrl);
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
     });
   });
 });

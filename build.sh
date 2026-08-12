@@ -32,8 +32,8 @@ for d in remote cast; do
 done
 
 # recrear noise.png (usado por efectos del canal Anime)
-python3 - <<'PY'
-import struct, zlib, random
+NOISE_TARGET="$BACKEND_DIR/static/noise.png" python3 - <<'PY'
+import os, struct, zlib, random
 random.seed(42)
 W, H = 128, 128
 raw = b''
@@ -47,7 +47,7 @@ def chunk(t, d):
 ihdr = struct.pack('>IIBBBBB', W, H, 8, 6, 0, 0, 0)
 sig = b'\x89PNG\r\n\x1a\n'
 png = sig + chunk(b'IHDR', ihdr) + chunk(b'IDAT', zlib.compress(raw, 9)) + chunk(b'IEND', b'')
-with open('/home/hugo/projects/catodo/backend/static/noise.png', 'wb') as f:
+with open(os.environ["NOISE_TARGET"], 'wb') as f:
     f.write(png)
 PY
 

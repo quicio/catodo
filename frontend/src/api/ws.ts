@@ -3,12 +3,17 @@ import type { AppState, ChannelInfo } from "./client";
 
 export type EventHandler = (event: { event: string; [k: string]: unknown }) => void;
 
+const DEFAULT_BACKEND_HOST =
+  typeof process !== "undefined" && process.env.CATODO_BACKEND_URL
+    ? new URL(process.env.CATODO_BACKEND_URL).host
+    : `${typeof process !== "undefined" && process.env.CATODO_HOST ? process.env.CATODO_HOST : "127.0.0.1"}:${typeof process !== "undefined" && process.env.CATODO_PORT ? process.env.CATODO_PORT : "8765"}`;
+
 const WS_URL =
   (typeof window !== "undefined" && window.location.protocol === "https:"
     ? "wss:"
     : "ws:") +
   "//" +
-  (typeof window !== "undefined" ? window.location.host : "127.0.0.1:1420") +
+  (typeof window !== "undefined" ? window.location.host : DEFAULT_BACKEND_HOST) +
   "/api/ws";
 
 export function useWebSocket(onEvent: EventHandler): void {

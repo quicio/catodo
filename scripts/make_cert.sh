@@ -13,10 +13,15 @@ if [ -f "$SSL_DIR/cert.pem" ] && [ -f "$SSL_DIR/key.pem" ]; then
 fi
 
 # CN y SAN con IP de la máquina para reducir avisos.
-# hostname -I no es portable (BusyBox/BSD), usamos ip como fallback.
-IP=$(ip -4 addr show 2>/dev/null \
-    | grep -oP 'inet \K[\d.]+' \
-    | grep -v '^127\.' | head -1) || true
+# hostname -I es lo más portable; fallback a ip -4 (iproute2) si no existe.
+if command -v hostname >/dev/null 2>&1; then
+    IP="$(hostname -I 2>/dev/null | tr ' ' '\n' | grep -v '^127\.' | head -1 || true)"
+fi
+if [ -z "$IP" ] && command -v ip >/dev/null 2>&1; then
+    IP="$(ip -4 addr show 2>/dev/null \
+        | sed -n 's/.*inet \([0-9.]*\).*/\1/p' \
+        | grep -v '^127\.' | head -1 || true)"
+fi
 SAN="DNS:localhost,IP:127.0.0.1"
 [ -n "$IP" ] && SAN="$SAN,IP:$IP"
 

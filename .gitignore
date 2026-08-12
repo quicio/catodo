@@ -18,3 +18,4 @@ release/
 backend/static/
 electron-castlab/
 frontend/electron-castlab/
+frontend/src/wallpapers/

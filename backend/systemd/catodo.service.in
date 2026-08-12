@@ -4,9 +4,9 @@ After=default.target
 
 [Service]
 Type=simple
-WorkingDirectory=%h/projects/catodo/backend
+WorkingDirectory=@PROJECT_DIR@/backend
 Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/%U/bus
-ExecStart=%h/.local/bin/uv run --directory %h/projects/catodo/backend python -m catodo
+ExecStart=@UV_BIN@ run --directory @PROJECT_DIR@/backend python -m catodo
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=5
