@@ -263,7 +263,7 @@ class SpotifyChannel(Channel):
         if d:
             self._last_meta = d
         d["available"] = True
-        d["position"] = self._read_position()
+        d["position"] = await self._read_position()
         return d
 
     async def _read_position(self) -> float:
