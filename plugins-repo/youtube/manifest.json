@@ -1,0 +1,13 @@
+{
+  "id": "youtube",
+  "name": "YouTube",
+  "version": "1.0.0",
+  "type": "web",
+  "icon": "play",
+  "color": "#ff0033",
+  "url": "https://www.youtube.com/tv",
+  "user_agent": "android-tv",
+  "partition": "persist:youtube",
+  "order": 1,
+  "config_key": "youtube_url"
+}

@@ -10,7 +10,7 @@ context: |
   - Minimalist, fast, designed to run 24/7.
 
   Tech stack:
-  - Frontend: Tauri v2, TypeScript, React, Vite
+  - Frontend: Electron (castLabs build in dev for Widevine), TypeScript, React, Vite
   - Backend: Python 3.12, FastAPI, Uvicorn
   - Package manager: uv (Python)
   - Communication: HTTP REST API + WebSocket for events
@@ -19,13 +19,15 @@ context: |
   Architecture:
   - Clean Architecture (light, KISS)
   - Frontend: UI only
-  - Backend: domain, channels (plugins), API
+  - Backend: domain, channels (plugins), API, wallpapers, lyrics
   - Channels are independent plugins that implement a common interface.
-  - Channel types: media (Spotify, YouTube), web, dashboard, app, etc.
+  - Channel types: media (Spotify), web (YouTube, Movistar TV), app (Anime library).
+  - User data lives at `~/.local/share/catodo/` (config overrides, wallpapers, future state).
 
   Conventions:
   - The system uses "channels" as the main abstraction.
-  - Hotkeys: 1-6 switch channels (Ch1=Spotify, Ch2=YouTube, etc.).
+  - Hotkeys: 1-4 switch channels (Ch1=Spotify, Ch2=YouTube, Ch3=Anime, Ch4=TV).
+  - Hotkeys 5-6 are bound but reserved for future channels.
   - Modular: adding a new channel only requires creating a new plugin.
   - The project is in `~/projects/catodo/`.
 

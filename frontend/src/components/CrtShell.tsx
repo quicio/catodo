@@ -16,7 +16,7 @@ export default function CrtShell({
   const [showChannelNum, setShowChannelNum] = useState(false);
   const [showVolume, setShowVolume] = useState(false);
   const [flashKey, setFlashKey] = useState(0);
-  const [prevVolume, setPrevVolume] = useState(volume);
+  const prevVolumeRef = useRef(volume);
   const prevChannelIdRef = useRef(channelId);
 
   useEffect(() => {
@@ -29,20 +29,24 @@ export default function CrtShell({
     }
   }, [channelId]);
 
+  // Usar un ref para prevVolume: incluir el estado en las deps hacía que el
+  // cleanup cancelara el timer de ocultar sin reprogramarlo → el HUD quedaba fijo.
   useEffect(() => {
-    if (volume !== prevVolume) {
-      setPrevVolume(volume);
+    if (volume !== prevVolumeRef.current) {
+      prevVolumeRef.current = volume;
       setShowVolume(true);
       const t = setTimeout(() => setShowVolume(false), 1500);
       return () => clearTimeout(t);
     }
-  }, [volume, prevVolume]);
+  }, [volume]);
 
+  const isCast = channelId === "screen-cast";
   return (
     <>
       {children}
-      <div className="crt-scanlines" />
-      <div className="crt-vignette" />
+      {/* Los efectos CRT no se aplican sobre la proyección de pantalla (espejo fiel) */}
+      {!isCast && <div className="crt-scanlines" />}
+      {!isCast && <div className="crt-vignette" />}
       {showChannelNum && (
         <div key={flashKey} className="ch-flash">
           <div className="ch-flash-label">CHANNEL</div>

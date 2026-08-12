@@ -2,10 +2,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 import httpx
-
 from fastapi import APIRouter, HTTPException, Query
 
 log = logging.getLogger("catodo.lyrics")
@@ -21,7 +19,7 @@ HEADERS = {"User-Agent": "catodo/0.1 (https://github.com/local/catodo)"}
 async def lyrics(
     artist: str = Query(..., min_length=1),
     track: str = Query(..., min_length=1),
-    duration: Optional[int] = Query(None, description="Track duration in seconds"),
+    duration: int | None = Query(None, description="Track duration in seconds"),
 ) -> dict:
     artist_clean = artist.strip()
     track_clean = track.strip()
@@ -96,7 +94,7 @@ def _format(data: dict) -> dict:
     }
 
 
-def _pick_best(results: list[dict], duration: Optional[int]) -> Optional[dict]:
+def _pick_best(results: list[dict], duration: int | None) -> dict | None:
     if not results:
         return None
     if duration is None:

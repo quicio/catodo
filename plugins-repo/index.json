@@ -1,0 +1,40 @@
+{
+  "plugins": [
+    {
+      "id": "youtube",
+      "name": "YouTube",
+      "version": "1.0.0",
+      "bundled": true,
+      "origin": "bundled",
+      "path": "youtube",
+      "requires_catodo": { "min": "0.1.0" }
+    },
+    {
+      "id": "tv",
+      "name": "TV",
+      "version": "1.0.0",
+      "bundled": true,
+      "origin": "bundled",
+      "path": "tv",
+      "requires_catodo": { "min": "0.1.0" }
+    },
+    {
+      "id": "crunchyroll",
+      "name": "Crunchyroll",
+      "version": "1.0.0",
+      "bundled": true,
+      "origin": "bundled",
+      "path": "crunchyroll",
+      "requires_catodo": { "min": "0.1.0" }
+    },
+    {
+      "id": "hbomax",
+      "name": "HBO Max",
+      "version": "1.0.0",
+      "bundled": true,
+      "origin": "bundled",
+      "path": "hbomax",
+      "requires_catodo": { "min": "0.1.0" }
+    }
+  ]
+}

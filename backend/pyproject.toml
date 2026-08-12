@@ -9,8 +9,9 @@ dependencies = [
     "httpx>=0.27",
     "websockets>=13",
     "pydantic>=2.9",
-    "pydbus>=0.3.2",
     "pygobject>=3.56.3",
+    "qrcode>=8.2",
+    "asyncio-mqtt>=0.16.2",
 ]
 
 [build-system]
@@ -19,3 +20,20 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["catodo"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.25",
+    "ruff>=0.11",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]

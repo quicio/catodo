@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import type { ChannelInfo } from "../api/client";
+import type { ChannelInfo, AppState } from "../api/client";
 import { MorphIcon } from "morphicons/react";
-import { Music, MonitorPlay, Clapperboard, Tv, Play, ThumbsUp, ThumbsDown, Check, X } from "lucide";
+import { Music, MonitorPlay, Clapperboard, Tv, Play, ThumbsUp, ThumbsDown, Check, X, Gamepad2 } from "lucide";
 
 // Los wallpapers se cargan dinámicamente del backend (que los sirve desde
 // frontend/src/wallpapers/), así los nuevos descargados aparecen sin rebuild.
@@ -31,6 +31,8 @@ const ICONS: Record<string, typeof Music> = {
   youtube: MonitorPlay,
   anime: Clapperboard,
   tv: Tv,
+  crunchyroll: Play,
+  arcade: Gamepad2,
 };
 
 const COLORS: Record<string, string> = {
@@ -38,14 +40,18 @@ const COLORS: Record<string, string> = {
   youtube: "#ff0033",
   anime: "#ffd166",
   tv: "#4d7cff",
+  crunchyroll: "#f47521",
+  arcade: "#b66dff",
 };
 
 export default function Home({
   channels,
   onPick,
+  state,
 }: {
   channels: ChannelInfo[];
   onPick: (id: string) => void;
+  state: AppState;
 }) {
   const [hovered, setHovered] = useState<string | null>(null);
   const [ratings, setRatings] = useState<Record<string, Rating>>(loadRatings);
@@ -53,7 +59,18 @@ export default function Home({
   const [wpIndex, setWpIndex] = useState(0);
   const [loadingWp, setLoadingWp] = useState(false);
   const [now, setNow] = useState(new Date());
-  const [spotify, setSpotify] = useState<{ art_url?: string; status?: string; title?: string; artist?: string } | null>(null);
+  const [showPair, setShowPair] = useState(false);
+  const [pairInfo, setPairInfo] = useState<{ url?: string; code?: string } | null>(null);
+
+  useEffect(() => {
+    if (!showPair) return;
+    fetch("/api/pair/info")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setPairInfo(d))
+      .catch(() => setPairInfo(null));
+  }, [showPair]);
+
+  const spotify = state.spotify;
 
   // Reloj
   useEffect(() => {
@@ -61,16 +78,7 @@ export default function Home({
     return () => clearInterval(id);
   }, []);
 
-  // Estado de Spotify para el fondo
-  useEffect(() => {
-    const id = setInterval(() => {
-      fetch("/api/channels/spotify/state")
-        .then((r) => (r.ok ? r.json() : null))
-        .then((s) => setSpotify(s))
-        .catch(() => {});
-    }, 2000);
-    return () => clearInterval(id);
-  }, []);
+  // Estado de Spotify viene del store (WS events)
 
   // Buscar wallpapers del artista cuando cambia la canción; si no hay, portada borrosa
   const [artistWp, setArtistWp] = useState<string[]>([]);
@@ -343,8 +351,8 @@ export default function Home({
         }}
       >
         {channels.map((c, i) => {
-          const icon = ICONS[c.id] || Tv;
-          const color = COLORS[c.id] || "#fff";
+          const icon = ICONS[c.id] || (c.type === "web" ? MonitorPlay : Tv);
+          const color = c.color || COLORS[c.id] || "#fff";
           const isHover = hovered === c.id;
           return (
             <button
@@ -511,6 +519,98 @@ export default function Home({
           );
         })()}
       </div>
+
+      {/* Conectar teléfono (columna derecha, sobre la barra de canales) */}
+      <button
+        onClick={() => setShowPair(true)}
+        title="Conectar tu teléfono"
+        style={{
+          position: "fixed",
+          right: 24,
+          top: "calc(50% + 86px)",
+          transform: "translateY(-50%)",
+          width: 52,
+          height: 52,
+          borderRadius: "50%",
+          background: "rgba(255,255,255,0.1)",
+          border: "1px solid rgba(255,255,255,0.25)",
+          color: "#fff",
+          cursor: "pointer",
+          fontSize: 22,
+          zIndex: 4,
+          display: "grid",
+          placeItems: "center",
+          backdropFilter: "blur(8px)",
+        }}
+      >
+        📱
+      </button>
+
+      {showPair && (
+        <div
+          onClick={() => setShowPair(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.8)",
+            zIndex: 20,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            backdropFilter: "blur(8px)",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#fff",
+              color: "#111",
+              borderRadius: 20,
+              padding: 28,
+              width: 320,
+              textAlign: "center",
+              fontFamily: "var(--font-mono)",
+            }}
+          >
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Conectar tu teléfono</div>
+            <div style={{ fontSize: 11, opacity: 0.6, marginBottom: 16 }}>
+              Escaneá con la cámara del iPhone (o escribí el código)
+            </div>
+            {pairInfo && (
+              <>
+                <img
+                  src="/api/pair/qr"
+                  alt="QR"
+                  width={220}
+                  height={220}
+                  style={{ display: "block", margin: "0 auto 14px", borderRadius: 8 }}
+                />
+                {pairInfo.code && (
+                  <div style={{ fontSize: 24, fontWeight: 700, letterSpacing: 6, marginBottom: 8 }}>
+                    {pairInfo.code}
+                  </div>
+                )}
+                <div style={{ fontSize: 10, opacity: 0.55, wordBreak: "break-all" }}>{pairInfo.url}</div>
+              </>
+            )}
+            <button
+              onClick={() => setShowPair(false)}
+              style={{
+                marginTop: 16,
+                padding: "10px 20px",
+                border: "none",
+                borderRadius: 10,
+                background: "#111",
+                color: "#fff",
+                cursor: "pointer",
+                fontFamily: "var(--font-mono)",
+              }}
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

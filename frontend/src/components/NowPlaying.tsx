@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api } from "../api/client";
+import { api, type AppState } from "../api/client";
 
 interface NowPlaying {
   available?: boolean;
@@ -34,57 +34,51 @@ interface Lyrics {
   artist?: string;
 }
 
-export default function NowPlaying() {
-  const [np, setNp] = useState<NowPlaying | null>(null);
+export default function NowPlaying({ state }: { state: AppState }) {
   const [lyrics, setLyrics] = useState<Lyrics | null>(null);
   const [lyricsStatus, setLyricsStatus] = useState<"idle" | "loading" | "ok" | "missing">("idle");
-  const [position, setPosition] = useState<number>(0);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const lastKeyRef = useRef<string>("");
 
-  useEffect(() => {
-    let cancelled = false;
-    const fetch_ = async () => {
-      try {
-        const res = await fetch("/api/channels/spotify/state");
-        if (!res.ok || cancelled) return;
-        const data = (await res.json()) as NowPlaying;
-        setNp(data);
-        if (typeof data.position === "number") {
-          setPosition(data.position);
-        }
+  const np = state.spotify
+    ? {
+        available: true,
+        status: state.spotify.status,
+        title: state.spotify.title,
+        artist: state.spotify.artist,
+        album: state.spotify.album,
+        art_url: state.spotify.art_url,
+        position: state.spotify.position,
+      }
+    : null;
 
-        if (data.title && data.artist) {
-          const key = `${data.artist}|${data.title}|${data.album ?? ""}`;
-          if (key !== lastKeyRef.current) {
-            lastKeyRef.current = key;
-            setLyricsStatus("loading");
-            try {
-              const params = new URLSearchParams({ artist: data.artist, track: data.title });
-              const lr = await fetch(`/api/lyrics?${params}`);
-              if (lr.ok) {
-                const ldata = (await lr.json()) as Lyrics;
-                if (!cancelled) {
-                  setLyrics(ldata);
-                  setLyricsStatus("ok");
-                }
-              } else {
-                if (!cancelled) setLyricsStatus("missing");
-              }
-            } catch {
-              if (!cancelled) setLyricsStatus("missing");
-            }
+  // Fetch lyrics when track changes (driven by state.spotify, no polling)
+  useEffect(() => {
+    if (!np || !np.title || !np.artist) return;
+    const key = `${np.artist}|${np.title}|${np.album ?? ""}`;
+    if (key === lastKeyRef.current) return;
+    lastKeyRef.current = key;
+    setLyricsStatus("loading");
+    let cancelled = false;
+    (async () => {
+      try {
+        const params = new URLSearchParams({ artist: np.artist!, track: np.title! });
+        const lr = await fetch(`/api/lyrics?${params}`);
+        if (lr.ok) {
+          const ldata = (await lr.json()) as Lyrics;
+          if (!cancelled) {
+            setLyrics(ldata);
+            setLyricsStatus("ok");
           }
+        } else {
+          if (!cancelled) setLyricsStatus("missing");
         }
-      } catch {}
-    };
-    fetch_();
-    const id = setInterval(fetch_, 500);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, []);
+      } catch {
+        if (!cancelled) setLyricsStatus("missing");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [np?.title, np?.artist, np?.album]);
 
   useEffect(() => {
     let cancelled = false;
@@ -217,7 +211,7 @@ export default function NowPlaying() {
                 {np.artist || "—"}
               </div>
             </div>
-            <LyricsPanel lyrics={lyrics} status={lyricsStatus} position={position} />
+            <LyricsPanel lyrics={lyrics} status={lyricsStatus} position={np?.position ?? 0} />
           </div>
         </div>
 

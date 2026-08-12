@@ -1,14 +1,15 @@
-"""Channel registry — static list of available channels."""
+"""Channel registry — built-in (código) + bibliotecas locales + plugins (manifests).
+
+Los canales `web` (YouTube, TV, Crunchyroll, HBO Max) se cargan desde el plugin
+system; las bibliotecas locales (Anime, Series, Películas…) desde `catodo.media`.
+"""
 from __future__ import annotations
 
-from typing import List
-
+from catodo.arcade import ArcadeChannel
 from catodo.channel import Channel
 from catodo.channels.spotify import SpotifyChannel
-from catodo.channels.youtube import YouTubeChannel
-from catodo.channels.anime import AnimeChannel
-from catodo.channels.tv import TvChannel
+from catodo.media import build_media_library_channels
 
 
-def build_default_registry() -> List[Channel]:
-    return [SpotifyChannel(), YouTubeChannel(), AnimeChannel(), TvChannel()]
+def build_default_registry() -> list[Channel]:
+    return [SpotifyChannel(), *build_media_library_channels(), ArcadeChannel()]

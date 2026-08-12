@@ -2,13 +2,16 @@
 data directory (~/.local/share/catodo/wallpapers) and serves them at runtime."""
 from __future__ import annotations
 
+import asyncio
+import hashlib
 import json
 import logging
 import os
+import re
 import urllib.parse
-import urllib.request
 
-from fastapi import APIRouter, HTTPException
+import httpx
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 
 from catodo.datadir import WALLPAPER_DIR, ensure_dirs
@@ -17,24 +20,42 @@ log = logging.getLogger("catodo.wallpapers")
 
 router = APIRouter(prefix="/wallpapers", tags=["wallpapers"])
 
-UA = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) catodo/0.1"}
+UA = "Mozilla/5.0 (X11; Linux x86_64) catodo/0.1"
 QUERIES = ["dark+neon", "minimalist+dark", "cyberpunk", "dark+technology", "space+dark"]
 REDDIT_SUBS = ["wallpaper", "wallpapers", "MinimalWallpaper", "Amoledbackgrounds"]
 
+_in_flight: set[str] = set()
+_download_sem = asyncio.Semaphore(4)
+_hashes: dict[str, str] | None = None
+_HASHES_FILE = os.path.join(WALLPAPER_DIR, ".hashes.json")
 
-def _lastfm_image_urls(artist: str, limit: int = 8) -> list[str]:
-    """Fetch band photos from Last.fm artist images page.
 
-    Solo las imágenes PROPIAS del artista: se detectan por el enlace
-    `/music/<artista>/+images/<hash>` (el sidebar de "bandas similares"
-    usa otros enlaces y no debe mezclarse). Se pide el original (ar0)."""
-    import re
+def _load_hashes() -> dict[str, str]:
+    global _hashes
+    if _hashes is not None:
+        return _hashes
+    if os.path.isfile(_HASHES_FILE):
+        try:
+            with open(_HASHES_FILE) as f:
+                _hashes = json.load(f)
+        except Exception:
+            _hashes = {}
+    else:
+        _hashes = {}
+    return _hashes
 
+
+def _save_hashes(hsh: dict[str, str]) -> None:
+    ensure_dirs()
+    with open(_HASHES_FILE, "w") as f:
+        json.dump(hsh, f, indent=2)
+
+
+async def _lastfm_image_urls(client: httpx.AsyncClient, artist: str, limit: int = 8) -> list[str]:
     url = f"https://www.last.fm/music/{urllib.parse.quote(artist.strip())}/+images/"
     try:
-        req = urllib.request.Request(url, headers=UA)
-        with urllib.request.urlopen(req, timeout=20) as r:
-            html = r.read().decode("utf-8", "ignore")
+        r = await client.get(url, timeout=20)
+        html = r.text
     except Exception as e:
         log.warning("lastfm fetch failed: %s", e)
         return []
@@ -51,10 +72,7 @@ def _lastfm_image_urls(artist: str, limit: int = 8) -> list[str]:
     return found
 
 
-def _reddit_image_urls(query: str, limit: int = 8) -> list[str]:
-    """Search Reddit wallpaper subs for image posts matching the query."""
-    import urllib.parse
-
+async def _reddit_image_urls(client: httpx.AsyncClient, query: str, limit: int = 8) -> list[str]:
     q = urllib.parse.quote(query)
     urls: list[str] = []
     for sub in REDDIT_SUBS:
@@ -62,13 +80,11 @@ def _reddit_image_urls(query: str, limit: int = 8) -> list[str]:
             break
         try:
             url = f"https://www.reddit.com/r/{sub}/search.json?q={q}&restrict_sr=1&sort=top&t=year&limit={limit}"
-            req = urllib.request.Request(url, headers=UA)
-            with urllib.request.urlopen(req, timeout=20) as r:
-                data = json.load(r)
+            r = await client.get(url, timeout=20)
+            data = r.json()
             for child in data.get("data", {}).get("children", []):
                 post = child.get("data", {})
                 u = post.get("url", "")
-                # solo imágenes directas (no galleries/albums)
                 if u.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
                     urls.append(u)
                 elif post.get("post_hint") == "image":
@@ -86,24 +102,87 @@ def _reddit_image_urls(query: str, limit: int = 8) -> list[str]:
 def _existing_ids() -> set[str]:
     if not os.path.isdir(WALLPAPER_DIR):
         return set()
-    # excluir archivos específicos de artista (_artist_, _reddit_, _lastfm_, _)
     return {
         f.split(".")[0] for f in os.listdir(WALLPAPER_DIR)
         if os.path.isfile(os.path.join(WALLPAPER_DIR, f)) and not f.startswith("_")
     }
 
 
-def _download(url: str, dest: str) -> bool:
-    try:
-        req = urllib.request.Request(url, headers=UA)
-        with urllib.request.urlopen(req, timeout=40) as r:
-            data = r.read()
-        with open(dest, "wb") as f:
-            f.write(data)
-        return True
-    except Exception as e:
-        log.warning("wallpaper download failed %s: %s", url, e)
-        return False
+async def _download_one(client: httpx.AsyncClient, url: str, dest: str) -> str | None:
+    """Download to dest, return hex digest or None on failure. Dedupe by hash."""
+    hsh = _load_hashes()
+    async with _download_sem:
+        try:
+            async with client.stream("GET", url, timeout=40) as resp:
+                hasher = hashlib.sha256()
+                with open(dest, "wb") as f:
+                    async for chunk in resp.aiter_bytes(65536):
+                        hasher.update(chunk)
+                        f.write(chunk)
+            digest = hasher.hexdigest()
+        except Exception as e:
+            log.warning("wallpaper download failed %s: %s", url, e)
+            return None
+    if digest in hsh:
+        try:
+            os.remove(dest)
+        except OSError:
+            pass
+        return None
+    hsh[digest] = os.path.basename(dest)
+    _save_hashes(hsh)
+    return digest
+
+
+async def _download_artist_wallpapers(name: str, n: int) -> list[str]:
+    slug = name.strip().lower().replace(" ", "_").replace("/", "_")
+    cached_files = sorted(
+        f for f in os.listdir(WALLPAPER_DIR)
+        if (f.startswith(f"_artist_{slug}_") or f.startswith(f"_reddit_{slug}_") or f.startswith(f"_lastfm_{slug}_"))  # noqa: E501
+        and f.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))
+    )
+    if cached_files:
+        return [f"/api/wallpapers/files/{f}" for f in cached_files]
+
+    async with httpx.AsyncClient(headers={"User-Agent": UA}) as client:
+        reddit_urls = await _reddit_image_urls(client, name.strip())
+        lastfm_urls = await _lastfm_image_urls(client, name.strip())
+
+    if not reddit_urls and not lastfm_urls:
+        return []
+
+    sources = [
+        (reddit_urls, "_reddit_"),
+        (lastfm_urls, "_lastfm_"),
+    ]
+    existing = _existing_ids()
+    urls: list[str] = []
+    got = 0
+    idx = [0, 0]
+    while got < n and any(idx[k] < len(sources[k][0]) for k in range(2)):
+        for k in range(2):
+            src, prefix = sources[k]
+            if idx[k] >= len(src):
+                continue
+            item = src[idx[k]]
+            idx[k] += 1
+            base = os.path.basename(urllib.parse.urlparse(item).path)
+            rid = base.split(".")[0]
+            if rid in existing:
+                continue
+            ext = base.split(".")[-1] if "." in base else "jpg"
+            if ext not in ("jpg", "jpeg", "png", "webp"):
+                ext = "jpg"
+            dest = os.path.join(WALLPAPER_DIR, f"{prefix}{slug}_{rid}.{ext}")
+            async with httpx.AsyncClient(headers={"User-Agent": UA}) as client:
+                digest = await _download_one(client, item, dest)
+            if digest:
+                existing.add(os.path.basename(dest).split(".")[0])
+                urls.append(f"/api/wallpapers/files/{os.path.basename(dest)}")
+                got += 1
+                if got >= n:
+                    break
+    return urls
 
 
 @router.get("/count")
@@ -114,7 +193,6 @@ async def count() -> dict:
 @router.get("/list")
 async def list_wallpapers() -> dict:
     ensure_dirs()
-    # solo wallpapers generales (excluir los específicos de artista que empiezan con _)
     files = sorted(
         f for f in os.listdir(WALLPAPER_DIR)
         if f.lower().endswith((".jpg", ".jpeg", ".png", ".webp")) and not f.startswith("_")
@@ -133,19 +211,17 @@ async def get_wallpaper(filename: str) -> FileResponse:
 
 @router.get("/cover")
 async def cover(artist: str = "", track: str = "") -> dict:
-    """Busca la portada del álbum en alta resolución vía iTunes Search API."""
-    from urllib.parse import quote
-
     if not artist and not track:
         raise HTTPException(status_code=400, detail="artist or track required")
-    term = quote(f"{artist} {track}".strip())
+    term = urllib.parse.quote(f"{artist} {track}".strip())
+    headers = {"User-Agent": UA}
     try:
-        req = urllib.request.Request(
-            f"https://itunes.apple.com/search?term={term}&media=music&limit=6",
-            headers=UA,
-        )
-        with urllib.request.urlopen(req, timeout=20) as r:
-            data = json.load(r)
+        async with httpx.AsyncClient(headers=headers) as client:
+            r = await client.get(
+                f"https://itunes.apple.com/search?term={term}&media=music&limit=6",
+                timeout=20,
+            )
+            data = r.json()
     except Exception as e:
         log.warning("itunes search failed: %s", e)
         raise HTTPException(status_code=502, detail="itunes unavailable")
@@ -153,33 +229,26 @@ async def cover(artist: str = "", track: str = "") -> dict:
     results = data.get("results", [])
     if not results:
         raise HTTPException(status_code=404, detail="no cover found")
-
-    # el resultado más relevante (album/collection) con artwork
     candidates = [r for r in results if r.get("artworkUrl100")]
     if not candidates:
         raise HTTPException(status_code=404, detail="no artwork found")
     best = candidates[0]
     art = best["artworkUrl100"]
-    # subir resolución: 100x100 → 1000x1000
     hi = art.replace("100x100bb", "1000x1000bb").replace("100x100", "1000x1000")
     return {"url": hi, "title": best.get("trackName") or best.get("collectionName"), "artist": artist}
 
 
 @router.get("/artist")
-async def artist_wallpaper(name: str, n: int = 6) -> dict:
-    """Search Wallhaven for wallpapers related to the given artist/theme.
-    Downloads up to `n` matches into the data dir (cached per query) and
-    returns their URLs."""
-    from urllib.parse import quote
-
+async def artist_wallpaper(request: Request, name: str, n: int = 6) -> dict:
     ensure_dirs()
-    query = quote(name.strip())
+    query = urllib.parse.quote(name.strip())
     if not query:
         raise HTTPException(status_code=400, detail="name required")
     slug = name.strip().lower().replace(" ", "_").replace("/", "_")
+
     cached_files = sorted(
         f for f in os.listdir(WALLPAPER_DIR)
-        if (f.startswith(f"_artist_{slug}_") or f.startswith(f"_reddit_{slug}_") or f.startswith(f"_lastfm_{slug}_"))
+        if (f.startswith(f"_artist_{slug}_") or f.startswith(f"_reddit_{slug}_") or f.startswith(f"_lastfm_{slug}_"))  # noqa: E501
         and f.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))
     )
     if cached_files:
@@ -188,79 +257,109 @@ async def artist_wallpaper(name: str, n: int = 6) -> dict:
             "artist": name,
         }
 
-    # Wallhaven es una web de fondos genéricos: con el nombre de un artista
-    # devuelve resultados irrelevantes. Para el artista solo usamos fuentes que
-    # garanticen correspondencia: Last.fm (fotos reales de la banda) y Reddit.
-    reddit_urls = _reddit_image_urls(name.strip())
-    lastfm_urls = _lastfm_image_urls(name.strip())
+    key = f"artist:{slug}"
+    if key in _in_flight:
+        return {"in_progress": True, "wallpapers": [], "artist": name}
 
-    if not reddit_urls and not lastfm_urls:
-        raise HTTPException(status_code=404, detail="no wallpaper found")
+    _in_flight.add(key)
+    task = asyncio.create_task(_download_artist_wallpapers(name.strip(), n))
+    tasks = getattr(request.app.state, "bg_tasks", set())
+    tasks.add(task)
 
-    # Mezclar: alternar reddit y lastfm
-    sources = [
-        (reddit_urls, "_reddit_", "reddit"),
-        (lastfm_urls, "_lastfm_", "lastfm"),
-    ]
-    urls = []
-    existing = _existing_ids()
-    got = 0
-    idx = [0, 0]
-    while got < n and any(idx[k] < len(sources[k][0]) for k in range(2)):
-        for k in range(2):
-            src, prefix, label = sources[k]
-            if idx[k] >= len(src):
-                continue
-            item = src[idx[k]]
-            idx[k] += 1
-            base = os.path.basename(urllib.parse.urlparse(item).path)
-            rid = base.split(".")[0]
-            if rid in existing:
-                continue
-            ext = base.split(".")[-1] if "." in base else "jpg"
-            if ext not in ("jpg", "jpeg", "png", "webp"):
-                ext = "jpg"
-            dest = os.path.join(WALLPAPER_DIR, f"{prefix}{slug}_{rid}.{ext}")
-            url = item
-            if _download(url, dest):
-                existing.add(os.path.basename(dest).split(".")[0])
-                urls.append(f"/api/wallpapers/files/{os.path.basename(dest)}")
-                got += 1
-                if got >= n:
-                    break
-    if not urls:
-        raise HTTPException(status_code=502, detail="download failed")
-    return {"wallpapers": urls, "artist": name}
+    async def _finish() -> None:
+        try:
+            urls = await task
+            if urls:
+                broker = request.app.state.broker
+                await broker.publish({"event": "wallpapers_changed", "total": len(_existing_ids())})
+        finally:
+            _in_flight.discard(key)
+            tasks.discard(task)
+
+    asyncio.create_task(_finish())
+    return {"in_progress": True, "wallpapers": [], "artist": name}
 
 
 @router.post("/fetch")
-async def fetch(n: int = 4) -> dict:
-    """Download up to `n` new wallpapers into the data dir, avoiding duplicates."""
+async def fetch(request: Request, n: int = 4) -> dict:
     ensure_dirs()
-    existing = _existing_ids()
-    got = 0
-    for q in QUERIES:
-        if got >= n:
-            break
+    key = "fetch"
+    if key in _in_flight:
+        return {"accepted": True, "in_progress": True}
+
+    _in_flight.add(key)
+
+    async def _do_fetch() -> dict:
+        existing = _existing_ids()
+        got = 0
+        headers = {"User-Agent": UA}
+        async with httpx.AsyncClient(headers=headers) as client:
+            for q in QUERIES:
+                if got >= n:
+                    break
+                try:
+                    r = await client.get(
+                        f"https://wallhaven.cc/api/v1/search?q={q}&categories=010&purity=100&atleast=1920x1080&sorting=random",
+                        timeout=30,
+                    )
+                    items = r.json().get("data", [])
+                except Exception as e:
+                    log.warning("wallhaven query failed: %s", e)
+                    continue
+                for w in items:
+                    if got >= n:
+                        break
+                    wid = w["id"]
+                    if wid in existing:
+                        continue
+                    ext = w["path"].split(".")[-1]
+                    dest = os.path.join(WALLPAPER_DIR, f"{wid}.{ext}")
+                    digest = await _download_one(client, w["path"], dest)
+                    if digest:
+                        existing.add(wid)
+                        got += 1
+        return {"downloaded": got, "total": len(existing)}
+
+    task = asyncio.create_task(_do_fetch())
+    tasks = getattr(request.app.state, "bg_tasks", set())
+    tasks.add(task)
+
+    async def _cleanup() -> None:
         try:
-            req = urllib.request.Request(
-                f"https://wallhaven.cc/api/v1/search?q={q}&categories=010&purity=100&atleast=1920x1080&sorting=random",
-                headers=UA,
-            )
-            with urllib.request.urlopen(req, timeout=30) as r:
-                items = json.load(r).get("data", [])
-        except Exception as e:
-            log.warning("wallhaven query failed: %s", e)
-            continue
-        for w in items:
-            if got >= n:
-                break
-            wid = w["id"]
-            if wid in existing:
-                continue
-            ext = w["path"].split(".")[-1]
-            dest = os.path.join(WALLPAPER_DIR, f"{wid}.{ext}")
-            if _download(w["path"], dest):
-                existing.add(wid)
-                got += 1
-    return {"downloaded": got, "total": len(existing)}
+            result = await task
+            broker = request.app.state.broker
+            await broker.publish({"event": "wallpapers_changed", "total": result["total"]})
+        finally:
+            _in_flight.discard(key)
+            tasks.discard(task)
+
+    asyncio.create_task(_cleanup())
+    return {"accepted": True, "in_progress": True}
+
+
+@router.get("/ratings")
+async def get_ratings() -> dict:
+    from catodo import store
+    data = store.load("wallpaper_ratings", {"version": 1, "items": {}})
+    return {"ratings": data.get("items", {})}
+
+
+@router.post("/ratings")
+async def set_rating(request: Request) -> dict:
+    from catodo import store
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="invalid JSON body")
+    wp_id = payload.get("id", "")
+    rating = payload.get("rating")
+    if not wp_id or rating not in ("up", "down", "none"):
+        raise HTTPException(status_code=400, detail="id and rating (up|down|none) required")
+    data = store.load("wallpaper_ratings", {"version": 1, "items": {}})
+    items = data.get("items", {})
+    if rating == "none":
+        items.pop(wp_id, None)
+    else:
+        items[wp_id] = rating
+    await store.save("wallpaper_ratings", {"version": 1, "items": items})
+    return {"id": wp_id, "rating": rating}

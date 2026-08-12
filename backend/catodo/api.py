@@ -7,10 +7,9 @@ import logging
 import mimetypes
 import os
 import time
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 
 log = logging.getLogger("catodo.api")
 
@@ -28,6 +27,68 @@ def _broker(request: Request):
 @router.get("/health")
 async def health() -> dict:
     return {"status": "ok"}
+
+
+@router.post("/activity")
+async def activity(request: Request) -> dict:
+    """Ping de actividad local del kiosk (el middleware ya toca el reloj)."""
+    return {"ok": True}
+
+
+@router.post("/voice")
+async def voice(request: Request) -> dict:
+    """Comando por voz: interpreta texto transcrito y ejecuta la acción."""
+    from catodo.voice import match
+
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="invalid JSON body")
+    text = str(payload.get("text", "")).strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="missing 'text'")
+    mgr = _manager(request)
+    intent = match(text, mgr.list())
+    if intent["recognized"]:
+        action = intent["action"]
+        try:
+            if action == "open":
+                await mgr.open(intent["channel"])
+            elif action == "next":
+                await mgr.next()
+            elif action == "prev":
+                await mgr.previous()
+            elif action == "volume_up":
+                await mgr.adjust_volume(5)
+            elif action == "volume_down":
+                await mgr.adjust_volume(-5)
+            elif action == "play":
+                if mgr.current:
+                    await mgr.command(mgr.current, "play")
+            elif action == "pause":
+                if mgr.current:
+                    await mgr.command(mgr.current, "pause")
+            elif action == "screen":
+                await mgr.open("screen-cast")
+        except KeyError:
+            intent["recognized"] = False
+            intent["action"] = None
+    await _broker(request).publish({"event": "voice_command", **intent, "text": text})
+    return {"ok": True, **intent}
+
+
+@router.post("/type")
+async def type_text(request: Request) -> dict:
+    """Inyecta texto en el webview activo del kiosk (evento WS `type_text`)."""
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="invalid JSON body")
+    text = str(payload.get("text", ""))
+    if not text:
+        raise HTTPException(status_code=400, detail="missing 'text'")
+    await _broker(request).publish({"event": "type_text", "text": text})
+    return {"ok": True}
 
 
 @router.get("/channels")
@@ -84,42 +145,124 @@ async def channel_state(channel_id: str, request: Request) -> dict:
 
 @router.get("/channels/{channel_id}/episodes")
 async def channel_episodes(channel_id: str, request: Request) -> dict:
+    from catodo.channel import SupportsEpisodes
     try:
         ch = _manager(request).get(channel_id)
     except KeyError:
         raise HTTPException(status_code=404, detail=f"unknown channel: {channel_id}")
-    if hasattr(ch, "episodes"):
+    if isinstance(ch, SupportsEpisodes):
         return {"id": channel_id, "episodes": ch.episodes()}
     return {"id": channel_id, "episodes": []}
 
 
-@router.get("/channels/{channel_id}/stream")
-async def channel_stream(channel_id: str, request: Request, rel: str = "") -> FileResponse:
+@router.get("/channels/{channel_id}/boxart")
+async def channel_boxart(channel_id: str, request: Request) -> FileResponse:
+    from catodo.channel import SupportsBoxart
+
     try:
         ch = _manager(request).get(channel_id)
     except KeyError:
         raise HTTPException(status_code=404, detail=f"unknown channel: {channel_id}")
-    if not hasattr(ch, "current"):
+    if not isinstance(ch, SupportsBoxart):
+        raise HTTPException(status_code=404, detail="channel has no boxart")
+    rel = request.query_params.get("path", "")
+    if not rel:
+        raise HTTPException(status_code=404, detail="missing 'path'")
+    path = ch.boxart(rel)
+    if not path or not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="boxart not found")
+    return FileResponse(path)
+
+
+@router.get("/channels/{channel_id}/stream")
+async def channel_stream(channel_id: str, request: Request) -> StreamingResponse:
+    from catodo.channel import SupportsStream
+    try:
+        ch = _manager(request).get(channel_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"unknown channel: {channel_id}")
+    if not isinstance(ch, SupportsStream):
         raise HTTPException(status_code=404, detail="channel has no stream")
-    if rel:
-        ch.set_episode(rel)
     cur = ch.current()
     if cur is None:
         raise HTTPException(status_code=404, detail="no episode selected")
     path = cur.get("path", "")
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail="file not found")
+    file_size = os.path.getsize(path)
     media_type = mimetypes.guess_type(path)[0] or "video/mp4"
-    return FileResponse(path, media_type=media_type, filename=os.path.basename(path))
+
+    range_header = request.headers.get("range", "")
+    if range_header:
+        return _range_response(path, file_size, range_header, media_type)
+    return _full_response(path, file_size, media_type)
+
+
+def _full_response(path: str, file_size: int, media_type: str) -> StreamingResponse:
+    resp = StreamingResponse(
+        _file_reader(path, 0, file_size),
+        status_code=200,
+        media_type=media_type,
+        headers={
+            "accept-ranges": "bytes",
+            "content-length": str(file_size),
+        },
+    )
+    return resp
+
+
+def _range_response(path: str, file_size: int, range_header: str, media_type: str) -> StreamingResponse:
+    unit, _, spec = range_header.strip().partition("=")
+    if unit != "bytes" or not spec:
+        raise HTTPException(status_code=416, headers={"content-range": f"bytes */{file_size}"})
+    try:
+        start_str, sep, end_str = spec.partition("-")
+        if not start_str:
+            length = int(end_str) if end_str else file_size
+            start = max(0, file_size - length)
+            end = file_size - 1
+        else:
+            start = int(start_str)
+            end = int(end_str) if sep and end_str else file_size - 1
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=416, headers={"content-range": f"bytes */{file_size}"})
+    if start >= file_size or end >= file_size or start > end:
+        raise HTTPException(status_code=416, headers={"content-range": f"bytes */{file_size}"})
+
+    chunk_size = end - start + 1
+    return StreamingResponse(
+        _file_reader(path, start, chunk_size),
+        status_code=206,
+        media_type=media_type,
+        headers={
+            "content-range": f"bytes {start}-{end}/{file_size}",
+            "content-length": str(chunk_size),
+            "accept-ranges": "bytes",
+        },
+    )
+
+
+async def _file_reader(path: str, offset: int, length: int):
+    with open(path, "rb") as f:
+        f.seek(offset)
+        remaining = length
+        while remaining > 0:
+            chunk_size = min(65536, remaining)
+            chunk = await asyncio.to_thread(f.read, chunk_size)
+            if not chunk:
+                break
+            yield chunk
+            remaining -= len(chunk)
 
 
 @router.get("/channels/{channel_id}/history")
 async def channel_history(channel_id: str, request: Request) -> dict:
+    from catodo.channel import SupportsHistory
     try:
         ch = _manager(request).get(channel_id)
     except KeyError:
         raise HTTPException(status_code=404, detail=f"unknown channel: {channel_id}")
-    if hasattr(ch, "history_state"):
+    if isinstance(ch, SupportsHistory):
         return await ch.history_state()
     return {"id": channel_id, "items": []}
 
@@ -141,7 +284,7 @@ async def channel_command(channel_id: str, request: Request) -> dict:
     return {"ok": True}
 
 
-def _parse_volume(level: str) -> Optional[int]:
+def _parse_volume(level: str) -> int | None:
     """Return a target absolute level, or None to mean relative direction."""
     s = level.strip()
     if s in ("+", "-"):
@@ -152,7 +295,7 @@ def _parse_volume(level: str) -> Optional[int]:
         raise HTTPException(status_code=400, detail="level must be int or +/-")
 
 
-def _raw_query_value(request: Request, key: str) -> Optional[str]:
+def _raw_query_value(request: Request, key: str) -> str | None:
     """Read a query-string value from the raw bytes so `+` survives decoding."""
     from urllib.parse import unquote
 
@@ -204,7 +347,8 @@ async def set_config(request: Request) -> dict:
         raise HTTPException(status_code=400, detail="invalid JSON body")
     for k, v in payload.items():
         if k in runtime_config.KEYS:
-            runtime_config.set(k, v)
+            await runtime_config.set(k, v)
+            await _broker(request).publish({"event": "config_changed", "key": k, "value": v})
     return runtime_config.all()
 
 
@@ -212,6 +356,20 @@ async def set_config(request: Request) -> dict:
 async def ws_endpoint(websocket: WebSocket) -> None:
     await websocket.accept()
     broker = websocket.app.state.broker
+    manager = websocket.app.state.manager
+    try:
+        snapshot = manager.state()
+        channels_state = {}
+        for c in manager.list():
+            cid = c["id"]
+            try:
+                channels_state[cid] = await manager.get(cid).state()
+            except Exception:
+                pass
+        snapshot["channels"] = channels_state
+        await websocket.send_text(json.dumps({"event": "state_snapshot", **snapshot}))
+    except Exception as e:
+        log.warning("ws snapshot failed: %s", e)
     try:
         async for event in broker.subscribe():
             await websocket.send_text(json.dumps(event))

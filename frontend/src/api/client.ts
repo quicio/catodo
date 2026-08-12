@@ -17,6 +17,8 @@ export interface ChannelInfo {
   name: string;
   icon: string;
   type: string;
+  color?: string;
+  order?: number;
 }
 
 export interface AppState {
@@ -26,6 +28,20 @@ export interface AppState {
   available_channels: ChannelInfo[];
   history: string[];
   uptime_seconds: number;
+  spotify?: {
+    title?: string;
+    artist?: string;
+    album?: string;
+    art_url?: string;
+    status?: string;
+    position?: number;
+  };
+  arcade?: {
+    playing: boolean;
+    game?: unknown;
+    error?: string;
+    boxart_revision?: number;
+  };
 }
 
 export const api = {
@@ -54,4 +70,5 @@ export const api = {
       `/api/volume?level=${encodeURIComponent(String(level))}`,
       { method: "POST" }
     ),
+  activity: () => request<{ ok: boolean }>("/api/activity", { method: "POST" }),
 };

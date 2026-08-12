@@ -1,0 +1,20 @@
+{
+  "id": "tv",
+  "name": "TV",
+  "version": "1.0.0",
+  "type": "web",
+  "icon": "tv",
+  "color": "#4d7cff",
+  "url": "https://www.movistartv.cl",
+  "user_agent": "default",
+  "partition": "persist:tv",
+  "order": 3,
+  "config_key": "tv_url",
+  "media_keys": {
+    "playpause": "space",
+    "next": "MediaNextTrack",
+    "prev": "MediaPreviousTrack",
+    "rewind": "arrowleft",
+    "forward": "arrowright"
+  }
+}

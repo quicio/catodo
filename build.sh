@@ -15,9 +15,21 @@ echo "==> Build frontend"
 (cd "$FRONTEND_DIR" && npm run build)
 
 echo "==> Copiando frontend a backend/static"
+# Preservar backend/static/{remote,cast} (no forman parte del bundle Vite)
+for d in remote cast; do
+  if [ -d "$BACKEND_DIR/static/$d" ]; then
+    cp -r "$BACKEND_DIR/static/$d" "/tmp/catodo-$d-backup"
+  fi
+done
 rm -rf "$BACKEND_DIR/static"
 mkdir -p "$BACKEND_DIR/static"
 cp -r "$FRONTEND_DIR/dist/"* "$BACKEND_DIR/static/"
+for d in remote cast; do
+  if [ -d "/tmp/catodo-$d-backup" ]; then
+    cp -r "/tmp/catodo-$d-backup" "$BACKEND_DIR/static/$d"
+    rm -rf "/tmp/catodo-$d-backup"
+  fi
+done
 
 # recrear noise.png (usado por efectos del canal Anime)
 python3 - <<'PY'

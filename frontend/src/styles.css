@@ -379,3 +379,73 @@ html, body, #root {
   90%  { opacity: 0.1; }
   100% { top: 85%; opacity: 0; }
 }
+
+/* --- Arcade: cartuchos 3D --- */
+.cartridge { perspective: 900px; }
+.cartridge .cart-face {
+  position: relative;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  overflow: hidden;
+  transform-style: preserve-3d;
+  transform: rotateY(-18deg) rotateX(3deg);
+  transition: transform 0.25s ease, border-color 0.15s ease, box-shadow 0.2s ease;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.14);
+  box-shadow: 0 10px 24px rgba(0,0,0,0.45);
+}
+.cartridge .cart-face::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -7%;
+  width: 9%;
+  height: 100%;
+  transform: translateZ(-3px);
+  background: linear-gradient(90deg, rgba(0,0,0,0.7), rgba(255,255,255,0.05) 60%, rgba(0,0,0,0.35));
+  border-radius: 6px 0 0 6px;
+}
+.cartridge .cart-face::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 54%;
+  height: 13%;
+  background: linear-gradient(180deg, rgba(255,255,255,0.22), rgba(255,255,255,0.03));
+  border-bottom: 1px solid rgba(255,255,255,0.25);
+  border-radius: 0 0 6px 6px;
+  z-index: 2;
+  pointer-events: none;
+}
+.cartridge.cart-jewel .cart-face::before {
+  width: 78%;
+  height: 6%;
+  background: rgba(0,0,0,0.35);
+  border: none;
+}
+.cartridge.cart-marquee .cart-face::before {
+  display: none;
+}
+.cartridge img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+.cartridge .cart-placeholder {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  font-size: 44px;
+  opacity: 0.5;
+}
+.cartridge:hover .cart-face,
+.cartridge.is-focused .cart-face {
+  transform: rotateY(0deg) rotateX(0deg) translateY(-6px);
+  border-color: #b66dff;
+  box-shadow: 0 18px 40px rgba(0,0,0,0.55), 0 0 26px rgba(182,109,255,0.4);
+}

@@ -1,0 +1,13 @@
+{
+  "id": "crunchyroll",
+  "name": "Crunchyroll",
+  "version": "1.0.0",
+  "type": "web",
+  "icon": "play",
+  "color": "#f47521",
+  "url": "https://www.crunchyroll.com",
+  "user_agent": "android-tv",
+  "partition": "persist:crunchyroll",
+  "order": 4,
+  "config_key": "crunchyroll_url"
+}
