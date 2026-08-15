@@ -4,6 +4,7 @@ import { useWebSocket, applyEvent, createInitialState } from "./api/ws";
 import ChannelView from "./components/ChannelView";
 import ChannelBar from "./components/ChannelBar";
 import Home from "./components/Home";
+import { getLayout } from "./components/home";
 import CrtShell from "./components/CrtShell";
 import IdleScreensaver from "./components/IdleScreensaver";
 import { CastProvider } from "./cast/CastContext";
@@ -27,9 +28,12 @@ export default function App() {
   const [idleState, setIdleState] = useState<"active" | "screensaver" | "sleep">("active");
   const [voiceFeedback, setVoiceFeedback] = useState<{ text: string; recognized: boolean } | null>(null);
   const [themeState, setThemeState] = useState<ThemeState | null>(null);
+  const [homeLayoutId, setHomeLayoutId] = useState<string>("default");
 
   const themeRef = useRef(themeState);
   themeRef.current = themeState;
+  const layoutRef = useRef(homeLayoutId);
+  layoutRef.current = homeLayoutId;
 
   const stateRef = useRef<AppState>(state);
   const channelsRef = useRef<ChannelInfo[]>([]);
@@ -95,6 +99,9 @@ export default function App() {
           next.iconPack = m.icons;
           setThemeState(next);
           applyTheme(next.theme, next.overrides);
+        }
+        if (key === "home_layout_id" && typeof event.value === "string") {
+          setHomeLayoutId(event.value);
         }
       }
       // Comando por voz → feedback breve + "home" lo maneja el frontend.
@@ -237,6 +244,7 @@ export default function App() {
         const next = resolveTheme(cfg);
         setThemeState(next);
         applyTheme(next.theme, next.overrides);
+        if (typeof cfg.home_layout_id === "string") setHomeLayoutId(cfg.home_layout_id);
       } catch {
         if (!alive) return;
         const next = resolveTheme({});
@@ -365,7 +373,14 @@ export default function App() {
       {current ? (
         <ChannelView current={current} volume={state.volume} state={state} />
       ) : (
-        <Home channels={channels} onPick={switchChannel} state={state} />
+        <Home
+          channels={channels}
+          onPick={switchChannel}
+          state={state}
+          layout={getLayout(homeLayoutId)}
+          layoutId={homeLayoutId}
+          onLayoutChange={setHomeLayoutId}
+        />
       )}
       <ChannelBar
         channels={channels}

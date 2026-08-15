@@ -50,6 +50,7 @@ export interface RuntimeConfig {
   themes?: ThemeInfo[];
   theme_crt_enabled?: boolean;
   theme_overrides?: ThemeOverridesInput;
+  home_layout_id?: string;
 }
 
 export interface ThemeOverridesInput {

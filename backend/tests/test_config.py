@@ -93,9 +93,49 @@ async def test_crt_alias_write(fresh_config):
 
 
 def test_effective_crt_follows_theme_default(fresh_config):
-    """Sin override, el CRT efectivo es el default del theme activo."""
+    """Sin override, el CRT efectivo es el default del tema activo."""
     runtime_config.load()
     runtime_config._config["theme"] = "minimal-light"  # crt: off por default
     assert runtime_config.get("theme_crt_enabled") is False
     runtime_config._config["theme"] = "retro-crt"  # crt: on por default
     assert runtime_config.get("theme_crt_enabled") is True
+
+
+# --- home_layout_id ---
+
+
+def test_home_layout_id_default(fresh_config):
+    """Sin override, el layout efectivo es 'default'."""
+    assert runtime_config.get("home_layout_id") == "default"
+
+
+@pytest.mark.asyncio
+async def test_home_layout_id_persists(fresh_config):
+    await runtime_config.set("home_layout_id", "minimal-layout")
+    runtime_config._config = None
+    assert runtime_config.get("home_layout_id") == "minimal-layout"
+
+
+def test_home_layout_id_sanitized_empty(fresh_config):
+    """String vacío cae a 'default'."""
+    runtime_config.load()
+    runtime_config._config["home_layout_id"] = ""
+    assert runtime_config.get("home_layout_id") == "default"
+
+
+def test_home_layout_id_sanitized_non_string(fresh_config):
+    """Valor no-string cae a 'default'."""
+    runtime_config.load()
+    runtime_config._config["home_layout_id"] = None
+    assert runtime_config.get("home_layout_id") == "default"
+    runtime_config._config["home_layout_id"] = 123
+    assert runtime_config.get("home_layout_id") == "default"
+
+
+def test_home_layout_id_unknown_id_passes_through(fresh_config):
+    """Backend NO valida la lista de ids — un id desconocido se persiste tal cual.
+
+    El frontend hace el fallback a 'default' en getLayout()."""
+    runtime_config.load()
+    runtime_config._config["home_layout_id"] = "this-does-not-exist"
+    assert runtime_config.get("home_layout_id") == "this-does-not-exist"

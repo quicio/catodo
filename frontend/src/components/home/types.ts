@@ -30,6 +30,11 @@ export interface HomeSlotProps {
   onPick: (id: string) => void;
   // Estado compartido entre slots (ver useHomeState.ts).
   homeState: SharedHomeState;
+  // Layout activo + callback para cambiarlo. NO viven en homeState porque
+  // pertenecen a App.tsx (es donde se persiste). Slots que quieran exponer
+  // el selector (ej. AppearanceSettingsPopover) lo reciben por props.
+  layoutId: string;
+  onLayoutChange?: (id: string) => void;
 }
 
 export interface SharedHomeState {

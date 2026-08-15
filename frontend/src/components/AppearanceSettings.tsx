@@ -13,6 +13,7 @@ import {
   type IconPackId,
   type ShapeId,
 } from "../theme";
+import { LAYOUTS, LAYOUT_LABELS } from "./home";
 import { Icon, PACKS } from "../icons";
 
 const FONT_LABELS: Record<FontId, string> = {
@@ -134,7 +135,15 @@ function TriState({
   );
 }
 
-export default function AppearanceSettings({ onPair }: { onPair: () => void }) {
+export default function AppearanceSettings({
+  onPair,
+  layoutId = "default",
+  onLayoutChange,
+}: {
+  onPair: () => void;
+  layoutId?: string;
+  onLayoutChange?: (id: string) => void;
+}) {
   const { theme, themes, setTheme, overrides, setOverride } = useTheme();
 
   return (
@@ -180,6 +189,17 @@ export default function AppearanceSettings({ onPair }: { onPair: () => void }) {
           </button>
         );
       })}
+
+      {/* Selector de Layout del Home */}
+      <div style={sectionLabel}>LAYOUT</div>
+      <Segmented<string>
+        value={layoutId}
+        onChange={(v) => onLayoutChange?.(v)}
+        options={(Object.keys(LAYOUTS) as Array<keyof typeof LAYOUTS>).map((id) => ({
+          id,
+          label: LAYOUT_LABELS[id] ?? id,
+        }))}
+      />
 
       {/* Personalizaciones granulares */}
       <div style={sectionLabel}>PERSONALIZACIÓN</div>

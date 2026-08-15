@@ -52,6 +52,7 @@ KEYS = {
     "themes": lambda: [],
     "theme_crt_enabled": lambda: True,
     "theme_overrides": lambda: {},
+    "home_layout_id": lambda: "default",
 }
 
 # Claves cuya lectura devuelve un valor derivado (no el raw del archivo).
@@ -71,11 +72,15 @@ def _effective(key: str, cfg: dict):
     if key == "theme_overrides":
         return sanitize_overrides(cfg.get("theme_overrides"))
     if key == "theme_crt_enabled":
-        # Derivado: override del usuario si existe, si no el default del theme.
+        # Derivado: override del usuario si existe, si no el default del tema.
         themes = _effective("themes", cfg)
         chosen = _effective("theme", cfg)
         overrides = _effective("theme_overrides", cfg)
         return effective_crt(themes, chosen, overrides)
+    if key == "home_layout_id":
+        # Sanitización: debe ser string no vacío; cualquier otra cosa → "default".
+        v = cfg.get("home_layout_id")
+        return v if isinstance(v, str) and v else "default"
     return cfg.get(key)
 
 _config: dict | None = None

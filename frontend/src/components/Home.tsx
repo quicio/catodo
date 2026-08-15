@@ -19,6 +19,9 @@ import {
  * El estado compartido (wallpapers/ratings/Spotify bg/reloj/pair/showConfig)
  * se encapsula en `useHomeState()` y se pasa como prop a cada slot.
  *
+ * El layout activo y el callback para cambiarlo vienen del orquestador superior
+ * (App.tsx) — Home no decide layouts ni los persiste.
+ *
  * Agregar un widget nuevo es:
  *   1. agregar su id a `HomeComponentId` (types.ts)
  *   2. crear un componente `frontend/src/components/home/<MiSlot>.tsx`
@@ -31,11 +34,15 @@ export default function Home({
   onPick,
   state,
   layout = DEFAULT_LAYOUT,
+  layoutId = "default",
+  onLayoutChange,
 }: {
   channels: ChannelInfo[];
   onPick: (id: string) => void;
   state: AppState;
   layout?: HomeLayout;
+  layoutId?: string;
+  onLayoutChange?: (id: string) => void;
 }) {
   const homeState = useHomeState(state);
 
@@ -60,7 +67,16 @@ export default function Home({
       }}
     >
       {rootComponents.map((c) => (
-        <HomeSlot key={c.id} config={c} state={state} channels={channels} onPick={onPick} homeState={homeState} />
+        <HomeSlot
+          key={c.id}
+          config={c}
+          state={state}
+          channels={channels}
+          onPick={onPick}
+          homeState={homeState}
+          layoutId={layoutId}
+          onLayoutChange={onLayoutChange}
+        />
       ))}
 
       {/* Hint inferior (parte del contenedor root para preservar el layout actual) */}
@@ -77,7 +93,16 @@ export default function Home({
       </div>
 
       {overlayComponents.map((c) => (
-        <HomeSlot key={c.id} config={c} state={state} channels={channels} onPick={onPick} homeState={homeState} />
+        <HomeSlot
+          key={c.id}
+          config={c}
+          state={state}
+          channels={channels}
+          onPick={onPick}
+          homeState={homeState}
+          layoutId={layoutId}
+          onLayoutChange={onLayoutChange}
+        />
       ))}
     </div>
   );
@@ -89,10 +114,11 @@ function HomeSlot(props: {
   channels: ChannelInfo[];
   onPick: (id: string) => void;
   homeState: ReturnType<typeof useHomeState>;
+  layoutId: string;
+  onLayoutChange?: (id: string) => void;
 }) {
   const { config } = props;
   const Slot = homeSlots[config.id] ?? UnknownSlot;
-  // UnknownSlot tiene firma distinta: le pasamos solo el id.
   if (!homeSlots[config.id]) {
     return <UnknownSlot config={{ id: config.id }} />;
   }
@@ -104,6 +130,8 @@ function HomeSlot(props: {
         channels: props.channels,
         onPick: props.onPick,
         homeState: props.homeState,
+        layoutId: props.layoutId,
+        onLayoutChange: props.onLayoutChange,
       })}
     </>
   );
