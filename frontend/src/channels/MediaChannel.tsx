@@ -205,7 +205,7 @@ export default function MediaChannel({ channelId, volume }: { channelId: string;
           background: "#000",
           display: "grid",
           placeItems: "center",
-          color: "#fff",
+          color: "var(--text)",
           fontSize: 18,
           opacity: 0.6,
         }}
@@ -220,7 +220,7 @@ export default function MediaChannel({ channelId, volume }: { channelId: string;
   const current = state.current;
 
   return (
-    <div style={{ position: "absolute", inset: 0, background: "#000", color: "#fff" }}>
+    <div style={{ position: "absolute", inset: 0, background: "#000", color: "var(--text)" }}>
       <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
         <video
           ref={videoRef}
@@ -291,8 +291,8 @@ export default function MediaChannel({ channelId, volume }: { channelId: string;
             padding: "8px 16px",
             background: "rgba(0,0,0,0.6)",
             border: "1px solid rgba(255,255,255,0.2)",
-            borderRadius: 8,
-            color: "#fff",
+            borderRadius: "var(--radius-md)",
+            color: "var(--text)",
             cursor: "pointer",
             fontSize: 13,
             backdropFilter: "blur(8px)",
@@ -314,7 +314,7 @@ export default function MediaChannel({ channelId, volume }: { channelId: string;
             width: 360,
             background: "rgba(0,0,0,0.85)",
             backdropFilter: "blur(12px)",
-            borderRadius: 12,
+            borderRadius: "var(--radius-md)",
             border: "1px solid rgba(255,255,255,0.1)",
             overflow: "hidden",
             display: "flex",
@@ -343,10 +343,10 @@ export default function MediaChannel({ channelId, volume }: { channelId: string;
                       width: "100%",
                       textAlign: "left",
                       padding: "8px 10px",
-                      borderRadius: 8,
+                      borderRadius: "var(--radius-md)",
                       background: ep.rel === current.rel ? "rgba(255,255,255,0.15)" : "transparent",
                       border: "none",
-                      color: "#fff",
+                      color: "var(--text)",
                       fontSize: 13,
                       cursor: "pointer",
                       whiteSpace: "nowrap",
@@ -379,10 +379,10 @@ export default function MediaChannel({ channelId, volume }: { channelId: string;
                           width: "100%",
                           textAlign: "left",
                           padding: "8px 10px",
-                          borderRadius: 8,
+                          borderRadius: "var(--radius-md)",
                           background: ep.rel === current.rel ? "rgba(255,255,255,0.15)" : "transparent",
                           border: "none",
-                          color: "#fff",
+                          color: "var(--text)",
                           fontSize: 13,
                           cursor: "pointer",
                           whiteSpace: "nowrap",
@@ -412,9 +412,9 @@ export default function MediaChannel({ channelId, volume }: { channelId: string;
           transition: "opacity 0.4s ease, transform 0.4s ease",
           pointerEvents: controlsVisible ? "auto" : "none",
           width: "min(560px, 80vw)",
-          background: "rgba(10,10,10,0.45)",
+          background: "color-mix(in srgb, var(--bg) 45%, transparent)",
           border: "1px solid rgba(255,255,255,0.1)",
-          borderRadius: 16,
+          borderRadius: "var(--radius-lg)",
           padding: "16px 20px 14px",
           backdropFilter: "blur(12px)",
           boxShadow: "0 12px 40px rgba(0,0,0,0.6)",
@@ -439,9 +439,9 @@ export default function MediaChannel({ channelId, volume }: { channelId: string;
                 fontSize: 12,
                 fontWeight: 700,
                 padding: "3px 8px",
-                borderRadius: 5,
-                background: "rgba(29,185,84,0.2)",
-                color: "#1db954",
+                borderRadius: "var(--radius-sm)",
+                background: "color-mix(in srgb, var(--accent) 20%, transparent)",
+                color: "var(--accent)",
               }}
             >
               {isMovies ? "PLAY" : "EP"}
@@ -476,8 +476,8 @@ export default function MediaChannel({ channelId, volume }: { channelId: string;
               style={{
                 width: `${Math.min(100, progress * 100)}%`,
                 height: "100%",
-                background: "linear-gradient(90deg, #1db954, #4dffb1)",
-                boxShadow: "0 0 12px rgba(29,185,84,0.5)",
+                background: "linear-gradient(90deg, var(--accent), var(--accent-soft))",
+                boxShadow: "0 0 12px color-mix(in srgb, var(--accent) 50%, transparent)",
                 transition: "width 0.1s linear",
               }}
             />
@@ -515,7 +515,7 @@ export default function MediaChannel({ channelId, volume }: { channelId: string;
                 fontFamily: "var(--font-mono)",
                 fontSize: 9,
                 letterSpacing: 1,
-                color: "#1db954",
+                color: "var(--accent)",
                 opacity: 0.9,
               }}
             >
@@ -553,15 +553,15 @@ function CtrlBtn({
         width: primary ? 72 : small ? 44 : 58,
         height: primary ? 72 : small ? 44 : 58,
         borderRadius: "50%",
-        background: primary ? "#1db954" : "rgba(255,255,255,0.08)",
-        color: primary ? "#000" : "#fff",
+        background: primary ? "var(--accent)" : "rgba(255,255,255,0.08)",
+        color: primary ? "var(--bg)" : "var(--text)",
         border: "none",
         fontSize: primary ? 28 : small ? 16 : 22,
         cursor: "pointer",
         display: "grid",
         placeItems: "center",
         transition: "transform 0.15s ease, background 0.15s ease",
-        boxShadow: primary ? "0 6px 20px rgba(29,185,84,0.4)" : "none",
+        boxShadow: primary ? "0 6px 20px color-mix(in srgb, var(--accent) 40%, transparent)" : "none",
       }}
       onMouseEnter={(e) =>
         (e.currentTarget.style.transform = "scale(1.06)")

@@ -148,8 +148,8 @@ export default function ArcadeLauncher({ state }: { state: AppState }) {
       style={{
         position: "absolute",
         inset: 0,
-        background: "radial-gradient(1200px 600px at 50% -10%, #2a0a4a 0%, #0a0512 60%)",
-        color: "#fff",
+        background: "radial-gradient(1200px 600px at 50% -10%, color-mix(in srgb, var(--ch-arcade) 28%, var(--bg)) 0%, var(--bg) 60%)",
+        color: "var(--text)",
         overflow: "hidden",
         display: "flex",
         flexDirection: "column",
@@ -170,8 +170,8 @@ export default function ArcadeLauncher({ state }: { state: AppState }) {
             fontFamily: "var(--font-mono)",
             fontSize: 13,
             letterSpacing: 4,
-            color: "#b66dff",
-            textShadow: "0 0 18px rgba(182,109,255,0.6)",
+            color: "var(--ch-arcade)",
+            textShadow: "0 0 18px color-mix(in srgb, var(--ch-arcade) 60%, transparent)",
           }}
         >
           {isGamesLevel ? `🕹 ${activeSystem!.name.toUpperCase()}` : "🕹 ARCADE"}
@@ -186,11 +186,11 @@ export default function ArcadeLauncher({ state }: { state: AppState }) {
           style={{
             margin: "0 32px 12px",
             padding: "10px 14px",
-            borderRadius: 10,
-            background: "rgba(255,60,60,0.18)",
-            border: "1px solid rgba(255,80,80,0.4)",
+            borderRadius: "var(--radius-md)",
+            background: "color-mix(in srgb, var(--danger) 18%, transparent)",
+            border: "1px solid color-mix(in srgb, var(--danger) 40%, transparent)",
             fontSize: 13,
-            color: "#ff9a9a",
+            color: "var(--danger)",
             flexShrink: 0,
           }}
         >
@@ -269,18 +269,18 @@ export default function ArcadeLauncher({ state }: { state: AppState }) {
             left: 0,
             right: 0,
             padding: "10px 32px",
-            background: "rgba(10,5,18,0.85)",
-            borderTop: "1px solid rgba(182,109,255,0.35)",
+            background: "color-mix(in srgb, var(--bg) 85%, transparent)",
+            borderTop: "1px solid color-mix(in srgb, var(--ch-arcade) 35%, transparent)",
             display: "flex",
             alignItems: "center",
             gap: 10,
             fontFamily: "var(--font-mono)",
             fontSize: 13,
             letterSpacing: 1,
-            color: "#b66dff",
+            color: "var(--ch-arcade)",
           }}
         >
-          <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#4dffb1", boxShadow: "0 0 10px #4dffb1" }} />
+          <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "var(--accent-soft)", boxShadow: "0 0 10px var(--accent-soft)" }} />
           JUGANDO: {(currentGame as ArcadeGame).name?.toUpperCase?.() ?? currentGame?.name ?? ""}
         </div>
       )}
@@ -310,12 +310,12 @@ function ConsoleTile({
         alignItems: "center",
         gap: 10,
         padding: 18,
-        borderRadius: 16,
-        background: focused ? "rgba(182,109,255,0.12)" : "rgba(255,255,255,0.04)",
-        border: focused ? "2px solid #b66dff" : "1px solid rgba(255,255,255,0.1)",
-        boxShadow: focused ? "0 0 26px rgba(182,109,255,0.35)" : "none",
+        borderRadius: "var(--radius-lg)",
+        background: focused ? "color-mix(in srgb, var(--ch-arcade) 12%, transparent)" : "rgba(255,255,255,0.04)",
+        border: focused ? "2px solid var(--ch-arcade)" : "1px solid rgba(255,255,255,0.1)",
+        boxShadow: focused ? "0 0 26px color-mix(in srgb, var(--ch-arcade) 35%, transparent)" : "none",
         cursor: "pointer",
-        color: "#fff",
+        color: "var(--text)",
         outline: "none",
         transition: "background 0.15s ease, border 0.15s ease",
       }}
@@ -324,7 +324,7 @@ function ConsoleTile({
         style={{
           width: "100%",
           aspectRatio: "3 / 2",
-          borderRadius: 12,
+          borderRadius: "var(--radius-md)",
           overflow: "hidden",
           background: "rgba(255,255,255,0.05)",
           display: "grid",
@@ -378,7 +378,7 @@ function Cartridge({
         padding: 0,
         background: "transparent",
         border: "none",
-        color: "#fff",
+        color: "var(--text)",
         cursor: "pointer",
         outline: "none",
       }}

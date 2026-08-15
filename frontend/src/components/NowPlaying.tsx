@@ -114,7 +114,7 @@ export default function NowPlaying({ state }: { state: AppState }) {
 
   if (!np) {
     return (
-      <div style={containerStyle("#0a0a0a")}>
+      <div style={containerStyle("var(--bg)")}>
         <div style={{ opacity: 0.5 }}>Conectando a Spotify…</div>
       </div>
     );
@@ -122,7 +122,7 @@ export default function NowPlaying({ state }: { state: AppState }) {
 
   if (!np.available) {
     return (
-      <div style={containerStyle("#0a0a0a")}>
+      <div style={containerStyle("var(--bg)")}>
         <div style={{ textAlign: "center", padding: 40 }}>
           <div style={{ fontSize: 80, marginBottom: 16, opacity: 0.6 }}>♪</div>
           <h1 style={{ fontSize: 28, margin: "0 0 8px", fontWeight: 600 }}>Spotify no está corriendo</h1>
@@ -138,7 +138,7 @@ export default function NowPlaying({ state }: { state: AppState }) {
   const artUrl = np.art_url || "";
 
   return (
-    <div style={containerStyle("transparent")}>
+    <div style={containerStyle("transparent", "#fff")}>
       {artUrl && <Background artUrl={artUrl} />}
       <div style={overlayStyle} />
 
@@ -236,7 +236,7 @@ export default function NowPlaying({ state }: { state: AppState }) {
                   flex: "0 0 auto",
                   width: 64,
                   height: 64,
-                  borderRadius: 8,
+                  borderRadius: "var(--radius-md)",
                   overflow: "hidden",
                   border: "1px solid rgba(255,255,255,0.12)",
                   cursor: "pointer",
@@ -470,7 +470,7 @@ function LyricsPanel({
           {hasTimestamps && (
             <>
               <span style={{ opacity: 0.5 }}>·</span>
-              <span style={{ color: "#1db954" }}>SYNC</span>
+              <span style={{ color: "var(--accent)" }}>SYNC</span>
             </>
           )}
         </div>
@@ -515,14 +515,14 @@ const overlayStyle: React.CSSProperties = {
   zIndex: 1,
 };
 
-function containerStyle(bg: string): React.CSSProperties {
+function containerStyle(bg: string, color = "var(--text)"): React.CSSProperties {
   return {
     position: "absolute",
     inset: 0,
     background: bg,
     display: "grid",
     placeItems: "center",
-    color: "#fff",
+    color,
     overflow: "hidden",
   };
 }

@@ -45,7 +45,7 @@ export default function ScreenCastView() {
               fontSize: 11,
               letterSpacing: 2,
               opacity: 0.5,
-              color: "#fff",
+              color: "var(--text)",
             }}
           >
             PROYECTANDO · {info.source}
@@ -63,7 +63,7 @@ export default function ScreenCastView() {
         background: "#000",
         display: "grid",
         placeItems: "center",
-        color: "#fff",
+        color: "var(--text)",
         opacity: 0.6,
         fontSize: 18,
       }}

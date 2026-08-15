@@ -10,6 +10,12 @@ import shutil
 
 from catodo.config import settings
 from catodo.datadir import DATA_DIR, ensure_dirs
+from catodo.themes import (
+    DEFAULT_THEME_ID,
+    available_themes,
+    effective_crt,
+    sanitize_overrides,
+)
 
 log = logging.getLogger("catodo.config")
 
@@ -42,7 +48,35 @@ KEYS = {
     "libraries": lambda: [],
     "idle_screensaver_seconds": lambda: 240,
     "idle_sleep_seconds": lambda: 0,
+    "theme": lambda: DEFAULT_THEME_ID,
+    "themes": lambda: [],
+    "theme_crt_enabled": lambda: True,
+    "theme_overrides": lambda: {},
 }
+
+# Claves cuya lectura devuelve un valor derivado (no el raw del archivo).
+_DERIVED = ("themes", "theme_overrides", "theme_crt_enabled")
+
+
+def _effective(key: str, cfg: dict):
+    """Valor efectivo de una clave: raw del config o default, con derivadas."""
+    if key == "themes":
+        custom = cfg.get("themes") or []
+        return available_themes(custom if isinstance(custom, list) else [])
+    if key == "theme":
+        chosen = cfg.get("theme") or DEFAULT_THEME_ID
+        themes = _effective("themes", cfg)
+        ids = {t["id"] for t in themes}
+        return chosen if chosen in ids else DEFAULT_THEME_ID
+    if key == "theme_overrides":
+        return sanitize_overrides(cfg.get("theme_overrides"))
+    if key == "theme_crt_enabled":
+        # Derivado: override del usuario si existe, si no el default del theme.
+        themes = _effective("themes", cfg)
+        chosen = _effective("theme", cfg)
+        overrides = _effective("theme_overrides", cfg)
+        return effective_crt(themes, chosen, overrides)
+    return cfg.get(key)
 
 _config: dict | None = None
 _lock = asyncio.Lock()
@@ -74,7 +108,23 @@ def load() -> dict:
     else:
         _config = {}
         _save_inner(_config)
+    _migrate_crt_alias(_config)
     return _config
+
+
+def _migrate_crt_alias(cfg: dict) -> None:
+    """Pliega la clave legacy `theme_crt_enabled` en `theme_overrides.crt`
+    (una sola vez, al cargar) y la elimina del archivo."""
+    if "theme_crt_enabled" not in cfg:
+        return
+    legacy = cfg.pop("theme_crt_enabled")
+    if isinstance(legacy, bool):
+        ov = cfg.get("theme_overrides")
+        if not isinstance(ov, dict):
+            ov = {}
+        ov.setdefault("crt", legacy)
+        cfg["theme_overrides"] = ov
+    _save_inner(cfg)
 
 
 def _save_inner(cfg: dict) -> None:
@@ -91,8 +141,8 @@ async def save(cfg: dict) -> None:
 
 def get(key: str):
     cfg = load()
-    if key in cfg:
-        return cfg[key]
+    if key in _DERIVED or key in cfg:
+        return _effective(key, cfg)
     default = KEYS.get(key)
     return default() if default else None
 
@@ -102,6 +152,20 @@ async def set(key: str, value) -> None:
         cfg = load()
         cfg[key] = value
         _save_inner(cfg)
+
+
+async def fold_crt_alias(value) -> dict:
+    """Alias legacy: escribir `theme_crt_enabled` pliega el valor en
+    `theme_overrides.crt`. Devuelve los overrides efectivos."""
+    async with _lock:
+        cfg = load()
+        ov = cfg.get("theme_overrides")
+        ov = dict(ov) if isinstance(ov, dict) else {}
+        ov["crt"] = bool(value)
+        cfg["theme_overrides"] = ov
+        cfg.pop("theme_crt_enabled", None)
+        _save_inner(cfg)
+    return get("theme_overrides")
 
 
 def all() -> dict:

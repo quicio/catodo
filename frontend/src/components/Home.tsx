@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ChannelInfo, AppState } from "../api/client";
-import { MorphIcon } from "morphicons/react";
-import { Music, MonitorPlay, Clapperboard, Tv, Play, ThumbsUp, ThumbsDown, Check, X, Gamepad2 } from "lucide";
+import { Icon, type IconName } from "../icons";
+import AppearanceSettings from "./AppearanceSettings";
 
 // Los wallpapers se cargan dinámicamente del backend (que los sirve desde
 // frontend/src/wallpapers/), así los nuevos descargados aparecen sin rebuild.
@@ -26,22 +26,22 @@ function saveRatings(r: Record<string, Rating>) {
   } catch {}
 }
 
-const ICONS: Record<string, typeof Music> = {
-  spotify: Music,
-  youtube: MonitorPlay,
-  anime: Clapperboard,
-  tv: Tv,
-  crunchyroll: Play,
-  arcade: Gamepad2,
+const CHANNEL_ICONS: Record<string, IconName> = {
+  spotify: "music",
+  youtube: "monitor-play",
+  anime: "clapperboard",
+  tv: "tv",
+  crunchyroll: "play",
+  arcade: "gamepad",
 };
 
 const COLORS: Record<string, string> = {
-  spotify: "#1db954",
-  youtube: "#ff0033",
-  anime: "#ffd166",
-  tv: "#4d7cff",
-  crunchyroll: "#f47521",
-  arcade: "#b66dff",
+  spotify: "var(--ch-spotify)",
+  youtube: "var(--ch-youtube)",
+  anime: "var(--ch-anime)",
+  tv: "var(--ch-tv)",
+  crunchyroll: "var(--ch-crunchyroll)",
+  arcade: "var(--ch-arcade)",
 };
 
 export default function Home({
@@ -61,6 +61,7 @@ export default function Home({
   const [now, setNow] = useState(new Date());
   const [showPair, setShowPair] = useState(false);
   const [pairInfo, setPairInfo] = useState<{ url?: string; code?: string } | null>(null);
+  const [showConfig, setShowConfig] = useState(false);
 
   useEffect(() => {
     if (!showPair) return;
@@ -214,7 +215,7 @@ export default function Home({
         alignItems: "center",
         justifyContent: "center",
         gap: 40,
-        color: "#fff",
+        color: "var(--text)",
         padding: 40,
       }}
     >
@@ -271,7 +272,7 @@ export default function Home({
         style={{
           position: "absolute",
           inset: 0,
-          background: "linear-gradient(180deg, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.55) 100%)",
+          background: "linear-gradient(180deg, color-mix(in srgb, var(--bg) 35%, transparent) 0%, color-mix(in srgb, var(--bg) 55%, transparent) 100%)",
           zIndex: 1,
         }}
       />
@@ -303,7 +304,7 @@ export default function Home({
             right: 40,
             zIndex: 2,
             textAlign: "right",
-            fontFamily: '"Space Grotesk", sans-serif',
+            fontFamily: "var(--font-display)",
           }}
         >
           <div style={{ fontSize: 11, opacity: 0.5, letterSpacing: 3, fontFamily: "var(--font-mono)" }}>
@@ -314,7 +315,7 @@ export default function Home({
         </div>
       )}
 
-      <div style={{ textAlign: "center", position: "relative", zIndex: 2, fontFamily: '"Space Grotesk", sans-serif' }}>
+      <div style={{ textAlign: "center", position: "relative", zIndex: 2, fontFamily: "var(--font-display)" }}>
         <div
           style={{
             fontSize: 76,
@@ -351,8 +352,8 @@ export default function Home({
         }}
       >
         {channels.map((c, i) => {
-          const icon = ICONS[c.id] || (c.type === "web" ? MonitorPlay : Tv);
-          const color = c.color || COLORS[c.id] || "#fff";
+          const iconName = CHANNEL_ICONS[c.id] || (c.type === "web" ? "monitor-play" : "tv");
+          const color = c.color || COLORS[c.id] || "var(--text)";
           const isHover = hovered === c.id;
           return (
             <button
@@ -366,11 +367,11 @@ export default function Home({
                 alignItems: "center",
                 gap: 12,
                 padding: "28px 20px",
-                borderRadius: 18,
-                background: isHover ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.04)",
-                border: `1px solid ${isHover ? color + "66" : "rgba(255,255,255,0.1)"}`,
+                borderRadius: "var(--radius-lg)",
+                background: isHover ? "color-mix(in srgb, var(--text) 8%, transparent)" : "color-mix(in srgb, var(--text) 4%, transparent)",
+                border: `1px solid ${isHover ? color + "66" : "color-mix(in srgb, var(--text) 10%, transparent)"}`,
                 cursor: "pointer",
-                color: "#fff",
+                color: "var(--text)",
                 transform: isHover ? "translateY(-6px)" : "translateY(0)",
                 transition: "transform 0.15s ease, background 0.15s ease, border 0.15s ease",
               }}
@@ -389,12 +390,12 @@ export default function Home({
                   boxShadow: `0 0 18px ${color}44`,
                 }}
               >
-                <MorphIcon
-                  icon={isHover ? Play : icon}
+                <Icon
+                  name={iconName}
+                  morphTo={isHover ? "play" : undefined}
                   size={26}
                   strokeWidth={2}
                   color={color}
-                  spring="smooth"
                 />
               </div>
               <div style={{ fontSize: 18, fontWeight: 700 }}>{c.name}</div>
@@ -425,7 +426,7 @@ export default function Home({
         PRECIONÁ 1-4 O HACÉ CLICK · ESC PARA VOLVER
       </div>
 
-      {/* Calificación de wallpaper */}
+      {/* Columna derecha: calificación de wallpaper + configuración */}
       <div
         style={{
           position: "fixed",
@@ -434,6 +435,7 @@ export default function Home({
           transform: "translateY(-50%)",
           display: "flex",
           flexDirection: "column",
+          alignItems: "center",
           gap: 10,
           zIndex: 3,
         }}
@@ -459,9 +461,9 @@ export default function Home({
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  background: isUp ? "rgba(29,185,84,0.35)" : isDown ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.1)",
-                  border: `1px solid ${isUp ? "#1db954" : "rgba(255,255,255,0.25)"}`,
-                  color: isUp ? "#1db954" : "#fff",
+                  background: isUp ? "color-mix(in srgb, var(--accent) 35%, transparent)" : isDown ? "color-mix(in srgb, var(--text) 4%, transparent)" : "color-mix(in srgb, var(--text) 10%, transparent)",
+                  border: `1px solid ${isUp ? "var(--accent)" : "color-mix(in srgb, var(--text) 25%, transparent)"}`,
+                  color: isUp ? "var(--accent)" : "var(--text)",
                   cursor: "pointer",
                   outline: "none",
                   WebkitTapHighlightColor: "transparent",
@@ -469,12 +471,12 @@ export default function Home({
                   opacity: isDown ? 0.4 : 1,
                 }}
               >
-                <MorphIcon
-                  icon={isUp ? Check : ThumbsUp}
+                <Icon
+                  name="thumbs-up"
+                  morphTo={isUp ? "check" : undefined}
                   size={22}
                   strokeWidth={2}
-                  color={isUp ? "#1db954" : "#fff"}
-                  spring="smooth"
+                  color={isUp ? "var(--accent)" : "var(--text)"}
                   style={{ display: "block", lineHeight: 0 }}
                 />
               </button>
@@ -490,9 +492,9 @@ export default function Home({
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  background: isDown ? "rgba(255,60,60,0.35)" : isUp ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.1)",
-                  border: `1px solid ${isDown ? "#ff6b6b" : "rgba(255,255,255,0.25)"}`,
-                  color: isDown ? "#ff6b6b" : "#fff",
+                  background: isDown ? "color-mix(in srgb, var(--danger) 35%, transparent)" : isUp ? "color-mix(in srgb, var(--text) 4%, transparent)" : "color-mix(in srgb, var(--text) 10%, transparent)",
+                  border: `1px solid ${isDown ? "var(--danger)" : "color-mix(in srgb, var(--text) 25%, transparent)"}`,
+                  color: isDown ? "var(--danger)" : "var(--text)",
                   cursor: "pointer",
                   outline: "none",
                   WebkitTapHighlightColor: "transparent",
@@ -500,51 +502,91 @@ export default function Home({
                   opacity: isUp ? 0.4 : 1,
                 }}
                 onMouseEnter={(e) => {
-                  if (!isDown && !isUp) ((e.currentTarget as HTMLButtonElement).style.background = "rgba(255,60,60,0.25)");
+                  if (!isDown && !isUp) ((e.currentTarget as HTMLButtonElement).style.background = "color-mix(in srgb, var(--danger) 25%, transparent)");
                 }}
                 onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background = isDown ? "rgba(255,60,60,0.35)" : isUp ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.1)";
+                  (e.currentTarget as HTMLButtonElement).style.background = isDown ? "color-mix(in srgb, var(--danger) 35%, transparent)" : isUp ? "color-mix(in srgb, var(--text) 4%, transparent)" : "color-mix(in srgb, var(--text) 10%, transparent)";
                 }}
               >
-                <MorphIcon
-                  icon={isDown ? X : ThumbsDown}
+                <Icon
+                  name="thumbs-down"
+                  morphTo={isDown ? "x" : undefined}
                   size={22}
                   strokeWidth={2}
-                  color={isDown ? "#ff6b6b" : "#fff"}
-                  spring="smooth"
+                  color={isDown ? "var(--danger)" : "var(--text)"}
                   style={{ display: "block", lineHeight: 0 }}
                 />
               </button>
             </>
           );
         })()}
-      </div>
 
-      {/* Conectar teléfono (columna derecha, sobre la barra de canales) */}
-      <button
-        onClick={() => setShowPair(true)}
-        title="Conectar tu teléfono"
-        style={{
-          position: "fixed",
-          right: 24,
-          top: "calc(50% + 86px)",
-          transform: "translateY(-50%)",
-          width: 52,
-          height: 52,
-          borderRadius: "50%",
-          background: "rgba(255,255,255,0.1)",
-          border: "1px solid rgba(255,255,255,0.25)",
-          color: "#fff",
-          cursor: "pointer",
-          fontSize: 22,
-          zIndex: 4,
-          display: "grid",
-          placeItems: "center",
-          backdropFilter: "blur(8px)",
-        }}
-      >
-        📱
-      </button>
+        {/* Configuración (modal centrado) */}
+        <div style={{ position: "relative" }}>
+        <button
+          onClick={() => setShowConfig((s) => !s)}
+          title="Configuración"
+          style={{
+            width: 52,
+            height: 52,
+            boxSizing: "border-box",
+            borderRadius: "50%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "color-mix(in srgb, var(--text) 10%, transparent)",
+            border: "1px solid var(--border)",
+            color: "var(--text)",
+            cursor: "pointer",
+            outline: "none",
+            backdropFilter: "blur(8px)",
+          }}
+        >
+          <Icon
+            name="settings"
+            size={24}
+            strokeWidth={2}
+            color="var(--text)"
+            style={{ display: "block", lineHeight: 0 }}
+          />
+        </button>
+        {showConfig && (
+          <div
+            style={{
+              position: "absolute",
+              right: 0,
+              bottom: 64,
+              background: "var(--surface)",
+              color: "var(--text)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-lg)",
+              padding: 10,
+              width: "min(360px, 90vw)",
+              maxHeight: "min(70vh, 640px)",
+              fontFamily: "var(--font-mono)",
+              boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
+              display: "flex",
+              flexDirection: "column",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                overflowY: "auto",
+                flex: 1,
+              }}
+            >
+              <AppearanceSettings
+                onPair={() => {
+                  setShowConfig(false);
+                  setShowPair(true);
+                }}
+              />
+            </div>
+          </div>
+        )}
+        </div>
+      </div>
 
       {showPair && (
         <div
@@ -563,9 +605,9 @@ export default function Home({
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              background: "#fff",
-              color: "#111",
-              borderRadius: 20,
+              background: "var(--text)",
+              color: "var(--bg)",
+              borderRadius: "var(--radius-lg)",
               padding: 28,
               width: 320,
               textAlign: "center",
@@ -583,7 +625,7 @@ export default function Home({
                   alt="QR"
                   width={220}
                   height={220}
-                  style={{ display: "block", margin: "0 auto 14px", borderRadius: 8 }}
+                  style={{ display: "block", margin: "0 auto 14px", borderRadius: "var(--radius-sm)" }}
                 />
                 {pairInfo.code && (
                   <div style={{ fontSize: 24, fontWeight: 700, letterSpacing: 6, marginBottom: 8 }}>
@@ -599,9 +641,9 @@ export default function Home({
                 marginTop: 16,
                 padding: "10px 20px",
                 border: "none",
-                borderRadius: 10,
-                background: "#111",
-                color: "#fff",
+                borderRadius: "var(--radius-md)",
+                background: "var(--bg)",
+                color: "var(--text)",
                 cursor: "pointer",
                 fontFamily: "var(--font-mono)",
               }}

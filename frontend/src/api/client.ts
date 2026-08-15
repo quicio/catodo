@@ -44,10 +44,45 @@ export interface AppState {
   };
 }
 
+export interface RuntimeConfig {
+  [key: string]: unknown;
+  theme?: string;
+  themes?: ThemeInfo[];
+  theme_crt_enabled?: boolean;
+  theme_overrides?: ThemeOverridesInput;
+}
+
+export interface ThemeOverridesInput {
+  font?: string;
+  radius?: string;
+  density?: string;
+  iconPack?: string;
+  crt?: boolean;
+  glow?: boolean;
+}
+
+export interface ThemeInfo {
+  id: string;
+  name: string;
+  colorScheme: "dark" | "light";
+  colors: Record<string, string>;
+  typography: { display: string; mono: string };
+  shape: string;
+  density: string;
+  effects: { crt: boolean; glow: boolean };
+  icons: string;
+}
+
 export const api = {
   health: () => request<{ status: string }>("/api/health"),
   channels: () => request<ChannelInfo[]>("/api/channels"),
   state: () => request<AppState>("/api/state"),
+  config: () => request<RuntimeConfig>("/api/config"),
+  setConfig: (patch: Record<string, unknown>) =>
+    request<RuntimeConfig>("/api/config", {
+      method: "POST",
+      body: JSON.stringify(patch),
+    }),
   open: (id: string) =>
     request<{ ok: boolean; current: string }>(`/api/channels/${id}/open`, {
       method: "POST",

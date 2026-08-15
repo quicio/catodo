@@ -46,7 +46,7 @@ export default function WebChannel({ channelId }: { channelId: string }) {
 
   if (!st || !st.url) {
     return (
-      <div style={{ position: "absolute", inset: 0, background: "#000", display: "grid", placeItems: "center", color: "#fff", opacity: 0.6 }}>
+      <div style={{ position: "absolute", inset: 0, background: "#000", display: "grid", placeItems: "center", color: "var(--text)", opacity: 0.6 }}>
         Cargando…
       </div>
     );
@@ -58,7 +58,7 @@ export default function WebChannel({ channelId }: { channelId: string }) {
   return (
     <div style={{ position: "absolute", inset: 0, background: "#000" }}>
       {!loaded && (
-        <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "#fff", opacity: 0.6, zIndex: 1, pointerEvents: "none" }}>
+        <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "var(--text)", opacity: 0.6, zIndex: 1, pointerEvents: "none" }}>
           Cargando…
         </div>
       )}

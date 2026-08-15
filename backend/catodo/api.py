@@ -346,6 +346,11 @@ async def set_config(request: Request) -> dict:
     except Exception:
         raise HTTPException(status_code=400, detail="invalid JSON body")
     for k, v in payload.items():
+        if k == "theme_crt_enabled":
+            # Alias legacy → theme_overrides.crt (evento canónico)
+            merged = await runtime_config.fold_crt_alias(v)
+            await _broker(request).publish({"event": "config_changed", "key": "theme_overrides", "value": merged})
+            continue
         if k in runtime_config.KEYS:
             await runtime_config.set(k, v)
             await _broker(request).publish({"event": "config_changed", "key": k, "value": v})

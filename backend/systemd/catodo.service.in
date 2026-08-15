@@ -6,6 +6,7 @@ After=default.target
 Type=simple
 WorkingDirectory=@PROJECT_DIR@/backend
 Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/%U/bus
+Environment=CATODO_PORT=@PROD_PORT@
 ExecStart=@UV_BIN@ run --directory @PROJECT_DIR@/backend python -m catodo
 Restart=on-failure
 RestartSec=5

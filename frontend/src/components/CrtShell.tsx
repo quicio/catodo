@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTheme } from "../theme";
 
 interface CrtShellProps {
   children: React.ReactNode;
@@ -18,6 +19,7 @@ export default function CrtShell({
   const [flashKey, setFlashKey] = useState(0);
   const prevVolumeRef = useRef(volume);
   const prevChannelIdRef = useRef(channelId);
+  const { crtEnabled } = useTheme();
 
   useEffect(() => {
     if (channelId !== prevChannelIdRef.current) {
@@ -41,12 +43,13 @@ export default function CrtShell({
   }, [volume]);
 
   const isCast = channelId === "screen-cast";
+  const crtOn = !isCast && crtEnabled;
   return (
     <>
       {children}
       {/* Los efectos CRT no se aplican sobre la proyección de pantalla (espejo fiel) */}
-      {!isCast && <div className="crt-scanlines" />}
-      {!isCast && <div className="crt-vignette" />}
+      {crtOn && <div className="crt-scanlines" />}
+      {crtOn && <div className="crt-vignette" />}
       {showChannelNum && (
         <div key={flashKey} className="ch-flash">
           <div className="ch-flash-label">CHANNEL</div>

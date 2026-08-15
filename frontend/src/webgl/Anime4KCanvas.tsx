@@ -160,11 +160,11 @@ export default function Anime4KCanvas({
             left: 8,
             right: 8,
             padding: "6px 10px",
-            background: "rgba(200,30,30,0.8)",
-            color: "#fff",
+            background: "color-mix(in srgb, var(--danger) 80%, transparent)",
+            color: "var(--text)",
             fontSize: 11,
-            borderRadius: 6,
-            fontFamily: "monospace",
+            borderRadius: "var(--radius-sm)",
+            fontFamily: "var(--font-mono)",
             zIndex: 5,
           }}
         >
@@ -179,10 +179,10 @@ export default function Anime4KCanvas({
             left: 8,
             padding: "2px 6px",
             background: "rgba(0,0,0,0.5)",
-            color: mode === "2d" ? "#ffd166" : "#1db954",
+            color: mode === "2d" ? "var(--ch-anime)" : "var(--accent)",
             fontSize: 10,
-            borderRadius: 4,
-            fontFamily: "monospace",
+            borderRadius: "var(--radius-sm)",
+            fontFamily: "var(--font-mono)",
             zIndex: 5,
           }}
         >

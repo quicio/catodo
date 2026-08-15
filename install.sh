@@ -319,7 +319,8 @@ fi
 
 echo "==> Installing systemd user service"
 mkdir -p "$(dirname "$SERVICE_DST")"
-sed -e "s|@PROJECT_DIR@|$PROJECT_DIR|g" -e "s|@UV_BIN@|$UV_BIN|g" \
+PROD_PORT="${CATODO_PROD_PORT:-8767}"
+sed -e "s|@PROJECT_DIR@|$PROJECT_DIR|g" -e "s|@UV_BIN@|$UV_BIN|g" -e "s|@PROD_PORT@|$PROD_PORT|g" \
     "$SERVICE_TEMPLATE" > "$SERVICE_DST"
 systemctl --user daemon-reload
 if [ "$AUTOSTART" -eq 1 ]; then

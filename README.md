@@ -28,13 +28,28 @@ frontend/   Electron app (Chromium) loading http://127.0.0.1:8765
 
 **DRM note**: The TV channel (Movistar) requires Widevine. Install Electron castLabs with `bash scripts/install_castlab.sh` (or `bash install.sh --castlab`); `run-dev.sh` uses it automatically. The packaged AppImage uses stock Electron which does **not** include Widevine — use the dev launcher or run the castLabs binary directly for TV playback.
 
+## Puertos: dev vs prod
+
+Cátodo usa **dos puertos distintos** según el modo. Así podés tener el daemon
+estable corriendo y abrir el dev sin que se pisen.
+
+| Modo    | Backend     | Frontend          | Cuándo                          |
+| ------- | ----------- | ----------------- | ------------------------------- |
+| Dev     | `:8765`     | Vite `:1420` (HMR)| `./run-dev.sh`                  |
+| Prod    | `:8767`     | bundle (en `backend/static/`) | `./install.sh` + AppImage, o `./run-prod.sh start` |
+
+`./run-dev.sh` arranca/recicla el backend en `:8765` y **no toca** el de `:8767`
+si existe. La heurística para saber si el backend en `:8765` está al día es el
+**start time del proceso vs mtime de `themes.py`**: si el código se modificó
+después de que arrancó, se reinicia.
+
 ## Quickstart
 
 ```bash
 # 1. Backend (desde la raíz del repo clonado)
 cd backend
 uv sync
-uv run python -m catodo          # serves http://127.0.0.1:8765
+uv run python -m catodo          # serves http://127.0.0.1:8767 (prod)
 
 # 2. Electron app
 cd ../frontend
@@ -43,13 +58,10 @@ npm run electron:build:linux    # builds .AppImage + .deb into release/
 ./release/catodo-frontend-*.AppImage
 ```
 
-Or in dev mode (faster iteration):
+Or in dev mode (faster iteration, uses port 8765 so prod at 8767 keeps running):
 
 ```bash
-cd frontend
-npm run dev          # Vite on :1420 with HMR
-# In another terminal, point Electron at the Vite dev server:
-CATODO_BACKEND_URL=http://127.0.0.1:1420 npm run electron:dev
+./run-dev.sh    # Vite + Electron + backend-dev auto-recycle
 ```
 
 ## Production install
@@ -202,6 +214,58 @@ tiene un campo **código/token de emparejamiento** en Settings.
 | -------------------- | ---------------------------------------- |
 | `GET /api/pair/info` | URL + código de emparejamiento           |
 | `GET /api/pair/qr`   | QR (SVG) con la URL del remote           |
+
+## Apariencia (temas y personalización)
+
+Cátodo tiene **10 temas** que cambian colores, tipografía, forma de los botones,
+densidad, efectos (CRT/glow) y **pack de iconos**. Se eligen desde el botón ⚙ del
+Home (sección **TEMAS**) y aplican al instante en la TV y el remote.
+
+| Tema | Inspiración | Fuente | Iconos | Bordes | Densidad | Efectos |
+| ---- | ----------- | ------ | ------ | ------ | -------- | ------- |
+| Spotify Dark (default) | Spotify | Space Grotesk | Lucide | redondos | media | CRT |
+| Retro CRT | terminales de fósforo | VT323 | Game Icons | cuadrados | media | CRT + glow |
+| Minimal Light | minimalismo | Inter | Feather | redondos | media | — |
+| Orbital Blue | launcher PS2/XMB | Orbitron | Phosphor | píldora | espaciosa | glow |
+| Estuary | Kodi | Oswald | Material | cuadrados | compacta | — |
+| Smart TV Coral | webOS/Tizen | Nunito | Ionicons | píldora | espaciosa | — |
+| Cone Orange | VLC / reproductores | Inter | Bootstrap | redondos | compacta | — |
+| Amber Vintage | terminales ámbar | IBM Plex Mono | Codicons | cuadrados | media | CRT + glow |
+| Cyber Neon | futurismo | Orbitron | Tabler | redondos | compacta | glow |
+| Paper Mono | e-ink | Inter | Radix | cuadrados | media | — |
+
+### Personalizaciones
+
+En la sección **PERSONALIZACIÓN** del mismo panel se puede sobreescribir cualquier
+dimensión sin cambiar de tema: fuente, pack de iconos, bordes, densidad, CRT y glow.
+Cada control tiene la opción **"Tema"** que quita el override y vuelve al valor del
+tema activo. Los overrides se guardan en `theme_overrides` (config.json) y sobreviven
+a cambios de tema y reinicios.
+
+### Temas custom
+
+Se definen en `~/.local/share/catodo/config.json` bajo `themes`. Con `base` heredan
+de un tema existente y solo definen lo que cambian:
+
+```jsonc
+{
+  "themes": [
+    {
+      "id": "mi-tema",
+      "name": "Mi Tema",
+      "base": "cyber-neon",        // hereda tipografía, bordes, densidad, efectos e iconos
+      "colors": { "accent": "#ff00ff" }
+    }
+  ]
+}
+```
+
+Los colores se validan (`#hex`, `rgb(a)`, `hsl(a)`); un tema inválido se descarta con
+un warning en el log sin afectar al tema activo. Los temas v1 (solo `tokens` + `crt`)
+siguen funcionando: heredan el resto de dimensiones del tema por defecto.
+
+El **remote PWA** adopta automáticamente la paleta y los bordes del tema activo
+(los packs de iconos son solo del kiosk).
 
 ## Proyección de pantalla (Screen Cast)
 
