@@ -214,7 +214,14 @@ def create_app() -> FastAPI:
         @app.middleware("http")
         async def no_cache(request, call_next):
             resp = await call_next(request)
-            if request.url.path.startswith("/assets") or request.url.path == "/" or request.url.path.endswith(".html"):  # noqa: E501
+            path = request.url.path
+            if (path.startswith("/assets")
+                or path == "/"
+                or path.endswith(".html")
+                or path.startswith("/remote/")):
+                # El SW del remote y sus assets NO deben quedar cacheados
+                # por el browser — si cacheamos el SW, las nuevas versiones
+                # no se detectan y el cliente queda viendo código viejo.
                 resp.headers["Cache-Control"] = "no-store, must-revalidate"
             return resp
     return app
