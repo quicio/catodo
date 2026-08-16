@@ -27,6 +27,9 @@ from catodo.mqtt_bridge import MqttBridge
 from catodo.pair import router as pair_router
 from catodo.plugin_system import PluginManager, sort_channels
 from catodo.plugins_api import router as plugins_router
+from catodo.runtime_config import get as _cfg_get
+from catodo.tunnel.manager import TunnelManager
+from catodo.tunnel_api import router as tunnel_router
 from catodo.wallpapers import router as wallpapers_router
 from catodo.modes import router as modes_router
 
@@ -35,6 +38,36 @@ logger = logging.getLogger("catodo")
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
 _token = os.getenv("CATODO_TOKEN", "")
+
+# Endpoints reachable WITHOUT a token even when the tunnel is public.
+# /api/health — liveness probes
+# /api/pair/info — needed for the remote PWA bootstrap before login
+# /api/tunnel/status + /api/tunnel/providers — needed to display state on
+#   a fresh remote before login
+_PUBLIC_EXEMPT_PREFIXES = (
+    "/api/health",
+    "/api/pair/info",
+    "/api/tunnel/status",
+    "/api/tunnel/providers",
+)
+
+
+def _is_token_required(path: str) -> bool:
+    """Decide whether `/api/<path>` requires the CATODO_TOKEN.
+
+    Order:
+    1. CATODO_TOKEN env var → always required when set (legacy behavior).
+    2. Tunnel public + tunnel_require_token=true → required.
+    3. Otherwise → not required.
+    Public-exempt endpoints never require the token (regardless of mode).
+    """
+    if any(path.startswith(p) for p in _PUBLIC_EXEMPT_PREFIXES):
+        return False
+    if _token:
+        return True
+    enabled = bool(_cfg_get("tunnel_enabled"))
+    require = bool(_cfg_get("tunnel_require_token"))
+    return enabled and require
 
 
 def _is_loopback(host: str) -> bool:
@@ -72,12 +105,15 @@ async def lifespan(app):
     mqtt = MqttBridge(manager=manager, broker=broker)
     await mqtt.start()
 
+    tunnel = TunnelManager(broker=broker)
+
     app.state.broker = broker
     app.state.manager = manager
     app.state.plugins = plugins
     app.state.cast = cast
     app.state.idle = idle
     app.state.mqtt = mqtt
+    app.state.tunnel = tunnel
     app.state.started_at = __import__("time").time()
     app.state.bg_tasks: set = set()
 
@@ -87,6 +123,7 @@ async def lifespan(app):
     finally:
         await idle.stop()
         await mqtt.stop()
+        await tunnel.shutdown()
         for t in app.state.bg_tasks:
             t.cancel()
         await manager.close_all()
@@ -115,14 +152,18 @@ def create_app() -> FastAPI:
             allow_headers=["*"],
         )
 
-    if _token:
-        @app.middleware("http")
-        async def token_middleware(request: Request, call_next):
-            if request.url.path.startswith("/api/"):
-                provided = request.headers.get("X-Catodo-Token") or request.query_params.get("token") or ""
-                if provided != _token:
-                    return JSONResponse(status_code=401, content={"detail": "unauthorized"})
-            return await call_next(request)
+    @app.middleware("http")
+    async def token_middleware(request: Request, call_next):
+        # Always registered; the predicate decides per-request.
+        # We re-read CATODO_TOKEN from the env on every request so tests and
+        # operators can change it without restarting the process.
+        path = request.url.path
+        if path.startswith("/api/") and _is_token_required(path):
+            provided = request.headers.get("X-Catodo-Token") or request.query_params.get("token") or ""
+            expected = _token or os.getenv("CATODO_TOKEN", "")
+            if not expected or provided != expected:
+                return JSONResponse(status_code=401, content={"detail": "unauthorized"})
+        return await call_next(request)
 
     @app.middleware("http")
     async def idle_middleware(request: Request, call_next):
@@ -142,6 +183,7 @@ def create_app() -> FastAPI:
     app.include_router(pair_router, prefix="/api")
     app.include_router(modes_router, prefix="/api")
     app.include_router(cast_router, prefix="/api")
+    app.include_router(tunnel_router)
     if STATIC_DIR.exists():
         app.mount(
             "/",

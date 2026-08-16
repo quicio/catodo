@@ -22,8 +22,9 @@ import {
 } from "../theme";
 import { LAYOUTS, LAYOUT_LABELS } from "./home";
 import { Icon, PACKS } from "../icons";
+import { TunnelSection } from "./TunnelSection";
 
-type TabId = "general" | "modos" | "apariencia" | "tipografia" | "efectos";
+type TabId = "general" | "modos" | "apariencia" | "tipografia" | "efectos" | "dominio";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "general", label: "General" },
@@ -31,6 +32,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "apariencia", label: "Apariencia" },
   { id: "tipografia", label: "Tipografía" },
   { id: "efectos", label: "Efectos" },
+  { id: "dominio", label: "Dominio" },
 ];
 
 const FONT_LABELS: Record<FontId, string> = {
@@ -661,6 +663,15 @@ export default function AppearanceSettings({
               Reset
             </button>
           </div>
+          <div style={{ height: 6 }} />
+        </>
+      )}
+
+      {/* ==== DOMINIO ==== */}
+      {tab === "dominio" && (
+        <>
+          <div style={sectionLabel}>TÚNEL PÚBLICO</div>
+          <TunnelSection enabled={true} />
           <div style={{ height: 6 }} />
         </>
       )}
