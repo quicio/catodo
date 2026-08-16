@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover,maximum-scale=1">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<!-- Label que iOS muestra en el Home Screen cuando agregás la URL como
+     app. Sin esto, iOS usa la URL completa (incluyendo ?code=…) como
+     label, que es ilegible. Con este meta tag el label es SIEMPRE
+     "Cátodo" sin importar qué tan larga sea la URL. -->
+<meta name="apple-mobile-web-app-title" content="Cátodo">
 <meta name="theme-color" content="#06060a">
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="manifest" href="manifest.webmanifest">
