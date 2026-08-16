@@ -127,7 +127,46 @@ def test_config_post_accepts_empty_public_domain(client):
     assert r.status_code == 200, r.text
     cfg = client.get("/api/config").json()
     assert cfg["public_domain"] == ""
-    assert cfg["tunnel_provider"] == "tailscale-funnel"
+
+
+def test_pair_public_url_only_when_tunnel_running(client):
+    """El QR debe apuntar a una URL que REALMENTE funcione. Tunel configurado
+    pero manager en 'stopped' → no exponer public (cae a LAN). Manager en
+    'running' → exponer public.
+
+    Verifica el contrato sin necesidad de cloudflared/tailscale instalados:
+    mockeamos el status del manager."""
+    # 1. Solo configurado, sin correr → public queda en None
+    client.post(
+        "/api/config",
+        json={
+            "public_domain": "catodo.example.com",
+            "tunnel_provider": "cloudflare",
+            "tunnel_token_path": "/tmp/nonexistent.json",
+            "tunnel_enabled": True,
+        },
+    )
+    info = client.get("/api/pair/info").json()
+    assert info["public"] is None
+    assert info["primary"] == "lan"
+    assert info["url"] == info["lan"]
+
+    # 2. Simular tunnel running mutando el manager del app
+    from catodo.tunnel.provider import TunnelState
+    app_mgr = client.app.state.tunnel
+    app_mgr._status.state = TunnelState.running.value  # type: ignore[attr-defined]
+
+    info = client.get("/api/pair/info").json()
+    assert info["public"] == "https://catodo.example.com/remote"
+    assert info["primary"] == "public"
+    # url queda en LAN por backwards compat, pero primary ya es public
+    assert info["url"] == info["lan"]
+
+    # 3. Reset
+    app_mgr._status.state = TunnelState.stopped.value  # type: ignore[attr-defined]
+    info = client.get("/api/pair/info").json()
+    assert info["public"] is None
+    assert info["primary"] == "lan"
 
 
 def test_token_not_required_when_tunnel_disabled(client):

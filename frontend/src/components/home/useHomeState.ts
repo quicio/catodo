@@ -29,7 +29,13 @@ export function useHomeState(state: AppState): SharedHomeState {
   const [loadingWp, setLoadingWp] = useState(false);
   const [now, setNow] = useState(new Date());
   const [showPair, setShowPair] = useState(false);
-  const [pairInfo, setPairInfo] = useState<{ url?: string; code?: string } | null>(null);
+  const [pairInfo, setPairInfo] = useState<{
+    url?: string;
+    code?: string;
+    lan?: string;
+    public?: string | null;
+    primary?: "lan" | "public";
+  } | null>(null);
   const [showConfig, setShowConfig] = useState(false);
   const [artistWp, setArtistWp] = useState<string[]>([]);
   const [coverReady, setCoverReady] = useState(false);

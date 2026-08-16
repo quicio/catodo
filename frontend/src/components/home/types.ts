@@ -49,7 +49,13 @@ export interface SharedHomeState {
   now: Date;
   showConfig: boolean;
   showPair: boolean;
-  pairInfo: { url?: string; code?: string } | null;
+  pairInfo: {
+    url?: string;
+    code?: string;
+    lan?: string;
+    public?: string | null;
+    primary?: "lan" | "public";
+  } | null;
   onRate: (id: string, r: Rating) => void;
   toggleConfig: () => void;
   openPair: () => void;

@@ -5,11 +5,21 @@ import type { HomeSlotProps } from "./types";
  * código de emparejamiento y URL.
  *
  * Se muestra cuando `homeState.showPair`.
+ *
+ * El QR codifica la URL **primary** (pública si el túnel está corriendo,
+ * si no LAN). El texto que se muestra abajo del QR SIEMPRE es la URL que
+ * efectivamente codifica el QR — no la LAN legacy — para no engañar al
+ * usuario. Si ambas están disponibles, se listan las dos.
  */
 export function PairModal({ homeState }: HomeSlotProps) {
   const { showPair, pairInfo, closePair } = homeState;
 
   if (!showPair) return null;
+
+  const primary: "lan" | "public" = pairInfo?.primary ?? "lan";
+  const lanUrl = pairInfo?.lan ?? pairInfo?.url;
+  const publicUrl = pairInfo?.public;
+  const qrUrl = primary === "public" ? publicUrl : lanUrl;
 
   return (
     <div
@@ -57,9 +67,30 @@ export function PairModal({ homeState }: HomeSlotProps) {
                 {pairInfo.code}
               </div>
             )}
-            <div style={{ fontSize: 10, opacity: 0.55, wordBreak: "break-all" }}>
-              {pairInfo.url}
+
+            {/* URL que efectivamente codifica el QR (no la LAN legacy). */}
+            <div
+              style={{
+                fontSize: 9,
+                opacity: 0.5,
+                textTransform: "uppercase",
+                letterSpacing: 1,
+                marginBottom: 2,
+              }}
+            >
+              {primary === "public" ? "Túnel público" : "Red local"}
             </div>
+            <div style={{ fontSize: 10, opacity: 0.85, wordBreak: "break-all", marginBottom: 10 }}>
+              {qrUrl}
+            </div>
+
+            {/* Cuando hay AMBAS, listar la alternativa para que el usuario
+                sepa cuál es cuál y pueda copiar la otra si quiere. */}
+            {publicUrl && lanUrl && publicUrl !== lanUrl && (
+              <div style={{ fontSize: 9, opacity: 0.55, wordBreak: "break-all" }}>
+                LAN: {lanUrl}
+              </div>
+            )}
           </>
         )}
         <button
