@@ -164,10 +164,13 @@ async def scroll(request: Request) -> dict:
     return {"dy": dy}
 
 
-# Teclas que además se reenvían por WS para que el frontend pueda inyectarlas
-# en el webview activo (YouTube/TV), ya que las teclas media del OS no llegan ahí.
+# Teclas que se reenvían por WS para que el frontend pueda inyectarlas
+# en el webview activo (YouTube/TV), ya que las teclas media del OS no
+# llegan ahí. Las teclas media SIEMPRE se publican por WS (no dependen
+# de ydotool/xdotool — el kiosk inyecta el keyCode directo en el webview).
 _MEDIA_EVENTS = frozenset({
-    "playpause", "prev", "next", "stop", "rewind", "forward", "back", "homepage",
+    "playpause", "prev", "next", "stop", "rewind", "forward",
+    "back", "homepage", "voldown", "volup", "mute",
 })
 
 
@@ -179,6 +182,26 @@ async def key(request: Request) -> dict:
         body = {}
     name = str(body.get("key", "")).lower()
     shift = bool(body.get("shift", False))
+    is_media = name in _MEDIA_EVENTS
+
+    # Teclas media: SIEMPRE publicamos por WS (no requiere ydotool).
+    # El kiosk inyecta el keyCode en el webview activo. No tocamos el OS
+    # porque las teclas media del sistema operativo tampoco llegan al
+    # webview de YouTube/TV.
+    if is_media:
+        app_state = getattr(request, "app", None)
+        broker = getattr(
+            getattr(app_state, "state", None), "broker", None
+        ) if app_state else None
+        if broker is not None:
+            try:
+                await broker.publish({"event": "media_key", "key": name})
+            except Exception as e:
+                log.warning("media_key publish failed: %s", e)
+        return {"key": name, "shift": shift, "media": True}
+
+    # Teclas regulares (letras, enter, etc.): ydotool/xdotool para
+    # inyectar a nivel OS.
     tool = _detect()
     if not tool:
         raise HTTPException(status_code=503, detail="mouse tool not available — install ydotool")
@@ -191,14 +214,6 @@ async def key(request: Request) -> dict:
         else:
             seq = tuple("shift+" + k for k in seq)
     await _run(*seq)
-    if name in _MEDIA_EVENTS:
-        app_state = getattr(request, "app", None)
-        broker = getattr(getattr(app_state, "state", None), "broker", None) if app_state else None
-        if broker is not None:
-            try:
-                await broker.publish({"event": "media_key", "key": name})
-            except Exception as e:
-                log.warning("media_key publish failed: %s", e)
     return {"key": name, "shift": shift}
 
 
