@@ -6,7 +6,11 @@ from catodo.main import app
 
 
 @pytest.fixture
-def client():
+def client(monkeypatch):
+    # Make sure no CATODO_TOKEN leaks from previous tests.
+    monkeypatch.delenv("CATODO_TOKEN", raising=False)
+    from catodo import runtime_config
+    runtime_config._config = None
     with TestClient(app) as c:
         yield c
 

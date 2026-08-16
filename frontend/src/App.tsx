@@ -7,6 +7,7 @@ import Home from "./components/Home";
 import { getLayout } from "./components/home";
 import CrtShell from "./components/CrtShell";
 import IdleScreensaver from "./components/IdleScreensaver";
+import { RemotePWAInstaller } from "./components/RemotePWAInstaller";
 import { CastProvider } from "./cast/CastContext";
 import {
   ThemeContext,
@@ -390,6 +391,7 @@ export default function App() {
       />
     </CrtShell>
     <IdleScreensaver state={idleState} />
+    <RemotePWAInstaller />
     {voiceFeedback && (
       <div
         style={{

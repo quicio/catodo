@@ -53,6 +53,11 @@ KEYS = {
     "theme_crt_enabled": lambda: True,
     "theme_overrides": lambda: {},
     "home_layout_id": lambda: "default",
+    "public_domain": lambda: "",
+    "tunnel_enabled": lambda: False,
+    "tunnel_provider": lambda: "cloudflare",
+    "tunnel_token_path": lambda: "",
+    "tunnel_require_token": lambda: True,
 }
 
 # Claves cuya lectura devuelve un valor derivado (no el raw del archivo).
@@ -81,7 +86,64 @@ def _effective(key: str, cfg: dict):
         # Sanitización: debe ser string no vacío; cualquier otra cosa → "default".
         v = cfg.get("home_layout_id")
         return v if isinstance(v, str) and v else "default"
+    if key == "public_domain":
+        return _normalize_public_domain(cfg.get("public_domain"))
     return cfg.get(key)
+
+
+_HOSTNAME_RE = __import__("re").compile(r"^[a-z0-9]([a-z0-9\-\.]*[a-z0-9])?$", __import__("re").I)
+
+
+def _normalize_public_domain(value) -> str:
+    """Lowercase, strip scheme/trailing slash/path. Empty → empty.
+
+    Returns the raw value untouched when it doesn't look like a bare hostname,
+    so callers can distinguish "" (legitimate default) from a malformed input.
+    Validation that REJECTS malformed values lives in the API layer.
+    """
+    if not isinstance(value, str):
+        return ""
+    v = value.strip()
+    if not v:
+        return ""
+    # strip scheme
+    if "://" in v:
+        v = v.split("://", 1)[1]
+    # strip path
+    v = v.split("/", 1)[0]
+    # strip port
+    if ":" in v and not v.startswith("["):
+        v = v.rsplit(":", 1)[0]
+    v = v.strip().lower().rstrip(".")
+    if not v or not _HOSTNAME_RE.match(v):
+        return ""  # silent: caller already validated before writing
+    return v
+
+
+def normalize_public_domain(value) -> str:
+    """Public helper used by the API layer for input validation."""
+    return _normalize_public_domain(value)
+
+
+def validate_public_domain(value) -> bool:
+    """True iff `value` is a syntactically valid bare hostname."""
+    if not isinstance(value, str):
+        return False
+    raw = value.strip()
+    if not raw:
+        return False
+    if "://" in raw or "/" in raw or " " in raw:
+        return False
+    return bool(_HOSTNAME_RE.match(raw.lower().rstrip(".")))
+
+
+def validate_tunnel_provider(value) -> bool:
+    """True iff `value` matches a registered provider name."""
+    from catodo.tunnel import available
+
+    if not isinstance(value, str):
+        return False
+    return value in available()
 
 _config: dict | None = None
 _lock = asyncio.Lock()

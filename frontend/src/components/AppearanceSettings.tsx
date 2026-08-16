@@ -5,6 +5,7 @@
  * vía POST /api/config (manejado por los setters del ThemeContext).
  */
 import type { CSSProperties } from "react";
+import { useState } from "react";
 import {
   FONT_STACKS,
   useTheme,
@@ -15,6 +16,7 @@ import {
 } from "../theme";
 import { LAYOUTS, LAYOUT_LABELS } from "./home";
 import { Icon, PACKS } from "../icons";
+import { TunnelSection } from "./TunnelSection";
 
 const FONT_LABELS: Record<FontId, string> = {
   "space-grotesk": "Space Grotesk",
@@ -145,6 +147,13 @@ export default function AppearanceSettings({
   onLayoutChange?: (id: string) => void;
 }) {
   const { theme, themes, setTheme, overrides, setOverride } = useTheme();
+  const [showTunnel, setShowTunnel] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("catodo.tunnelPanelOpen") === "1";
+    } catch {
+      return false;
+    }
+  });
 
   return (
     <div style={{ maxHeight: "70vh", overflowY: "auto" }}>
@@ -275,6 +284,25 @@ export default function AppearanceSettings({
         value={overrides.glow}
         onChange={(v) => setOverride("glow", v)}
       />
+
+      <div style={sectionLabel}>DOMINIO PÚBLICO</div>
+      <button
+        onClick={() => {
+          const next = !showTunnel;
+          setShowTunnel(next);
+          try {
+            localStorage.setItem("catodo.tunnelPanelOpen", next ? "1" : "0");
+          } catch {
+            /* ignore */
+          }
+        }}
+        style={rowStyle}
+      >
+        <Icon name="monitor-play" size={18} color="var(--text-dim)" />
+        {showTunnel ? "Ocultar túnel" : "Mostrar túnel"}
+      </button>
+      {showTunnel && <TunnelSection enabled={showTunnel} />}
+
       <div style={{ height: 6 }} />
     </div>
   );
