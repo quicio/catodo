@@ -35,6 +35,38 @@ log = logging.getLogger("catodo.tunnel.tailscale")
 HEALTH_TIMEOUT_S = 3.0
 
 
+def _explain_start_failure(raw: str) -> str:
+    """Traduce el stderr de `tailscale funnel --bg` a un mensaje accionable.
+
+    Tailscale reporta errores crípticos tipo 'Access denied: serve config
+    denied' sin explicación sobre qué hacer. Acá los reconocemos y proponemos
+    el fix exacto (sudo vs operator) según el caso."""
+    low = raw.lower()
+    # El usuario que corre `tailscale` no es el "operator" — Tailscale pide
+    # `sudo tailscale set --operator=$USER` o ejecutar el comando con sudo.
+    if "access denied" in low and "serve" in low:
+        return (
+            "Tailscale rechazó la operación: el usuario actual no es "
+            "operator de tailscaled. Soluciones: "
+            "(a) correr el backend como root o con sudo, o "
+            "(b) ejecutar una vez: `sudo tailscale set --operator=$USER` "
+            "y reiniciar el backend. Detalle: " + raw
+        )
+    if "permission denied" in low:
+        return (
+            "Permission denied al ejecutar tailscale. Probá: "
+            "`sudo tailscale set --operator=$USER` y reiniciar el backend. "
+            "Detalle: " + raw
+        )
+    if "funnel is not enabled" in low:
+        return (
+            "Tailnet sin Funnel habilitado. Activá Funnel en este nodo "
+            "desde la consola del admin (https://login.tailscale.com/f/funnel). "
+            "Detalle: " + raw
+        )
+    return f"tailscale funnel failed: {raw}"
+
+
 @register
 class TailscaleFunnelProvider:
     name = "tailscale-funnel"
@@ -155,8 +187,8 @@ class TailscaleFunnelProvider:
             proc.kill()
             raise RuntimeError("tailscale funnel start timed out")
         if proc.returncode != 0:
-            msg = (stderr or b"").decode().strip() or f"exit {proc.returncode}"
-            raise RuntimeError(f"tailscale funnel failed: {msg}")
+            raw = (stderr or b"").decode().strip() or f"exit {proc.returncode}"
+            raise RuntimeError(_explain_start_failure(raw))
         # The "wrapper" subprocess already exited; we still want a handle for
         # the API to track. Use tailscaled's PID (best-effort) so is_running
         # reflects daemon liveness, not the wrapper.
