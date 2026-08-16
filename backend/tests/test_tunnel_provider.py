@@ -142,3 +142,67 @@ def test_tailscale_public_url_reads_dns_name(monkeypatch):
     monkeypatch.setattr(subprocess, "check_output", fake_check_output)
     url = TailscaleFunnelProvider().public_url()
     assert url == "https://catodo.tail-net.ts.net/"
+
+
+def test_tailscale_validate_reports_funnel_disabled(monkeypatch):
+    """Cuando 'tailscale up' corre pero el admin no habilitó Funnel en el
+    tailnet, `tailscale funnel --bg <port>` CUELGA para siempre. validate_config
+    debe detectarlo vía `Capabilities` y dar la URL para activarlo."""
+    from catodo.tunnel.providers.tailscale import TailscaleFunnelProvider
+
+    monkeypatch.setattr(
+        "shutil.which",
+        lambda name: "/usr/bin/tailscale" if name == "tailscale" else "/usr/bin/" + name,
+    )
+
+    # status --json con DNSName pero SIN cap funnel
+    fake_json = json.dumps({
+        "Self": {
+            "DNSName": "catodo.tail-net.ts.net.",
+            "NodeID": "nABCDEF",
+            "Capabilities": ["https://tailscale.com/cap/ssh", "default-auto-update"],
+        }
+    }).encode()
+
+    def fake_check_output(cmd, *a, **kw):
+        if "--json" in cmd:
+            return fake_json
+        return b""
+
+    import subprocess
+    monkeypatch.setattr(subprocess, "check_output", fake_check_output)
+    errs = TailscaleFunnelProvider().validate_config()
+    assert any("Funnel" in e and "login.tailscale.com" in e for e in errs), errs
+    # La URL debe tener el node ID correcto
+    assert any("nABCDEF" in e for e in errs), errs
+
+
+def test_tailscale_validate_passes_when_funnel_cap_present(monkeypatch):
+    """Happy path: tailscale autenticado, Funnel cap presente → no errors."""
+    from catodo.tunnel.providers.tailscale import TailscaleFunnelProvider
+
+    monkeypatch.setattr(
+        "shutil.which",
+        lambda name: "/usr/bin/tailscale" if name == "tailscale" else "/usr/bin/" + name,
+    )
+
+    fake_json = json.dumps({
+        "Self": {
+            "DNSName": "catodo.tail-net.ts.net.",
+            "NodeID": "nXYZ",
+            "Capabilities": [
+                "https://tailscale.com/cap/funnel",
+                "https://tailscale.com/cap/ssh",
+            ],
+        }
+    }).encode()
+
+    def fake_check_output(cmd, *a, **kw):
+        if "--json" in cmd:
+            return fake_json
+        return b""
+
+    import subprocess
+    monkeypatch.setattr(subprocess, "check_output", fake_check_output)
+    errs = TailscaleFunnelProvider().validate_config()
+    assert errs == [], errs

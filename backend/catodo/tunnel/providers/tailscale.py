@@ -66,6 +66,43 @@ class TailscaleFunnelProvider:
         except Exception:  # noqa: BLE001
             return None
 
+    def _status_json(self) -> dict | None:
+        """Best-effort: `tailscale status --json` parsed. None si falla."""
+        binary = self._binary()
+        if not binary:
+            return None
+        try:
+            out = subprocess.check_output(
+                [binary, "status", "--json"],
+                stderr=subprocess.DEVNULL,
+                timeout=5,
+            )
+            return json.loads(out.decode())
+        except Exception:  # noqa: BLE001
+            return None
+
+    def _has_funnel_cap(self) -> bool:
+        """True iff the node carries the Funnel capability (admin-enabled
+        on the tailnet). Sin esto, `tailscale funnel --bg <port>` cuelga
+        indefinido en vez de fallar — no queremos que el backend quede
+        pegado en un timeout."""
+        data = self._status_json()
+        if not data:
+            return False
+        caps = (data.get("Self") or {}).get("Capabilities") or []
+        return "https://tailscale.com/cap/funnel" in caps
+
+    def _funnel_enable_url(self) -> str | None:
+        """URL del admin console para activar Funnel en este nodo, si está
+        disponible. None si no la pudimos armar."""
+        data = self._status_json()
+        if not data:
+            return None
+        node_id = (data.get("Self") or {}).get("NodeID") or ""
+        if not node_id:
+            return None
+        return f"https://login.tailscale.com/f/funnel?node={node_id}"
+
     # ----- provider contract ------------------------------------------------
 
     def validate_config(self) -> list[str]:
@@ -77,6 +114,16 @@ class TailscaleFunnelProvider:
         # If we can't get status, we're not authenticated.
         if self._node_fqdn() is None:
             errors.append("tailscale not authenticated (run `tailscale up`)")
+            return errors
+        # Funnel debe estar habilitado en el tailnet (admin setting). Si
+        # no, `tailscale funnel --bg <port>` cuelga para siempre esperando
+        # confirmación — mejor cortar acá con un mensaje accionable.
+        if not self._has_funnel_cap():
+            url = self._funnel_enable_url() or "https://login.tailscale.com/f/funnel"
+            errors.append(
+                "Tailnet sin Funnel habilitado. Activá Funnel en este nodo "
+                f"desde la consola del admin: {url}"
+            )
         return errors
 
     def public_url(self) -> str | None:
