@@ -183,6 +183,20 @@ class TunnelManager:
             log.info("reconcile: tunnel is actually running, syncing state")
             self._status.state = TunnelState.running.value
             self._status.last_error = None
+            # Si no tenemos handle (caso "levantado a mano"), creamos uno
+            # mínimo para que el watcher pueda engancharse. Usamos
+            # tailscaled's PID cuando esté disponible.
+            if self._handle is None:
+                self._provider = provider
+                self._provider_name = provider.name
+                pid = self._tailscaled_pid_best_effort(provider)
+                self._handle = TunnelHandle(
+                    pid=pid or os.getpid(),
+                    started_at=time.time(),
+                )
+                self._status.pid = self._handle.pid
+                self._status.started_at = self._handle.started_at
+                self._status.provider = provider.name
             self._persist()
             # Re-enganchar el watcher para detectar si se cae después.
             if self._watcher is None or self._watcher.done():
@@ -195,6 +209,16 @@ class TunnelManager:
             self._status.state = TunnelState.stopped.value
             self._status.last_error = None
             self._persist()
+
+    @staticmethod
+    def _tailscaled_pid_best_effort(provider) -> int | None:
+        """Best-effort PID del daemon (provider-specific)."""
+        try:
+            if hasattr(provider, "_tailscaled_pid"):
+                return provider._tailscaled_pid()
+        except Exception:  # noqa: BLE001
+            return None
+        return None
 
     def health(self) -> dict:
         if self._status.state != TunnelState.running.value:

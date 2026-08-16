@@ -213,14 +213,11 @@ class TailscaleFunnelProvider:
             log.warning("tailscale funnel off timed out")
 
     def is_running(self, handle: TunnelHandle | None) -> bool:
-        if handle is None:
-            return False
-        # Check tailscaled (the persistent daemon) first.
-        try:
-            os.kill(handle.pid, 0)
-        except ProcessLookupError:
-            return False
-        # Then verify the funnel is actually enabled for our port.
+        # El handle puede ser None si el backend nunca logró arrancar el
+        # túnel (ej. Access denied, permisos), pero el usuario lo levantó
+        # por su cuenta desde la shell. En ese caso, el handle es None
+        # igualmente — verificar contra `tailscale funnel status` que es
+        # la fuente de verdad.
         binary = self._binary()
         if not binary:
             return False
