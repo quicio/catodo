@@ -158,6 +158,44 @@ class TunnelManager:
     def status(self) -> dict:
         return self._status.to_dict()
 
+    async def reconcile(self) -> None:
+        """Reconcilia el estado persistido con la realidad.
+
+        Caso típico: el backend se reinicia y el estado en disco dice
+        "failed" (porque algún attempt anterior falló), pero el túnel
+        está realmente corriendo — quizás porque lo levantaste a mano
+        desde la shell, o porque el operador cambió después del fallo.
+
+        Sin esta verificación, el UI muestra "failed" eternamente aunque
+        `tailscale funnel status` diga que está arriba. Llamamos a
+        `is_running()` del provider configurado (si lo hay) y resyncamos.
+        """
+        provider = self._resolve_provider()
+        if provider is None:
+            return
+        running = False
+        try:
+            running = await asyncio.to_thread(provider.is_running, self._handle)
+        except Exception as e:  # noqa: BLE001
+            log.debug("reconcile: is_running probe failed: %s", e)
+            return
+        if running:
+            log.info("reconcile: tunnel is actually running, syncing state")
+            self._status.state = TunnelState.running.value
+            self._status.last_error = None
+            self._persist()
+            # Re-enganchar el watcher para detectar si se cae después.
+            if self._watcher is None or self._watcher.done():
+                self._spawn_watcher()
+        elif self._status.state in (TunnelState.failed.value, TunnelState.starting.value):
+            # No hay nada arriba y el estado sugiere que intentamos
+            # arrancarlo: limpiamos a "stopped" para no mentir.
+            log.info("reconcile: tunnel is not running, resetting stale %s → stopped",
+                     self._status.state)
+            self._status.state = TunnelState.stopped.value
+            self._status.last_error = None
+            self._persist()
+
     def health(self) -> dict:
         if self._status.state != TunnelState.running.value:
             return {"reachable": False, "reason": "stopped"}

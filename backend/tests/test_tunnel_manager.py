@@ -64,3 +64,61 @@ def test_health_when_stopped(mgr):
 def test_shutdown_is_idempotent(mgr):
     asyncio.run(mgr.shutdown())
     asyncio.run(mgr.shutdown())  # no exception
+
+
+def test_reconcile_syncs_running_when_provider_up(monkeypatch, tmp_data_dir):
+    """Si el estado en disco dice 'failed' pero el provider está realmente
+    corriendo (ej. lo levantaste a mano), reconcile() tiene que resyncar a
+    'running' y arrancar el watcher."""
+    runtime_config._config = None
+    # Estado stale: dice failed, sin handle
+    with open(STATE_FILE, "w") as f:
+        json.dump({
+            "state": TunnelState.failed.value,
+            "provider": "tailscale-funnel",
+            "pid": None,
+            "started_at": None,
+            "last_error": "old error",
+        }, f)
+    mgr = TunnelManager()
+
+    # Provider mockeado: está realmente corriendo
+    fake_provider = type("P", (), {
+        "name": "tailscale-funnel",
+        "is_running": lambda self, h: True,
+    })()
+    monkeypatch.setattr("catodo.tunnel.manager.get_provider", lambda _n: fake_provider)
+
+    asyncio.run(mgr.reconcile())
+    s = mgr.status()
+    assert s["state"] == TunnelState.running.value
+    assert s["last_error"] is None
+    # El watcher se spawneó
+    assert mgr._watcher is not None
+    mgr._watcher.cancel()
+
+
+def test_reconcile_resets_failed_to_stopped_when_nothing_up(monkeypatch, tmp_data_dir):
+    """Si el estado dice 'failed' y realmente no hay nada arriba, hay que
+    limpiar a 'stopped' para no mentir en el UI."""
+    runtime_config._config = None
+    with open(STATE_FILE, "w") as f:
+        json.dump({
+            "state": TunnelState.failed.value,
+            "provider": "tailscale-funnel",
+            "pid": None,
+            "started_at": None,
+            "last_error": "old error",
+        }, f)
+    mgr = TunnelManager()
+
+    fake_provider = type("P", (), {
+        "name": "tailscale-funnel",
+        "is_running": lambda self, h: False,
+    })()
+    monkeypatch.setattr("catodo.tunnel.manager.get_provider", lambda _n: fake_provider)
+
+    asyncio.run(mgr.reconcile())
+    s = mgr.status()
+    assert s["state"] == TunnelState.stopped.value
+    assert s["last_error"] is None

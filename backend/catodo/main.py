@@ -110,6 +110,13 @@ async def lifespan(app):
 
     tunnel = TunnelManager(broker=broker)
 
+    # Reconciliar con la realidad: si el túnel quedó "running" antes de un
+    # restart (o quedó "failed" porque el operador no era el correcto
+    # pero alguien ya lo arregló por su cuenta), chequeamos contra
+    # `is_running()` del provider y resyncamos. Sin esto, el manager
+    # arrastra un estado stale y el UI muestra "failed" eternamente.
+    await tunnel.reconcile()
+
     app.state.broker = broker
     app.state.manager = manager
     app.state.plugins = plugins
