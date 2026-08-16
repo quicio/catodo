@@ -53,6 +53,11 @@ export function TunnelSection({ enabled }: { enabled: boolean }) {
     tunnel_token_path: "",
     tunnel_require_token: true,
   });
+  // Tracks which fields the user has touched locally so the 5s poll does
+  // NOT clobber them before the user clicks Save/Start. Without this,
+  // picking `tailscale-funnel` in the dropdown gets reverted by the next
+  // poll tick before the user can save.
+  const [dirty, setDirty] = useState<{ [k: string]: boolean }>({});
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -68,11 +73,11 @@ export function TunnelSection({ enabled }: { enabled: boolean }) {
         ]);
         if (cancelled) return;
         setCfg((prev) => ({
-          public_domain: (cfgR.public_domain as string) ?? prev.public_domain,
-          tunnel_enabled: (cfgR.tunnel_enabled as boolean) ?? prev.tunnel_enabled,
-          tunnel_provider: (cfgR.tunnel_provider as string) ?? prev.tunnel_provider,
-          tunnel_token_path: (cfgR.tunnel_token_path as string) ?? prev.tunnel_token_path,
-          tunnel_require_token: (cfgR.tunnel_require_token as boolean) ?? prev.tunnel_require_token,
+          public_domain: dirty.public_domain ? prev.public_domain : ((cfgR.public_domain as string) ?? prev.public_domain),
+          tunnel_enabled: dirty.tunnel_enabled ? prev.tunnel_enabled : ((cfgR.tunnel_enabled as boolean) ?? prev.tunnel_enabled),
+          tunnel_provider: dirty.tunnel_provider ? prev.tunnel_provider : ((cfgR.tunnel_provider as string) ?? prev.tunnel_provider),
+          tunnel_token_path: dirty.tunnel_token_path ? prev.tunnel_token_path : ((cfgR.tunnel_token_path as string) ?? prev.tunnel_token_path),
+          tunnel_require_token: dirty.tunnel_require_token ? prev.tunnel_require_token : ((cfgR.tunnel_require_token as boolean) ?? prev.tunnel_require_token),
         }));
         setProviders(provR);
         setStatus(statR);
@@ -93,13 +98,14 @@ export function TunnelSection({ enabled }: { enabled: boolean }) {
       cancelled = true;
       clearInterval(id);
     };
-  }, [enabled]);
+  }, [enabled, dirty]);
 
   const save = async () => {
     setBusy(true);
     setErr(null);
     try {
       await api.setConfig(cfg);
+      setDirty({});
     } catch (e: any) {
       setErr(String(e?.message ?? e));
     } finally {
@@ -170,10 +176,14 @@ export function TunnelSection({ enabled }: { enabled: boolean }) {
         Dominio público
         <input
           type="text"
-          placeholder="catodo.example.com"
+          placeholder={cfg.tunnel_provider === "tailscale-funnel" ? "(Tailscale lo calcula solo)" : "catodo.example.com"}
           value={cfg.public_domain}
-          onChange={(e) => setCfg({ ...cfg, public_domain: e.target.value.toLowerCase() })}
-          style={inputStyle}
+          onChange={(e) => {
+            setCfg({ ...cfg, public_domain: e.target.value.toLowerCase() });
+            setDirty((d) => ({ ...d, public_domain: true }));
+          }}
+          disabled={cfg.tunnel_provider === "tailscale-funnel"}
+          style={{ ...inputStyle, opacity: cfg.tunnel_provider === "tailscale-funnel" ? 0.5 : 1 }}
         />
       </label>
 
@@ -181,7 +191,10 @@ export function TunnelSection({ enabled }: { enabled: boolean }) {
         Provider
         <select
           value={cfg.tunnel_provider}
-          onChange={(e) => setCfg({ ...cfg, tunnel_provider: e.target.value })}
+          onChange={(e) => {
+            setCfg({ ...cfg, tunnel_provider: e.target.value });
+            setDirty((d) => ({ ...d, tunnel_provider: true }));
+          }}
           style={inputStyle}
         >
           {providers.length === 0 && <option value="cloudflare">cloudflare</option>}
@@ -200,22 +213,15 @@ export function TunnelSection({ enabled }: { enabled: boolean }) {
           <input
             ref={fileRef}
             type="text"
-            placeholder="/home/me/.cloudflared/<id>.json"
+            placeholder={cfg.tunnel_provider === "tailscale-funnel" ? "(no aplica)" : "/home/me/.cloudflared/<id>.json"}
             value={cfg.tunnel_token_path}
-            onChange={(e) => setCfg({ ...cfg, tunnel_token_path: e.target.value })}
-            style={{ ...inputStyle, flex: 1 }}
-          />
-          <button
-            type="button"
-            onClick={async () => {
-              // browsers cannot set absolute paths via file input — we let
-              // the user paste the path manually. This button is just a hint.
-              fileRef.current?.focus();
+            onChange={(e) => {
+              setCfg({ ...cfg, tunnel_token_path: e.target.value });
+              setDirty((d) => ({ ...d, tunnel_token_path: true }));
             }}
-            style={miniBtn}
-          >
-            …
-          </button>
+            disabled={cfg.tunnel_provider === "tailscale-funnel"}
+            style={{ ...inputStyle, flex: 1, opacity: cfg.tunnel_provider === "tailscale-funnel" ? 0.5 : 1 }}
+          />
         </div>
       </label>
 
@@ -223,7 +229,10 @@ export function TunnelSection({ enabled }: { enabled: boolean }) {
         <input
           type="checkbox"
           checked={cfg.tunnel_enabled}
-          onChange={(e) => setCfg({ ...cfg, tunnel_enabled: e.target.checked })}
+          onChange={(e) => {
+            setCfg({ ...cfg, tunnel_enabled: e.target.checked });
+            setDirty((d) => ({ ...d, tunnel_enabled: true }));
+          }}
         />
         Habilitar túnel al arrancar
       </label>
@@ -231,7 +240,10 @@ export function TunnelSection({ enabled }: { enabled: boolean }) {
         <input
           type="checkbox"
           checked={cfg.tunnel_require_token}
-          onChange={(e) => setCfg({ ...cfg, tunnel_require_token: e.target.checked })}
+          onChange={(e) => {
+            setCfg({ ...cfg, tunnel_require_token: e.target.checked });
+            setDirty((d) => ({ ...d, tunnel_require_token: true }));
+          }}
         />
         Exigir token en /api/* (recomendado)
       </label>
@@ -299,9 +311,4 @@ const btn: React.CSSProperties = {
   cursor: "pointer",
   fontFamily: "var(--font-mono)",
   fontSize: 12,
-};
-
-const miniBtn: React.CSSProperties = {
-  ...btn,
-  padding: "6px 10px",
 };
