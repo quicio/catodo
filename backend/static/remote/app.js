@@ -527,6 +527,13 @@ function bindHoldRepeat(el, fire) {
   el.addEventListener("pointerleave", up);
 }
 
+// Envía una tecla al backend. El backend publica media_key por WS y el
+// kiosk inyecta el keyCode en el webview activo. NO requiere ydotool.
+function sendKey(name) {
+  api("POST", "/api/mouse/key", { key: name });
+  vibrate(8);
+}
+
 // --- Multimedia keys ---
 
 const MEDIA_SVG = {
