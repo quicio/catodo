@@ -172,6 +172,27 @@ export function TunnelSection({ enabled }: { enabled: boolean }) {
         )}
       </div>
 
+      {status?.state === "failed" && status.last_error && (
+        <div
+          style={{
+            marginBottom: 8,
+            padding: "6px 8px",
+            border: "1px solid #e04040",
+            borderRadius: "var(--radius-sm)",
+            background: "color-mix(in srgb, #e04040 12%, transparent)",
+            color: "#ffb4b4",
+            fontSize: 11,
+            lineHeight: 1.4,
+            wordBreak: "break-word",
+          }}
+        >
+          <div style={{ fontWeight: 600, marginBottom: 2, color: "#ff8080" }}>
+            Error
+          </div>
+          {status.last_error}
+        </div>
+      )}
+
       <label style={{ display: "block", marginBottom: 6 }}>
         Dominio público
         <input
