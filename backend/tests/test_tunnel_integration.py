@@ -172,6 +172,39 @@ def test_token_required_when_tunnel_enabled(client, monkeypatch):
     assert r.status_code == 401, r.text
 
 
+def test_token_bypassed_for_loopback_clients(client, monkeypatch):
+    """Configurar el túnel desde el kiosk (loopback) no debe quedar bloqueado
+    por el middleware que acabamos de activar. El túnel es para acceso
+    externo; los clientes loopback ya están en la LAN."""
+    from catodo.main import _is_loopback, _is_token_required
+    assert _is_loopback("127.0.0.1")
+    assert _is_loopback("localhost")
+    assert _is_loopback("::1")
+    assert not _is_loopback("203.0.113.5")
+    assert _is_token_required("/api/state", "203.0.113.5") is False  # tunnel disabled
+    # tunnel_enabled=true simulado vía config: _is_token_required lo lee
+    # desde runtime_config en el middleware real; acá probamos solo la
+    # lógica pura (loopback siempre False).
+    assert _is_token_required("/api/state", "127.0.0.1") is False
+    monkeypatch.delenv("CATODO_TOKEN", raising=False)
+    # Habilitar el túnel por config
+    client.post(
+        "/api/config",
+        json={
+            "public_domain": "catodo.example.com",
+            "tunnel_provider": "cloudflare",
+            "tunnel_token_path": "/tmp/nonexistent.json",
+            "tunnel_enabled": True,
+            "tunnel_require_token": True,
+        },
+    )
+    # Loopback se saltea el token incluso con túnel activo
+    assert _is_token_required("/api/config", "127.0.0.1") is False
+    assert _is_token_required("/api/config", "localhost") is False
+    # Remoto sí lo requiere
+    assert _is_token_required("/api/config", "203.0.113.5") is True
+
+
 def test_token_accepted_when_tunnel_enabled(client, monkeypatch):
     """With tunnel_enabled=true and correct token, /api/state returns 200."""
     monkeypatch.setenv("CATODO_TOKEN", "secret-123")

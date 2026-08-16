@@ -52,15 +52,18 @@ _PUBLIC_EXEMPT_PREFIXES = (
 )
 
 
-def _is_token_required(path: str) -> bool:
+def _is_token_required(path: str, host: str = "") -> bool:
     """Decide whether `/api/<path>` requires the CATODO_TOKEN.
 
     Order:
-    1. CATODO_TOKEN env var → always required when set (legacy behavior).
-    2. Tunnel public + tunnel_require_token=true → required.
-    3. Otherwise → not required.
+    1. Loopback clients (kiosk Electron, dev tools del operador) → never.
+    2. CATODO_TOKEN env var → always required when set (legacy behavior).
+    3. Tunnel public + tunnel_require_token=true → required.
+    4. Otherwise → not required.
     Public-exempt endpoints never require the token (regardless of mode).
     """
+    if _is_loopback(host):
+        return False
     if any(path.startswith(p) for p in _PUBLIC_EXEMPT_PREFIXES):
         return False
     if _token:
@@ -158,7 +161,8 @@ def create_app() -> FastAPI:
         # We re-read CATODO_TOKEN from the env on every request so tests and
         # operators can change it without restarting the process.
         path = request.url.path
-        if path.startswith("/api/") and _is_token_required(path):
+        host = request.client.host if request.client else ""
+        if path.startswith("/api/") and _is_token_required(path, host):
             provided = request.headers.get("X-Catodo-Token") or request.query_params.get("token") or ""
             expected = _token or os.getenv("CATODO_TOKEN", "")
             if not expected or provided != expected:
