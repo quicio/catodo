@@ -125,6 +125,18 @@ input, select, textarea {
   transform: translateX(-50%) translateY(0);
   opacity: 1;
 }
+#status.ok {
+  background: var(--accent);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+#status.warn {
+  background: #ff9f0a;
+  box-shadow: 0 8px 24px rgba(255, 159, 10, 0.35);
+}
+#status.error {
+  background: var(--danger);
+  box-shadow: 0 8px 24px rgba(255, 69, 58, 0.3);
+}
 
 /* === Cast bar (proyección) === */
 #cast-bar {
@@ -387,6 +399,42 @@ input, select, textarea {
   letter-spacing: 3px;
   opacity: 0.4;
   text-transform: uppercase;
+}
+
+.channel-search-row {
+  flex-shrink: 0;
+  margin-bottom: 14px;
+}
+.channel-search {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  padding: 12px 14px;
+  font-size: 15px;
+  outline: none;
+  min-height: 48px;
+  transition: border-color 0.2s, background 0.2s;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.channel-search:focus {
+  border-color: var(--accent);
+  background: var(--bg-elevated);
+}
+.channel-search::placeholder {
+  color: var(--text-faint);
+}
+.channels-empty {
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 13px;
+  padding: 40px 20px;
+  font-family: var(--font-mono);
+}
+.channels-empty span {
+  color: var(--text-dim);
 }
 
 /* === Now Playing === */
@@ -828,6 +876,42 @@ input, select, textarea {
 #keyboard {
   flex: 1;
   min-height: 200px;
+}
+
+.search-tips {
+  flex-shrink: 0;
+  padding: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.search-tip-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.search-tip-row {
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+.search-tip-row kbd {
+  display: inline-block;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text);
+  margin-right: 4px;
+  font-weight: 600;
+  min-width: 28px;
+  text-align: center;
 }
 
 /* === Settings (bottom sheet) === */

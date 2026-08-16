@@ -1,5 +1,6 @@
 // Pairing: si llegamos con ?code= (QR), guardar y limpiar la URL
 const codeParam = new URLSearchParams(location.search).get("code");
+const justLinked = !!codeParam;
 if (codeParam) {
   localStorage.setItem("catodo_token", codeParam);
   history.replaceState({}, "", location.pathname + location.hash);
@@ -10,6 +11,18 @@ function authHeaders(extra) {
   const h = { ...(extra || {}) };
   if (token) h["X-Catodo-Token"] = token;
   return h;
+}
+
+// Banner de bienvenida: si acabamos de vincular vía QR, mostramos un toast
+// verde confirmando. Si llegamos sin token (instalación nueva, no escaneó
+// QR), automáticamente abrimos el tab Ajustes para que tipee el código.
+if (justLinked) {
+  showStatus("✓ Vinculado a la TV", "ok");
+} else if (!token && $("#view-settings")) {
+  setTimeout(() => {
+    showStatus("Escaneá el QR de la TV para vincular", "warn");
+    switchTab("settings");
+  }, 800);
 }
 
 function wsUrl() {
@@ -92,6 +105,8 @@ const CH_SVG = {
   tv: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="15" x="2" y="7" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg>',
   crunchyroll: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="14" x="3" y="5" rx="2" ry="2"/><path d="M7 15h4M15 15h2M7 11h2M13 11h4"/></svg>',
   hbomax: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><polygon points="10 8 16 12 10 16 10 8"/></svg>',
+  arcade: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="11" x2="6" y2="13"/><line x1="8" y1="9" x2="8" y2="15"/><line x1="15" y1="12" x2="15" y2="12"/><line x1="18" y1="10" x2="18" y2="14"/><line x1="17" y1="11" x2="19" y2="11"/><line x1="6" y1="6" x2="18" y2="6"/><path d="M3 6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v3a2 7 0 0 1-2 7H5a2 7 0 0 1-2-7Z"/><path d="M5 16v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2"/></svg>',
+  'screen-cast': '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><path d="M7 10l3 3-3 3"/><path d="M12 16h5"/></svg>',
 };
 const CH_SVG_DEFAULT = {
   media: CH_SVG.spotify,
@@ -129,8 +144,10 @@ function switchTab(name) {
   if (tabBtn) tabBtn.classList.add("active");
 }
 
-function showStatus(msg) {
+function showStatus(msg, type) {
   statusEl.textContent = msg;
+  statusEl.classList.remove("ok", "warn", "error");
+  if (type) statusEl.classList.add(type);
   statusEl.classList.add("visible");
   clearTimeout(statusEl._timeout);
   statusEl._timeout = setTimeout(() => statusEl.classList.remove("visible"), 2500);
@@ -150,6 +167,7 @@ function renderChannels(list) {
     const btn = document.createElement("button");
     btn.dataset.id = ch.id;
     btn.dataset.type = ch.type;
+    btn.dataset.name = (ch.name || "").toLowerCase();
     btn.style.setProperty("--ch", color);
     btn.innerHTML = `
       <span class="ch-badge">${icon}</span>
@@ -158,6 +176,31 @@ function renderChannels(list) {
     if (ch.id === currentId) btn.classList.add("active");
     btn.onclick = () => api("POST", "/api/channels/" + ch.id + "/open");
     chGrid.appendChild(btn);
+  }
+  applyChannelFilter();
+}
+
+// Wire up the search input
+(function initChannelSearch() {
+  const search = $("#channel-search");
+  if (!search) return;
+  search.addEventListener("input", applyChannelFilter);
+  search.addEventListener("search", applyChannelFilter); // clear button
+})();
+
+function applyChannelFilter() {
+  const q = ($("#channel-search")?.value || "").trim().toLowerCase();
+  let visible = 0;
+  for (const btn of chGrid.children) {
+    const match = !q || (btn.dataset.name || "").includes(q);
+    btn.style.display = match ? "" : "none";
+    if (match) visible++;
+  }
+  const empty = $("#channels-empty");
+  if (empty) {
+    empty.style.display = (q && visible === 0) ? "block" : "none";
+    const qSpan = $("#channels-empty-q");
+    if (qSpan) qSpan.textContent = q;
   }
 }
 
@@ -438,22 +481,7 @@ if (btnBack) btnBack.addEventListener("click", () => { vibrate(10); api("POST", 
 if (btnLeft) btnLeft.addEventListener("click", () => doClick(1));
 if (btnRight) btnRight.addEventListener("click", () => doClick(3));
 
-// --- Keyboard (simple-keyboard) ---
-
-function kbSendChar(ch) {
-  if (!ch) return;
-  if (ch === "ñ") return api("POST", "/api/mouse/key", { key: "ntilde" });
-  if (ch === "Ñ") return api("POST", "/api/mouse/key", { key: "ntilde", shift: true });
-  api("POST", "/api/type", { text: ch });
-  vibrate(6);
-}
-
-function sendKey(name) {
-  api("POST", "/api/mouse/key", { key: name });
-  vibrate(8);
-}
-
-// --- Buscar en el canal activo (inyecta texto + Enter al webview) ---
+// --- Buscar en el canal activo (usa el teclado nativo del celu) ---
 (function searchInit() {
   const input = $("#search-input");
   const btn = $("#search-send");
@@ -464,6 +492,7 @@ function sendKey(name) {
     api("POST", "/api/type", { text: q + "{ENTER}" });
     vibrate(10);
     input.value = "";
+    input.blur(); // cerrar el teclado nativo del celu
   };
   if (btn) btn.addEventListener("click", doSearch);
   input.addEventListener("keydown", (e) => {
@@ -483,76 +512,6 @@ function bindHoldRepeat(el, fire) {
   el.addEventListener("pointerup", up);
   el.addEventListener("pointercancel", up);
   el.addEventListener("pointerleave", up);
-}
-
-const KB_LAYOUT = {
-  default: [
-    "1 2 3 4 5 6 7 8 9 0 - = {bksp}",
-    "q w e r t y u i o p ñ",
-    "a s d f g h j k l , . {enter}",
-    "{shift} z x c v b n m ? {shift}",
-    "{tab} {space} {esc} {arrowleft} {arrowup} {arrowdown} {arrowright}",
-  ],
-  shift: [
-    "! @ # $ % ^ & * ( ) _ + {bksp}",
-    "Q W E R T Y U I O P Ñ",
-    "A S D F G H J K L < > {enter}",
-    "{shift} Z X C V B N M {shift}",
-    "{tab} {space} {esc} {arrowleft} {arrowup} {arrowdown} {arrowright}",
-  ],
-};
-
-const KB_DISPLAY = {
-  "{bksp}": "⌫",
-  "{enter}": "↵",
-  "{shift}": "⇧",
-  "{tab}": "tab",
-  "{esc}": "esc",
-  "{space}": "espacio",
-  "{arrowleft}": "←",
-  "{arrowup}": "↑",
-  "{arrowdown}": "↓",
-  "{arrowright}": "→",
-};
-
-const KB_THEME = [
-  { class: "kb-mod", buttons: "{shift} {tab} {esc}" },
-  { class: "kb-bksp", buttons: "{bksp}" },
-  { class: "kb-enter", buttons: "{enter}" },
-  { class: "kb-arrow", buttons: "{arrowleft} {arrowup} {arrowdown} {arrowright}" },
-  { class: "kb-wide", buttons: "{space}" },
-];
-
-function handleKbButton(button) {
-  if (button === "{shift}" || button === "{lock}") return;
-  if (button.startsWith("{")) {
-    const name = button.slice(1, -1);
-    switch (name) {
-      case "bksp": sendKey("backspace"); break;
-      case "enter": sendKey("enter"); break;
-      case "tab": sendKey("tab"); break;
-      case "esc": sendKey("esc"); break;
-      case "space": kbSendChar(" "); break;
-      case "arrowleft": sendKey("left"); break;
-      case "arrowup": sendKey("up"); break;
-      case "arrowdown": sendKey("down"); break;
-      case "arrowright": sendKey("right"); break;
-    }
-  } else {
-    kbSendChar(button);
-  }
-}
-
-if (typeof window.SimpleKeyboard !== "undefined" && $("#keyboard")) {
-  const SK = window.SimpleKeyboard.default || window.SimpleKeyboard.SimpleKeyboard || window.SimpleKeyboard;
-  new SK($("#keyboard"), {
-    onChange: () => {},
-    onKeyPress: (button) => handleKbButton(button),
-    layout: KB_LAYOUT,
-    display: KB_DISPLAY,
-    buttonTheme: KB_THEME,
-    theme: "hg-theme-default hg-theme-catodo",
-  });
 }
 
 // --- Multimedia keys ---
