@@ -13,7 +13,6 @@ export default function ChannelBar({
 }) {
   return (
     <div className={`channel-bar ${visible ? "" : "hidden"}`}>
-      <span className="channel-bar-label">CATODO</span>
       {channels.map((c, i) => (
         <button
           key={c.id}

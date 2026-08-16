@@ -1,6 +1,25 @@
 import { createContext, useContext } from "react";
 
 // ---------------------------------------------------------------------------
+// UI scale — zoom global del DOM (para pantallas HiDPI / Wayland).
+// Persiste en runtime_config (backend) como `ui_scale`. Rango 0.6–2.0.
+// ---------------------------------------------------------------------------
+
+export interface UiScaleState {
+  scale: number;
+  setScale: (v: number) => void;
+}
+
+export const UiScaleContext = createContext<UiScaleState>({
+  scale: 1,
+  setScale: () => {},
+});
+
+export function useUiScale(): UiScaleState {
+  return useContext(UiScaleContext);
+}
+
+// ---------------------------------------------------------------------------
 // Theme model v2 — seis dimensiones (ver openspec appearance/spec.md)
 // ---------------------------------------------------------------------------
 

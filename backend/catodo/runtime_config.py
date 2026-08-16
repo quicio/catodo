@@ -53,12 +53,28 @@ KEYS = {
     "theme_crt_enabled": lambda: True,
     "theme_overrides": lambda: {},
     "home_layout_id": lambda: "default",
+    "ui_scale": lambda: 1.0,
     "public_domain": lambda: "",
     "tunnel_enabled": lambda: False,
     "tunnel_provider": lambda: "cloudflare",
     "tunnel_token_path": lambda: "",
     "tunnel_require_token": lambda: True,
 }
+
+
+_UI_SCALE_MIN = 0.6
+_UI_SCALE_MAX = 2.0
+
+
+def _sanitize_ui_scale(value) -> float:
+    """Clamp ui_scale al rango permitido; cualquier cosa rara → default 1.0."""
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return 1.0
+    if v != v:  # NaN
+        return 1.0
+    return max(_UI_SCALE_MIN, min(_UI_SCALE_MAX, v))
 
 # Claves cuya lectura devuelve un valor derivado (no el raw del archivo).
 _DERIVED = ("themes", "theme_overrides", "theme_crt_enabled")
@@ -86,6 +102,8 @@ def _effective(key: str, cfg: dict):
         # Sanitización: debe ser string no vacío; cualquier otra cosa → "default".
         v = cfg.get("home_layout_id")
         return v if isinstance(v, str) and v else "default"
+    if key == "ui_scale":
+        return _sanitize_ui_scale(cfg.get("ui_scale"))
     if key == "public_domain":
         return _normalize_public_domain(cfg.get("public_domain"))
     return cfg.get(key)

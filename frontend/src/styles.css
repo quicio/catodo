@@ -24,6 +24,10 @@
   --radius-lg: 16px;
   --font-size-base: 16px;
   --space-scale: 1;
+  /* Altura reservada para la barra de canales fija abajo. Se usa como
+     padding-bottom en vistas que tienen UI propia cerca del borde
+     (ej. NowPlaying de Spotify) para que no se superpongan. */
+  --channel-bar-height: calc(48px * var(--space-scale) + 32px * var(--space-scale) + 52px);
   color-scheme: dark;
   font-family: var(--font-display);
   background: var(--bg);
@@ -169,26 +173,22 @@ html, body, #root {
 /* === Channel bar === */
 .channel-bar {
   position: fixed;
-  left: 0;
-  right: 0;
+  left: 50%;
+  transform: translateX(-50%);
   bottom: 0;
-  padding: calc(64px * var(--space-scale)) calc(32px * var(--space-scale)) calc(38px * var(--space-scale));
+  padding: calc(48px * var(--space-scale)) calc(24px * var(--space-scale)) calc(32px * var(--space-scale));
   display: flex;
   gap: calc(12px * var(--space-scale));
   align-items: center;
-  background: linear-gradient(
-    to top,
-    color-mix(in srgb, var(--bg) 90%, transparent) 0%,
-    color-mix(in srgb, var(--bg) 65%, transparent) 45%,
-    transparent 100%
-  );
+  background: transparent;
   z-index: 9999;
   transition: opacity 0.6s ease, transform 0.6s ease;
+  max-width: calc(100vw - calc(48px * var(--space-scale)));
 }
 
 .channel-bar.hidden {
   opacity: 0;
-  transform: translateY(20px);
+  transform: translate(-50%, 20px);
   pointer-events: none;
 }
 
@@ -214,6 +214,8 @@ html, body, #root {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .channel-pill:hover {

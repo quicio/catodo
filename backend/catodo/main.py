@@ -31,6 +31,7 @@ from catodo.runtime_config import get as _cfg_get
 from catodo.tunnel.manager import TunnelManager
 from catodo.tunnel_api import router as tunnel_router
 from catodo.wallpapers import router as wallpapers_router
+from catodo.modes import router as modes_router
 
 logger = logging.getLogger("catodo")
 
@@ -180,6 +181,7 @@ def create_app() -> FastAPI:
     app.include_router(plugins_router, prefix="/api")
     app.include_router(libraries_router, prefix="/api")
     app.include_router(pair_router, prefix="/api")
+    app.include_router(modes_router, prefix="/api")
     app.include_router(cast_router, prefix="/api")
     app.include_router(tunnel_router)
     if STATIC_DIR.exists():

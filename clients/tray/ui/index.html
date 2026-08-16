@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Cátodo · Emparejar</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 16px;
+    background: #0e0e10; color: #f5f5f5;
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex; flex-direction: column; gap: 12px;
+    min-height: 100vh;
+  }
+  h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  .sub { opacity: .6; font-size: 12px; }
+  .qr-wrap {
+    display: grid; place-items: center;
+    padding: 16px; background: #fff;
+    border-radius: 10px;
+    min-height: 220px;
+  }
+  .qr-wrap img { width: 200px; height: 200px; }
+  .qr-placeholder { color: #888; font-size: 12px; }
+  code {
+    font-family: ui-monospace, "JetBrains Mono", monospace;
+    background: #18181b; padding: 6px 10px; border-radius: 6px;
+    font-size: 18px; letter-spacing: 4px;
+  }
+  form { display: flex; gap: 6px; }
+  input[type="text"] {
+    flex: 1; padding: 8px 10px; border-radius: 6px;
+    border: 1px solid #2a2a30; background: #18181b; color: #f5f5f5;
+    font: inherit; font-family: ui-monospace, "JetBrains Mono", monospace;
+    letter-spacing: 2px;
+  }
+  button {
+    padding: 8px 14px; border: 0; border-radius: 6px;
+    background: #1db954; color: #061; font-weight: 700;
+    cursor: pointer;
+  }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .err { color: #ff8585; font-size: 12px; min-height: 16px; }
+  .ok { color: #6dff9a; font-size: 12px; min-height: 16px; }
+  .host { font-size: 11px; opacity: .4; }
+</style>
+</head>
+<body>
+  <h1>Emparejar con Cátodo</h1>
+  <div class="sub">Escaneá el QR o ingresá el código que muestra la TV.</div>
+
+  <div class="qr-wrap" id="qr">
+    <div class="qr-placeholder">Buscando QR…</div>
+  </div>
+
+  <div class="sub">Código:</div>
+  <code id="code">—</code>
+  <div class="host" id="host"></div>
+
+  <form id="form">
+    <input type="text" id="input" placeholder="Código de emparejamiento" autocomplete="off" />
+    <button type="submit" id="submit">Guardar</button>
+  </form>
+  <div class="err" id="err"></div>
+  <div class="ok" id="ok"></div>
+
+<script>
+  // Tauri 2 exposes the global `window.__TAURI__` when withGlobalTauri is on
+  // (it's not by default). We use `window.__TAURI_INTERNALS__.invoke` which
+  // is always available inside the webview. To stay portable, we use the
+  // official @tauri-apps/api via ESM if present, otherwise fall back to
+  // the raw IPC channel.
+
+  const { invoke } = window.__TAURI__.core;
+
+  async function loadPair() {
+    try {
+      const base = window.location.origin || "http://127.0.0.1:8765";
+      const info = await fetch(base + "/api/pair/info").then(r => r.json());
+      document.getElementById("code").textContent = info.code || "(sin código)";
+      document.getElementById("host").textContent = `${info.host}:${info.port}`;
+      if (!info.code) {
+        document.getElementById("qr").innerHTML =
+          '<div class="qr-placeholder">Backend sin token configurado.<br>Cerrá esta ventana — el cliente se conectará sin pairing.</div>';
+        document.getElementById("input").disabled = true;
+        document.getElementById("submit").disabled = true;
+        return;
+      }
+      const qrResp = await fetch(base + "/api/pair/qr");
+      const svg = await qrResp.text();
+      document.getElementById("qr").innerHTML = svg;
+      document.getElementById("input").value = info.code;
+    } catch (e) {
+      document.getElementById("qr").innerHTML =
+        `<div class="qr-placeholder">No se pudo contactar el backend: ${e}</div>`;
+    }
+  }
+
+  document.getElementById("form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const code = document.getElementById("input").value;
+    const err = document.getElementById("err");
+    const ok = document.getElementById("ok");
+    err.textContent = ""; ok.textContent = "";
+    document.getElementById("submit").disabled = true;
+    try {
+      await invoke("submit_code", { code });
+      ok.textContent = "Guardado. Conectando…";
+    } catch (e) {
+      err.textContent = String(e);
+      document.getElementById("submit").disabled = false;
+    }
+  });
+
+  loadPair();
+</script>
+</body>
+</html>
