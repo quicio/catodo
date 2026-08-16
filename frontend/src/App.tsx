@@ -10,6 +10,7 @@ import IdleScreensaver from "./components/IdleScreensaver";
 import { CastProvider } from "./cast/CastContext";
 import {
   ThemeContext,
+  UiScaleContext,
   applyTheme,
   mergeTheme,
   resolveTheme,
@@ -29,6 +30,17 @@ export default function App() {
   const [voiceFeedback, setVoiceFeedback] = useState<{ text: string; recognized: boolean } | null>(null);
   const [themeState, setThemeState] = useState<ThemeState | null>(null);
   const [homeLayoutId, setHomeLayoutId] = useState<string>("default");
+  const [uiScale, setUiScale] = useState<number>(1);
+
+  const uiScaleRef = useRef(uiScale);
+  uiScaleRef.current = uiScale;
+
+  // Setea la escala de UI y la persiste. El evento `config_changed` que
+  // broadcastea el backend re-confirma y reconcilia con cualquier cliente.
+  const applyUiScale = useCallback((v: number) => {
+    setUiScale(v);
+    api.setConfig({ ui_scale: v }).catch(console.warn);
+  }, []);
 
   const themeRef = useRef(themeState);
   themeRef.current = themeState;
@@ -103,6 +115,20 @@ export default function App() {
         if (key === "home_layout_id" && typeof event.value === "string") {
           setHomeLayoutId(event.value);
         }
+        if (key === "ui_scale" && typeof event.value === "number") {
+          setUiScale(event.value);
+        }
+        // Broadcast genérico para subscriptores (ej. NowPlaying del Spotify).
+        window.dispatchEvent(
+          new CustomEvent("catodo:config_changed", {
+            detail: { key, value: event.value },
+          }),
+        );
+      }
+      // Wallpapers cambiaron en el backend (descarga de artista terminó, etc.)
+      // → NowPlaying re-consulta los wallpapers del artista actual.
+      if (event.event === "wallpapers_changed") {
+        window.dispatchEvent(new CustomEvent("catodo:wallpapers_changed"));
       }
       // Comando por voz → feedback breve + "home" lo maneja el frontend.
       if (event.event === "voice_command") {
@@ -245,6 +271,7 @@ export default function App() {
         setThemeState(next);
         applyTheme(next.theme, next.overrides);
         if (typeof cfg.home_layout_id === "string") setHomeLayoutId(cfg.home_layout_id);
+        if (typeof cfg.ui_scale === "number") setUiScale(cfg.ui_scale);
       } catch {
         if (!alive) return;
         const next = resolveTheme({});
@@ -256,6 +283,12 @@ export default function App() {
       alive = false;
     };
   }, []);
+
+  // Aplicar ui_scale al <html>. `zoom` es soportado por Chromium y escala
+  // todo el contenido DOM sin afectar los <webview> (DRM/players externos).
+  useEffect(() => {
+    document.documentElement.style.zoom = String(uiScale);
+  }, [uiScale]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -274,6 +307,16 @@ export default function App() {
       } else if (e.key === "Escape") {
         if (document.fullscreenElement) document.exitFullscreen();
         goHome();
+      } else if (e.ctrlKey && (e.key === "+" || e.key === "=")) {
+        // Ctrl + =  → agrandar UI (estilo browser zoom in)
+        e.preventDefault();
+        applyUiScale(Math.min(2, Math.round((uiScaleRef.current + 0.1) * 100) / 100));
+      } else if (e.ctrlKey && e.key === "-") {
+        e.preventDefault();
+        applyUiScale(Math.max(0.6, Math.round((uiScaleRef.current - 0.1) * 100) / 100));
+      } else if (e.ctrlKey && e.key === "0") {
+        e.preventDefault();
+        applyUiScale(1);
       } else if (e.key === "+" || e.key === "=") {
         api.volume("+").catch(console.warn);
       } else if (e.key === "-" || e.key === "_") {
@@ -314,6 +357,8 @@ export default function App() {
     setThemeState(next);
     applyTheme(next.theme, next.overrides);
   };
+
+  const uiScaleCtx = { scale: uiScale, setScale: applyUiScale };
 
   const themeCtx: ThemeState = themeState
     ? {
@@ -364,6 +409,7 @@ export default function App() {
 
   return (
     <CastProvider>
+    <UiScaleContext.Provider value={uiScaleCtx}>
     <ThemeContext.Provider value={themeCtx}>
     <CrtShell
       channelId={state.current_channel_id}
@@ -418,6 +464,7 @@ export default function App() {
       </div>
     )}
     </ThemeContext.Provider>
+    </UiScaleContext.Provider>
     </CastProvider>
   );
 }

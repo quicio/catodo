@@ -178,6 +178,28 @@ export function useHomeState(state: AppState): SharedHomeState {
   }, []);
   const closePair = useCallback(() => setShowPair(false), []);
 
+  // Atajos de teclado: `c` (o `C`) toggle config, `Esc` la cierra.
+  // Ignora cuando el foco está en un input/textarea/contenteditable para no
+  // pisar escritura normal.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.altKey || e.ctrlKey || e.metaKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) {
+        return;
+      }
+      if (e.key === "Escape" && showConfig) {
+        e.preventDefault();
+        setShowConfig(false);
+      } else if (e.key === "c" || e.key === "C") {
+        e.preventDefault();
+        setShowConfig((s) => !s);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showConfig]);
+
   return {
     wallpapers,
     ratings,
