@@ -117,6 +117,12 @@ async def lifespan(app):
     # arrastra un estado stale y el UI muestra "failed" eternamente.
     await tunnel.reconcile()
 
+    # Auto-generar pair_token si el túnel exige auth y no hay CATODO_TOKEN
+    # configurado. Sin esto, el QR del remote no embebe código y el remote
+    # queda pidiendo "Código de acceso" al primer 401.
+    from catodo import pair as _pair
+    await _pair.ensure_pair_token()
+
     app.state.broker = broker
     app.state.manager = manager
     app.state.plugins = plugins
@@ -171,7 +177,10 @@ def create_app() -> FastAPI:
         host = request.client.host if request.client else ""
         if path.startswith("/api/") and _is_token_required(path, host):
             provided = request.headers.get("X-Catodo-Token") or request.query_params.get("token") or ""
-            expected = _token or os.getenv("CATODO_TOKEN", "")
+            # Token efectivo: CATODO_TOKEN env var O pair_token auto-generado
+            # en runtime_config (ver pair.ensure_pair_token).
+            from catodo import pair as _pair
+            expected = _pair.get_token()
             if not expected or provided != expected:
                 return JSONResponse(status_code=401, content={"detail": "unauthorized"})
         return await call_next(request)

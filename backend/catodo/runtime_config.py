@@ -59,6 +59,10 @@ KEYS = {
     "tunnel_provider": lambda: "cloudflare",
     "tunnel_token_path": lambda: "",
     "tunnel_require_token": lambda: True,
+    # Token de pairing — auto-generado en el startup cuando el túnel
+    # exige auth y no hay CATODO_TOKEN configurado. Se embebe en el QR
+    # para que el remote no tenga que tipearlo a mano.
+    "pair_token": lambda: "",
 }
 
 

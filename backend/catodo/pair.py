@@ -4,23 +4,58 @@ Cuando hay un túnel público configurado y corriendo, `pair_urls()` expone
 la URL pública (que funciona desde cualquier red, vía HTTPS válido del
 proveedor) además de la LAN tradicional. El QR codifica la primaria
 (public si existe, si no LAN); se puede forzar LAN con `?which=lan`.
+
+El token de emparejamiento se resuelve en este orden:
+  1. CATODO_TOKEN env var (legacy, toma precedencia).
+  2. ``pair_token`` en runtime_config — auto-generado en el startup si
+     el túnel exige auth y no hay env var, para que el QR siempre venga
+     con código listo y el remote no tenga que tipearlo a mano.
 """
 from __future__ import annotations
 
 import logging
+import os
+import secrets
 import socket
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response
 
 from catodo.config import settings
-from catodo.runtime_config import get as _cfg_get
+from catodo import runtime_config
 
 log = logging.getLogger("catodo.pair")
 
 router = APIRouter(prefix="/pair", tags=["pair"])
 
-_token = __import__("os").getenv("CATODO_TOKEN", "")
+
+def get_token() -> str:
+    """Token de emparejamiento efectivo. CATODO_TOKEN env var primero."""
+    return os.getenv("CATODO_TOKEN", "") or runtime_config.get("pair_token") or ""
+
+
+def _code_suffix() -> str:
+    tok = get_token()
+    return f"?code={tok}" if tok else ""
+
+
+async def ensure_pair_token() -> str:
+    """Si el túnel exige auth y no hay token configurado, genera uno
+    aleatorio y lo persiste. Idempotente — se llama en el startup.
+
+    Retorna el token efectivo (existente o recién generado)."""
+    if os.getenv("CATODO_TOKEN"):
+        return os.getenv("CATODO_TOKEN", "")
+    if not runtime_config.get("tunnel_require_token"):
+        return ""
+    existing = runtime_config.get("pair_token")
+    if existing:
+        return existing
+    # 128 bits de entropía, URL-safe. Suficiente para un secreto de LAN.
+    new = secrets.token_urlsafe(16)
+    await runtime_config.set("pair_token", new)
+    log.info("auto-generated pair_token (CATODO_TOKEN env var is unset)")
+    return new
 
 
 def lan_ip() -> str:
@@ -33,10 +68,6 @@ def lan_ip() -> str:
         return ip
     except Exception:
         return "127.0.0.1"
-
-
-def _code_suffix() -> str:
-    return f"?code={_token}" if _token else ""
 
 
 def pair_urls(tunnel_manager=None) -> dict[str, str | None]:
@@ -62,7 +93,7 @@ def pair_urls(tunnel_manager=None) -> dict[str, str | None]:
     # El QR debe apuntar a la URL REAL que funciona. Si el túnel está
     # configurado pero no corriendo, public queda None y el QR cae a LAN.
     if _tunnel_is_running(tunnel_manager):
-        provider_name = _cfg_get("tunnel_provider") or ""
+        provider_name = runtime_config.get("tunnel_provider") or ""
         if provider_name == "tailscale-funnel":
             from catodo.tunnel import get_provider
 
@@ -72,7 +103,7 @@ def pair_urls(tunnel_manager=None) -> dict[str, str | None]:
                 if pub:
                     public = pub.rstrip("/") + f"/remote{code}"
         else:
-            domain = _cfg_get("public_domain")
+            domain = runtime_config.get("public_domain")
             if domain:
                 public = f"https://{domain}/remote{code}"
 
@@ -80,7 +111,7 @@ def pair_urls(tunnel_manager=None) -> dict[str, str | None]:
         "lan": lan,
         "public": public,
         "primary": "public" if public else "lan",
-        "code": _token or "",
+        "code": get_token(),
     }
 
 
@@ -89,7 +120,7 @@ def _tunnel_is_running(manager) -> bool:
     URL pública funcione. Si el manager no está disponible, caemos al flag
     de config (útil para tests que no inicializan el manager)."""
     if manager is None:
-        return bool(_cfg_get("tunnel_enabled"))
+        return bool(runtime_config.get("tunnel_enabled"))
     try:
         st = manager.status()
         return (st or {}).get("state") == "running"
