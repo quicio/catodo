@@ -4,6 +4,7 @@ interface WebChannelState {
   url: string;
   partition?: string;
   user_agent?: string;
+  search_url?: string;
 }
 
 const UA_ALIASES: Record<string, string> = {
@@ -24,6 +25,19 @@ export default function WebChannel({ channelId }: { channelId: string }) {
       .then((r) => (r.ok ? r.json() : null))
       .then((s: WebChannelState | null) => setSt(s))
       .catch(() => setSt(null));
+  }, [channelId]);
+
+  // Live state updates: el webview necesita recargar si la URL cambió
+  // (ej. search command desde el remote navega a youtube.com/results).
+  useEffect(() => {
+    const onState = (e: Event) => {
+      const ce = e as CustomEvent;
+      const detail = ce.detail as { id?: string; state?: WebChannelState } | undefined;
+      if (!detail || detail.id !== channelId || !detail.state) return;
+      setSt(detail.state);
+    };
+    window.addEventListener("catodo:channel_state", onState);
+    return () => window.removeEventListener("catodo:channel_state", onState);
   }, [channelId]);
 
   useEffect(() => {

@@ -19,6 +19,7 @@ export interface ChannelInfo {
   type: string;
   color?: string;
   order?: number;
+  search_url?: string;
 }
 
 export interface AppState {

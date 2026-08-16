@@ -54,6 +54,7 @@ const btnCastStop = $("#btn-cast-stop");
 let channels = [];
 let currentId = null;
 let currentType = null;
+let currentChannel = null;
 let playing = false;
 let lastVol = 50;
 let trackPos = 0;
@@ -209,6 +210,7 @@ function onOpen(id, silent) {
   webFetchId++;
   const ch = channelById(id);
   currentType = ch ? ch.type : null;
+  currentChannel = ch || null;
   for (const btn of chGrid.children) btn.classList.toggle("active", btn.dataset.id === id);
   updateNowPlayingView();
   if (ch && ch.type === "web") {
@@ -489,7 +491,18 @@ if (btnRight) btnRight.addEventListener("click", () => doClick(3));
   const doSearch = () => {
     const q = input.value.trim();
     if (!q) return;
-    api("POST", "/api/type", { text: q + "{ENTER}" });
+    // Si el canal activo tiene search_url en su manifest (ej. YouTube),
+    // mandamos un comando específico que el backend traduce a una
+    // navegación al search URL del plugin. Si no, caemos al fallback
+    // /api/type que inyecta texto en el webview (útil para inputs nativos).
+    if (currentId && currentChannel?.search_url) {
+      api("POST", "/api/channels/" + currentId + "/command", {
+        command: "search",
+        query: q,
+      });
+    } else {
+      api("POST", "/api/type", { text: q + "{ENTER}" });
+    }
     vibrate(10);
     input.value = "";
     input.blur(); // cerrar el teclado nativo del celu

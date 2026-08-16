@@ -58,6 +58,16 @@ export default function App() {
 
   const handleEvent = useCallback(
     (event: { event: string; [k: string]: unknown }) => {
+      // Cambio de canal con state nuevo (ej. remote.search → navega YouTube):
+      // emitimos un custom event para que WebChannel recargue el webview con
+      // la URL nueva.
+      if (event.event === "channel_changed" && event.state) {
+        window.dispatchEvent(
+          new CustomEvent("catodo:channel_state", {
+            detail: { id: String(event.channel_id ?? ""), state: event.state },
+          }),
+        );
+      }
       // Teclas multimedia del remote → inyectar en el webview activo. El manifest
       // del canal puede re-mapear la acción a una tecla que entienda su player
       // (ej. Movistar usa Space para play/pause).

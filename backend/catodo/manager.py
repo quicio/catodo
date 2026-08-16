@@ -178,6 +178,18 @@ class ChannelManager:
                 await self._broker.publish(
                     {"event": "playing_changed", "playing": self._playing}
                 )
+        # Para search/navigate, publicar el state nuevo así el kiosk recarga
+        # el webview con la URL nueva.
+        if cmd in ("navigate", "search"):
+            try:
+                st = await self._channels[channel_id].state()
+            except Exception:
+                return
+            await self._broker.publish({
+                "event": "channel_changed",
+                "channel_id": channel_id,
+                "state": st,
+            })
 
     def get(self, channel_id: str) -> Channel:
         if channel_id not in self._channels:

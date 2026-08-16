@@ -1,4 +1,5 @@
 """Plugin system — manifests, loader, CLI de gestión y API."""
+import asyncio
 import io
 import json
 import os
@@ -139,6 +140,45 @@ def test_web_channel_state_and_dict():
     assert d["color"] == "#123456"
     assert d["partition"] == "persist:foo"
     assert d["user_agent"] == "android-tv"
+
+
+def test_web_channel_search_url_command():
+    """Si el plugin declara search_url, el comando 'search' navega a esa URL
+    con el query encoded. Caso de uso: remote → YouTube TV no tiene input
+    enfocado, search_url permite ir directo a results."""
+    manifest = {
+        **WEB_MANIFEST,
+        "search_url": "https://foo.tv/search?q={query}",
+    }
+    ch = DeclarativeWebChannel(manifest)
+    asyncio.run(ch.command("search", query="hello world"))
+    st = asyncio.run(ch.state())
+    assert st["url"] == "https://foo.tv/search?q=hello%20world"
+
+
+def test_web_channel_search_rejects_cross_host():
+    """Safety: search_url no puede navegar a un host ajeno (mismo check
+    que navigate). Previene que un plugin malicioso redirija al usuario."""
+    manifest = {
+        **WEB_MANIFEST,
+        "search_url": "https://attacker.com/?q={query}",
+    }
+    ch = DeclarativeWebChannel(manifest)
+    asyncio.run(ch.command("search", query="x"))
+    st = asyncio.run(ch.state())
+    # No debe haber cambiado a host ajeno
+    assert "attacker.com" not in st["url"]
+
+
+def test_web_channel_search_url_in_dict():
+    """El remote usa to_dict() para saber si el canal soporta search_url."""
+    manifest = {
+        **WEB_MANIFEST,
+        "search_url": "https://foo.tv/search?q={query}",
+    }
+    ch = DeclarativeWebChannel(manifest)
+    d = ch.to_dict()
+    assert d["search_url"] == "https://foo.tv/search?q={query}"
 
 
 def test_plugins_api(client):

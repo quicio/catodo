@@ -120,6 +120,8 @@ class DeclarativeWebChannel(Channel):
         d["partition"] = self.partition
         d["user_agent"] = self.user_agent
         d["media_keys"] = self.media_keys
+        if self.search_url:
+            d["search_url"] = self.search_url
         if self.order is not None:
             d["order"] = self.order
         return d
@@ -138,7 +140,14 @@ class DeclarativeWebChannel(Channel):
             "configured_url": self._url,
             "partition": self.partition,
             "user_agent": self.user_agent,
+            "search_url": self._manifest.get("search_url"),
         }
+
+    @property
+    def search_url(self) -> str | None:
+        """URL template para búsquedas remotas. Usa {query} como placeholder.
+        None si el canal no soporta búsqueda por URL (cae a /api/type)."""
+        return self._manifest.get("search_url")
 
     def _same_host(self, url: str) -> bool:
         from urllib.parse import urlparse
@@ -160,6 +169,17 @@ class DeclarativeWebChannel(Channel):
                 self._current_url = url
             else:
                 log.warning("plugin %s ignora navegación a host ajeno: %s", self.id, url)
+        elif cmd == "search" and self.search_url:
+            from urllib.parse import quote
+
+            query = str(kwargs.get("query", "")).strip()
+            if not query:
+                return
+            url = self.search_url.replace("{query}", quote(query, safe=""))
+            if self._same_host(url):
+                self._current_url = url
+            else:
+                log.warning("plugin %s search_navigate a host ajeno: %s", self.id, url)
         else:
             log.info("plugin channel %s passthrough: %s %s", self.id, cmd, kwargs)
 

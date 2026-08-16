@@ -6,6 +6,7 @@
   "icon": "play",
   "color": "#ff0033",
   "url": "https://www.youtube.com/tv",
+  "search_url": "https://www.youtube.com/results?search_query={query}",
   "user_agent": "android-tv",
   "partition": "persist:youtube",
   "order": 1,
