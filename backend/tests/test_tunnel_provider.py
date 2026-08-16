@@ -206,3 +206,40 @@ def test_tailscale_validate_passes_when_funnel_cap_present(monkeypatch):
     monkeypatch.setattr(subprocess, "check_output", fake_check_output)
     errs = TailscaleFunnelProvider().validate_config()
     assert errs == [], errs
+
+
+def test_tailscale_explain_access_denied():
+    """El helper traduce 'Access denied: serve config denied' en mensaje
+    accionable con la instrucción exacta (sudo tailscale set --operator)."""
+    from catodo.tunnel.providers.tailscale import _explain_start_failure
+
+    raw = (
+        "sending serve config: Access denied: serve config denied "
+        "Use 'sudo tailscale funnel --bg 8765'. "
+        "To not require root, use 'sudo tailscale set --operator=$USER' once."
+    )
+    msg = _explain_start_failure(raw)
+    assert "operator" in msg
+    assert "sudo tailscale set --operator=$USER" in msg
+    # El raw original queda como detalle al final
+    assert raw in msg
+
+
+def test_tailscale_explain_permission_denied():
+    from catodo.tunnel.providers.tailscale import _explain_start_failure
+    msg = _explain_start_failure("permission denied: tailscale socket")
+    assert "sudo tailscale set --operator=$USER" in msg
+
+
+def test_tailscale_explain_funnel_disabled():
+    from catodo.tunnel.providers.tailscale import _explain_start_failure
+    msg = _explain_start_failure("Funnel is not enabled on your tailnet.")
+    assert "login.tailscale.com" in msg
+
+
+def test_tailscale_explain_unknown_error_passthrough():
+    """Errores que no reconocemos se devuelven con el prefijo estándar."""
+    from catodo.tunnel.providers.tailscale import _explain_start_failure
+    msg = _explain_start_failure("some weird internal error")
+    assert msg.startswith("tailscale funnel failed: ")
+    assert "some weird internal error" in msg
