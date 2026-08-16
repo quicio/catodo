@@ -21,6 +21,14 @@ from catodo.datadir import DATA_DIR, ensure_dirs
 
 log = logging.getLogger("catodo.plugins")
 
+
+def _version_tuple(v: str) -> tuple[int, ...]:
+    """Compara versiones semver-like como tuplas. '1.2.3' → (1, 2, 3)."""
+    try:
+        return tuple(int(x) for x in str(v).split("."))
+    except Exception:
+        return (0,)
+
 CATODO_VERSION = "0.1.0"
 SUPPORTED_TYPES = ("web",)
 UA_ALIASES = {"default": None, "chrome": "chrome", "android-tv": "android-tv"}
@@ -295,15 +303,41 @@ class PluginManager:
         return channels
 
     def _seed_bundled(self) -> None:
-        """Instala los plugins bundled del repo por defecto que falten."""
+        """Instala los plugins bundled del repo por defecto que falten.
+        Si un plugin ya está instalado pero su manifest quedó desactualizado
+        con respecto al repo bundled, también lo refresca — así un cambio
+        al manifest en el repo (ej. agregar search_url) llega al usuario
+        sin tener que reinstalar a mano."""
         try:
             index = self._repo_index()
         except Exception as e:
             log.warning("could not read bundled repo: %s", e)
             return
+        state = self._load_state()
         for entry in index.get("plugins", []):
-            if entry.get("bundled") and entry.get("id") not in self._load_state():
-                self.install(str(entry["id"]))
+            if not entry.get("bundled"):
+                continue
+            pid = str(entry["id"])
+            if pid not in state:
+                self.install(pid)
+                continue
+            # Ya instalado: refresh del manifest desde el repo bundled si
+            # cambió (version bump). No pisa files del usuario en plugins/<id>/
+            # que no estén en el manifest del repo.
+            installed = state.get(pid, {})
+            installed_ver = installed.get("version", "0.0.0")
+            if _version_tuple(entry.get("version", "0.0.0")) > _version_tuple(installed_ver):
+                try:
+                    bundled_manifest = self._fetch_manifest(pid)
+                    manifest_path = self._manifest_path(pid)
+                    os.makedirs(os.path.dirname(manifest_path), exist_ok=True)
+                    with open(manifest_path, "w") as f:
+                        json.dump(bundled_manifest, f, indent=2)
+                    state[pid] = {**installed, "version": entry["version"]}
+                    self._save_state()
+                    log.info("refreshed bundled plugin %s to v%s", pid, entry["version"])
+                except Exception as e:
+                    log.warning("could not refresh %s: %s", pid, e)
 
     # ---- repo ----
 
