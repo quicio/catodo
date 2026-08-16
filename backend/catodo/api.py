@@ -352,8 +352,13 @@ async def set_config(request: Request) -> dict:
                    "tunnel_token_path", "tunnel_require_token"}
     pending_tunnel = {k: v for k, v in payload.items() if k in tunnel_keys}
     if pending_tunnel:
-        if "public_domain" in pending_tunnel and not runtime_config.validate_public_domain(pending_tunnel["public_domain"]):
-            raise HTTPException(status_code=400, detail="invalid public_domain")
+        if "public_domain" in pending_tunnel:
+            # Empty is the legitimate default — Tailscale lo calcula solo,
+            # Cloudflare todavía no se configuró, etc. Sólo validamos cuando
+            # el usuario efectivamente tipeó algo.
+            val = pending_tunnel["public_domain"]
+            if val and not runtime_config.validate_public_domain(val):
+                raise HTTPException(status_code=400, detail="invalid public_domain")
         if "tunnel_provider" in pending_tunnel and not runtime_config.validate_tunnel_provider(pending_tunnel["tunnel_provider"]):
             raise HTTPException(status_code=400, detail="unknown provider")
     for k, v in payload.items():

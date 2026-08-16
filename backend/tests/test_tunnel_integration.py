@@ -114,6 +114,22 @@ def test_config_post_persists_tunnel_keys(client):
     assert cfg["tunnel_provider"] == "cloudflare"
 
 
+def test_config_post_accepts_empty_public_domain(client):
+    """Empty public_domain is the legitimate default — Tailscale lo calcula solo,
+    o todavía no se configuró. No debe romper el POST."""
+    r = client.post(
+        "/api/config",
+        json={
+            "public_domain": "",
+            "tunnel_provider": "tailscale-funnel",
+        },
+    )
+    assert r.status_code == 200, r.text
+    cfg = client.get("/api/config").json()
+    assert cfg["public_domain"] == ""
+    assert cfg["tunnel_provider"] == "tailscale-funnel"
+
+
 def test_token_not_required_when_tunnel_disabled(client):
     """With CATODO_TOKEN unset and tunnel_enabled=false, /api/state is reachable."""
     # Make sure no env token
