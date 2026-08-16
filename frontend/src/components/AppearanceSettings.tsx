@@ -172,6 +172,8 @@ function TabBar({
         top: 0,
         background: "var(--surface)",
         zIndex: 1,
+        overflowX: "auto",
+        scrollbarWidth: "none",
       }}
     >
       {TABS.map((t) => {
@@ -181,8 +183,9 @@ function TabBar({
             key={t.id}
             onClick={() => onChange(t.id)}
             style={{
-              flex: 1,
-              padding: "7px 4px",
+              flex: "1 0 auto",
+              minWidth: 60,
+              padding: "7px 8px",
               fontSize: 11,
               fontFamily: "var(--font-mono)",
               letterSpacing: 1,
@@ -193,6 +196,7 @@ function TabBar({
               color: isActive ? "var(--text)" : "var(--text-dim)",
               cursor: "pointer",
               transition: "color 0.15s ease, border-color 0.15s ease",
+              whiteSpace: "nowrap",
             }}
           >
             {t.label}

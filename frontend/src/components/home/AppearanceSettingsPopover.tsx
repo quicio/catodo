@@ -31,7 +31,7 @@ export function AppearanceSettingsPopover({
         border: "1px solid var(--border)",
         borderRadius: "var(--radius-lg)",
         padding: 10,
-        width: "min(360px, 90vw)",
+        width: "min(420px, 92vw)",
         maxHeight: "min(70vh, 640px)",
         fontFamily: "var(--font-mono)",
         boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
