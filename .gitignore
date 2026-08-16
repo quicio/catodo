@@ -10,6 +10,10 @@ dist/
 src-tauri/target/
 src-tauri/gen/
 
+# Tauri 2 tray client
+clients/tray/target/
+clients/tray/gen/
+
 .DS_Store
 *.swp
 .idea/

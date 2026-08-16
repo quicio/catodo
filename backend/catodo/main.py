@@ -28,6 +28,7 @@ from catodo.pair import router as pair_router
 from catodo.plugin_system import PluginManager, sort_channels
 from catodo.plugins_api import router as plugins_router
 from catodo.wallpapers import router as wallpapers_router
+from catodo.modes import router as modes_router
 
 logger = logging.getLogger("catodo")
 
@@ -139,6 +140,7 @@ def create_app() -> FastAPI:
     app.include_router(plugins_router, prefix="/api")
     app.include_router(libraries_router, prefix="/api")
     app.include_router(pair_router, prefix="/api")
+    app.include_router(modes_router, prefix="/api")
     app.include_router(cast_router, prefix="/api")
     if STATIC_DIR.exists():
         app.mount(
