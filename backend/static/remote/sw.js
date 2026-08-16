@@ -8,7 +8,7 @@
 //     * /api/*     → network only, never cache (state changes constantly).
 //     * navigate   → network-first, fallback to cached "/" shell.
 //     * everything → network-first, fall back to cached shell when offline.
-const CACHE = "catodo-remote-v4";
+const CACHE = "catodo-remote-v5";
 const SHELL = ["/remote/", "/remote/manifest.webmanifest", "/remote/icons/icon-192.png"];
 
 self.addEventListener("install", (event) => {
