@@ -33,7 +33,7 @@ body{
   font-family:"Space Grotesk",ui-sans-serif,system-ui,-apple-system,sans-serif;
   background:var(--bg);color:var(--text);
   display:flex;flex-direction:column;
-  min-height:100dvh;max-width:480px;margin:0 auto;
+  height:100dvh;max-width:480px;margin:0 auto;
   -webkit-user-select:none;user-select:none;
   overflow:hidden
 }
@@ -94,37 +94,43 @@ body{
 #vollabel{font-size:13px;font-family:var(--font-mono);min-width:3ch;text-align:right;color:var(--text-dim)}
 
 /* Channels (estilo home) */
-#view-channels{justify-content:flex-start;align-items:stretch;padding:18px 16px 10px;gap:14px}
-.home-head{flex-shrink:0;text-align:center;padding-top:8px}
+#view-channels{
+  justify-content:flex-start;align-items:stretch;
+  padding:14px 14px calc(20px + var(--safe-bottom));
+  gap:12px;
+  /* El view scrollea cuando hay muchos canales. El bottom-padding evita
+     que el último canal quede tapado por el tab bar inferior. */
+}
+.home-head{flex-shrink:0;text-align:center;padding-top:4px}
 .home-brand{
-  font-size:30px;font-weight:700;letter-spacing:-2px;line-height:1;
+  font-size:26px;font-weight:700;letter-spacing:-1.5px;line-height:1;
   text-shadow:0 0 30px color-mix(in srgb,var(--text) 25%,transparent)
 }
 .home-sub{
-  margin-top:6px;font-family:var(--font-mono);font-weight:700;
+  margin-top:4px;font-family:var(--font-mono);font-weight:700;
   font-size:10px;letter-spacing:3px;opacity:.5
 }
-#channels{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%}
+#channels{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%}
 #channels button{
-  display:flex;flex-direction:column;align-items:center;gap:10px;
-  padding:18px 12px;border-radius:var(--radius);
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  padding:12px 8px;border-radius:var(--radius);
   background:color-mix(in srgb,var(--text) 4%,transparent);
   border:1px solid color-mix(in srgb,var(--text) 10%,transparent);
-  color:var(--text);font-size:15px;font-weight:600;font-family:inherit;
+  color:var(--text);font-size:14px;font-weight:600;font-family:inherit;
   cursor:pointer;transition:transform .15s,background .15s,border-color .15s
 }
 #channels button:active{transform:scale(.96)}
 #channels button.active{border-color:var(--ch);background:color-mix(in srgb,var(--ch) 10%,transparent)}
 #channels .ch-badge{
-  width:54px;height:54px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;
   background:color-mix(in srgb,var(--ch) 18%,transparent);
   color:var(--ch);
   border:1px solid color-mix(in srgb,var(--ch) 50%,transparent);
-  box-shadow:0 0 18px color-mix(in srgb,var(--ch) 25%,transparent)
+  box-shadow:0 0 14px color-mix(in srgb,var(--ch) 25%,transparent)
 }
-#channels .ch-badge svg{display:block}
-#channels .ch-name{font-size:14px}
-#channels .ch-num{font-size:10px;opacity:.4;font-family:var(--font-mono);letter-spacing:2px}
+#channels .ch-badge svg{display:block;width:22px;height:22px}
+#channels .ch-name{font-size:13px;line-height:1.2}
+#channels .ch-num{font-size:9px;opacity:.4;font-family:var(--font-mono);letter-spacing:2px}
 
 /* Mouse / Trackpad */
 #view-mouse{
