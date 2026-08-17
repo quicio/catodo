@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Icon } from "../icons";
 import { api, type AppState } from "../api/client";
 
 interface NowPlaying {
@@ -29,8 +30,13 @@ export default function NowPlaying({ state }: { state: AppState }) {
   const [lyricsStatus, setLyricsStatus] = useState<"idle" | "loading" | "ok" | "missing">("idle");
   const [artistWallpapers, setArtistWallpapers] = useState<string[]>([]);
   const [wpIndex, setWpIndex] = useState(0);
+  const [compact, setCompact] = useState(false);
+  const [lyricOffset, setLyricOffset] = useState(0);
+  const [syncHint, setSyncHint] = useState<number | null>(null);
+  const [syncHover, setSyncHover] = useState(false);
   const lastKeyRef = useRef<string>("");
   const lastArtistRef = useRef<string>("");
+  const trackKeyRef = useRef<string>("");
 
   const np = state.spotify
     ? {
@@ -73,6 +79,56 @@ export default function NowPlaying({ state }: { state: AppState }) {
       cancelled = true;
     };
   }, [np?.title, np?.artist, np?.album]);
+
+  // Sync manual de letras: al cambiar de pista se carga el offset guardado
+  // para esa pista (ajustado con [ y ]).
+  useEffect(() => {
+    if (!np || !np.title || !np.artist) return;
+    const key = `${np.artist}|${np.title}|${np.album ?? ""}`;
+    trackKeyRef.current = key;
+    try {
+      const saved = Number(window.localStorage.getItem(`catodo:lyric-offset:${key}`) ?? 0) || 0;
+      setLyricOffset(saved);
+    } catch {}
+  }, [np?.title, np?.artist, np?.album]);
+
+  useEffect(() => {
+    if (!trackKeyRef.current) return;
+    try {
+      if (lyricOffset === 0) {
+        window.localStorage.removeItem(`catodo:lyric-offset:${trackKeyRef.current}`);
+      } else {
+        window.localStorage.setItem(`catodo:lyric-offset:${trackKeyRef.current}`, String(lyricOffset));
+      }
+    } catch {}
+  }, [lyricOffset]);
+
+  // Atajos: [ ] (o , .) ajustan el sync de las letras (±0.5s), \ lo resetea.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      let delta = 0;
+      if (e.key === "]" || e.key === ".") delta = 0.5;
+      else if (e.key === "[" || e.key === ",") delta = -0.5;
+      else if (e.key === "\\") {
+        setLyricOffset(0);
+        setSyncHint(0);
+        e.preventDefault();
+        return;
+      }
+      if (delta === 0) return;
+      e.preventDefault();
+      setLyricOffset((o) => Math.round((o + delta) * 10) / 10);
+      setSyncHint(delta);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, []);
+
+  useEffect(() => {
+    if (syncHint === null) return;
+    const id = window.setTimeout(() => setSyncHint(null), 1600);
+    return () => clearTimeout(id);
+  }, [syncHint]);
 
   // Wallpapers del artista: rota entre ellos cada ~12s. Si la API devuelve
   // `in_progress: true` (descarga en background), reintenta unos segundos
@@ -141,9 +197,29 @@ export default function NowPlaying({ state }: { state: AppState }) {
     return () => clearInterval(id);
   }, [artistWallpapers]);
 
+  // Layout compacto para ventanas bajas (ej. split 4-way): se encoge la
+  // tipografía y el panel de letras para que no se pisen con los controles.
+  useEffect(() => {
+    const update = () => setCompact(window.innerHeight < 760);
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
   const send = (cmd: string) => {
     api.command("spotify", cmd).catch(console.warn);
   };
+
+  const centerCol = compact
+    ? { ...centerColumnStyle, padding: "20px 32px 12px", minHeight: "calc(100% - 130px)" }
+    : centerColumnStyle;
+  const title = compact ? { ...titleStyle, fontSize: 38, lineHeight: 1.12 } : titleStyle;
+  const artist = compact ? { ...artistStyle, fontSize: 20, marginTop: 8 } : artistStyle;
+  const album = compact ? { ...albumStyle, marginTop: 8 } : albumStyle;
+  const statusRow = compact ? { ...statusRowStyle, marginBottom: 12 } : statusRowStyle;
+  const bottomBar = compact
+    ? { ...bottomBarStyle, padding: "0 24px 10px", bottom: "calc(var(--channel-bar-height) - 10px)" }
+    : bottomBarStyle;
 
   if (!np) {
     return (
@@ -179,8 +255,8 @@ export default function NowPlaying({ state }: { state: AppState }) {
       {bgUrl && <FullBleedArt artUrl={bgUrl} />}
       <div style={overlayStyle} />
 
-      <div style={centerColumnStyle}>
-        <div style={statusRowStyle}>
+      <div style={centerCol}>
+        <div style={statusRow}>
           <span
             style={{
               display: "inline-block",
@@ -196,24 +272,59 @@ export default function NowPlaying({ state }: { state: AppState }) {
           </span>
         </div>
 
-        <div style={titleStyle}>{np.title || "Sin pista"}</div>
-        <div style={artistStyle}>{np.artist || "—"}</div>
-        {np.album && <div style={albumStyle}>{np.album}</div>}
+        <div style={title}>{np.title || "Sin pista"}</div>
+        <div style={artist}>{np.artist || "—"}</div>
+        {np.album && <div style={album}>{np.album}</div>}
 
         <LyricsPanel
           lyrics={lyrics}
           status={lyricsStatus}
           position={np?.position ?? 0}
+          offset={lyricOffset}
+          compact={compact}
         />
       </div>
 
-      <div style={bottomBarStyle}>
+      {syncHint !== null && (
+        <div style={syncHintStyle}>
+          SYNC{" "}
+          {lyricOffset > 0 ? "+" : ""}
+          {lyricOffset.toFixed(1)}s
+        </div>
+      )}
+
+      {lyricOffset !== 0 && (
+        <div
+          style={syncDotWrapperStyle}
+          onMouseEnter={() => setSyncHover(true)}
+          onMouseLeave={() => setSyncHover(false)}
+        >
+          <div style={syncDotStyle} />
+          {syncHover && (
+            <div style={syncBadgeStyle}>
+              SYNC {lyricOffset > 0 ? "+" : ""}
+              {lyricOffset.toFixed(1)}s
+            </div>
+          )}
+        </div>
+      )}
+
+      <div style={bottomBar}>
         <div style={controlsStyle}>
-          <Ctrl onClick={() => send("prev")} size={56}>{"⏮"}</Ctrl>
-          <Ctrl onClick={() => send("toggle")} primary size={72}>
-            {playing ? "❚❚" : "▶"}
+          <Ctrl onClick={() => send("prev")} size={compact ? 42 : 56}>
+            <Icon name="skip-back" size={compact ? 20 : 26} strokeWidth={2.2} />
           </Ctrl>
-          <Ctrl onClick={() => send("next")} size={56}>{"⏭"}</Ctrl>
+          <Ctrl onClick={() => send("toggle")} size={compact ? 54 : 72}>
+            <Icon
+              name="play"
+              morphTo={playing ? "pause" : undefined}
+              size={compact ? 24 : 30}
+              strokeWidth={2.2}
+            />
+          </Ctrl>
+          <Ctrl onClick={() => send("next")} size={compact ? 42 : 56}>
+            <Icon name="skip-forward" size={compact ? 20 : 26} strokeWidth={2.2} />
+          </Ctrl>
         </div>
       </div>
     </div>
@@ -288,10 +399,14 @@ function LyricsPanel({
   lyrics,
   status,
   position,
+  offset = 0,
+  compact = false,
 }: {
   lyrics: Lyrics | null;
   status: "idle" | "loading" | "ok" | "missing";
   position: number;
+  offset?: number;
+  compact?: boolean;
 }) {
   const [idx, setIdx] = useState(0);
   const total = lyrics?.lines.length ?? 0;
@@ -307,8 +422,9 @@ function LyricsPanel({
     let target = 0;
     // Lookahead: el backend publica `position` cada ~1s, así que la letra
     // llega ~1s tarde sin este offset. Sumamos 1.2s para que la línea
-    // actual se alinee con el audio.
-    const effective = position + 1.2;
+    // actual se alinee con el audio. `offset` es el sync manual del usuario
+    // (ajustado con [ y ], persistido por pista).
+    const effective = position + 1.2 + offset;
     for (let i = 0; i < total; i++) {
       if (lyrics!.lines[i].t <= effective) {
         target = i;
@@ -317,7 +433,7 @@ function LyricsPanel({
       }
     }
     setIdx(target);
-  }, [position, lyrics, total, hasTimestamps]);
+  }, [position, lyrics, total, hasTimestamps, offset]);
 
   useEffect(() => {
     if (hasTimestamps || total === 0) return;
@@ -337,10 +453,16 @@ function LyricsPanel({
   const progress = total > 0 ? ((idx + 1) / total) * 100 : 0;
   // Slot vertical: la línea activa tiene más aire y reserva espacio fijo
   // para evitar saltos visuales cuando wrappea a 2 líneas.
-  const ACTIVE_SLOT = 88;
-  const INACTIVE_SLOT = 52;
-  const ACTIVE_MIN_H = 64; // 2 líneas de 34px con lineHeight 1.3 (~44px c/u)
-  const MAX_OFFSET = 3;
+  const ACTIVE_SLOT = compact ? 56 : 88;
+  const INACTIVE_SLOT = compact ? 34 : 52;
+  const ACTIVE_MIN_H = compact ? 44 : 64; // 2 líneas de 34px con lineHeight 1.3 (~44px c/u)
+  const MAX_OFFSET = compact ? 2 : 3;
+  const viewport = compact
+    ? { ...lyricsViewportStyle, height: 220 }
+    : lyricsViewportStyle;
+  const panel = compact
+    ? { ...lyricsPanelStyle, marginTop: 20, minHeight: 120 }
+    : lyricsPanelStyle;
 
   function offsetToY(offset: number): number {
     if (offset === 0) return 0;
@@ -350,8 +472,8 @@ function LyricsPanel({
   }
 
   return (
-    <div style={lyricsPanelStyle}>
-      <div style={lyricsViewportStyle}>
+    <div style={panel}>
+      <div style={viewport}>
         {lyrics.lines.map((line, i) => {
           const offset = i - idx;
           if (Math.abs(offset) > MAX_OFFSET) return null;
@@ -514,6 +636,7 @@ const lyricsPanelStyle: React.CSSProperties = {
 const lyricsViewportStyle: React.CSSProperties = {
   position: "relative",
   height: 400,
+  overflow: "hidden",
 };
 
 const lyricsHintStyle: React.CSSProperties = {
@@ -521,6 +644,54 @@ const lyricsHintStyle: React.CSSProperties = {
   opacity: 0.4,
   fontSize: 14,
   fontStyle: "italic",
+};
+
+const syncHintStyle: React.CSSProperties = {
+  position: "absolute",
+  top: 24,
+  left: "50%",
+  transform: "translateX(-50%)",
+  zIndex: 3,
+  padding: "6px 14px",
+  borderRadius: 999,
+  background: "rgba(0,0,0,0.55)",
+  backdropFilter: "blur(6px)",
+  color: "#fff",
+  fontFamily: "var(--font-mono)",
+  fontSize: 13,
+  letterSpacing: 1,
+  opacity: 0.95,
+};
+
+const syncBadgeStyle: React.CSSProperties = {
+  padding: "5px 12px",
+  borderRadius: 999,
+  background: "rgba(0,0,0,0.55)",
+  backdropFilter: "blur(6px)",
+  color: "#fff",
+  fontFamily: "var(--font-mono)",
+  fontSize: 12,
+  letterSpacing: 1,
+  whiteSpace: "nowrap",
+};
+
+const syncDotWrapperStyle: React.CSSProperties = {
+  position: "absolute",
+  top: 24,
+  right: 24,
+  zIndex: 3,
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  cursor: "default",
+};
+
+const syncDotStyle: React.CSSProperties = {
+  width: 8,
+  height: 8,
+  borderRadius: "50%",
+  background: "rgba(255,255,255,0.4)",
+  flexShrink: 0,
 };
 
 const lyricsFooterStyle: React.CSSProperties = {
@@ -531,15 +702,17 @@ const lyricsFooterStyle: React.CSSProperties = {
 
 const lyricsProgressTrackStyle: React.CSSProperties = {
   width: "100%",
+  maxWidth: 320,
+  alignSelf: "center",
   height: 2,
-  background: "rgba(255,255,255,0.1)",
+  background: "rgba(255,255,255,0.08)",
   borderRadius: 1,
   overflow: "hidden",
 };
 
 const lyricsProgressFillStyle: React.CSSProperties = {
   height: "100%",
-  background: "#fff",
+  background: "rgba(255,255,255,0.5)",
   transition: "width 0.4s ease",
 };
 
@@ -576,12 +749,10 @@ const controlsStyle: React.CSSProperties = {
 function Ctrl({
   children,
   onClick,
-  primary,
   size = 56,
 }: {
   children: React.ReactNode;
   onClick: () => void;
-  primary?: boolean;
   size?: number;
 }) {
   return (
@@ -591,18 +762,17 @@ function Ctrl({
         width: size,
         height: size,
         borderRadius: "50%",
-        background: primary ? "#fff" : "rgba(255,255,255,0.1)",
-        color: primary ? "#000" : "#fff",
+        background: "transparent",
+        color: "#fff",
         border: "none",
         cursor: "pointer",
-        fontSize: primary ? 26 : 20,
-        fontWeight: 700,
-        backdropFilter: "blur(8px)",
-        display: "grid",
-        placeItems: "center",
-        transition: "transform 0.15s ease, background 0.15s ease",
+        padding: 0,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        transition: "transform 0.15s ease, opacity 0.15s ease",
       }}
-      onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.08)")}
+      onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.15)")}
       onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
     >
       {children}
