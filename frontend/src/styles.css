@@ -27,7 +27,7 @@
   /* Altura reservada para la barra de canales fija abajo. Se usa como
      padding-bottom en vistas que tienen UI propia cerca del borde
      (ej. NowPlaying de Spotify) para que no se superpongan. */
-  --channel-bar-height: calc(48px * var(--space-scale) + 32px * var(--space-scale) + 52px);
+  --channel-bar-height: calc(32px * var(--space-scale) + 24px * var(--space-scale) + 40px);
   color-scheme: dark;
   font-family: var(--font-display);
   background: var(--bg);
@@ -176,9 +176,9 @@ html, body, #root {
   left: 50%;
   transform: translateX(-50%);
   bottom: 0;
-  padding: calc(48px * var(--space-scale)) calc(24px * var(--space-scale)) calc(32px * var(--space-scale));
+  padding: calc(32px * var(--space-scale)) calc(20px * var(--space-scale)) calc(24px * var(--space-scale));
   display: flex;
-  gap: calc(12px * var(--space-scale));
+  gap: calc(10px * var(--space-scale));
   align-items: center;
   background: transparent;
   z-index: 9999;
@@ -200,54 +200,76 @@ html, body, #root {
   margin-right: 8px;
 }
 
+/* Píldoras minimalistas: paneles delgados y transparentes con borde fino.
+   El activo resalta con el accent del theme (borde + línea inferior). */
 .channel-pill {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: calc(12px * var(--space-scale)) calc(20px * var(--space-scale));
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  color: var(--text);
-  border: 1px solid var(--border);
+  padding: calc(8px * var(--space-scale)) calc(16px * var(--space-scale));
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   font-size: var(--font-size-base);
   font-family: var(--font-display);
-  font-weight: 600;
+  font-weight: 500;
+  letter-spacing: 0.5px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: border-color 0.2s ease, color 0.2s ease, text-shadow 0.2s ease;
   white-space: nowrap;
   flex-shrink: 0;
 }
 
 .channel-pill:hover {
-  background: var(--surface);
-  transform: translateY(-2px);
+  background: transparent;
+  border-color: color-mix(in srgb, var(--text-dim) 75%, transparent);
+  color: var(--text);
+  text-shadow: 0 0 12px color-mix(in srgb, var(--text) 22%, transparent);
 }
 
 .channel-pill:active {
-  transform: translateY(0);
+  background: transparent;
 }
 
 .channel-pill.active {
-  background: var(--accent);
+  background: transparent;
   color: var(--text);
-  border-color: transparent;
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
   font-weight: 600;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  text-shadow: none;
+}
+
+.channel-pill.active::after {
+  content: "";
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  bottom: -2px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 
 .channel-pill-num {
   font-family: var(--font-mono);
-  font-size: 16px;
-  font-weight: 700;
-  opacity: 0.85;
-  padding: 2px 7px;
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--bg) 40%, transparent);
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.45;
+  background: transparent;
+  padding: 0;
+  transition: opacity 0.2s ease, color 0.2s ease;
+}
+
+.channel-pill:hover .channel-pill-num {
+  opacity: 0.75;
 }
 
 .channel-pill.active .channel-pill-num {
-  background: color-mix(in srgb, var(--bg) 25%, transparent);
-  opacity: 0.8;
+  color: var(--accent);
+  opacity: 0.9;
 }
 
 /* === Channel view === */
