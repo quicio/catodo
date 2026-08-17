@@ -30,6 +30,7 @@ KEYS = {
     "arcade_default_emulator": lambda: "",
     "arcade_boxart_enabled": lambda: True,
     "resume_last_channel": lambda: True,
+    "spotify_minimize_on_launch": lambda: True,
     "per_channel_volume_enabled": lambda: True,
     "per_channel_volume_default": lambda: 50,
     "channel_audio_sinks": lambda: {},
