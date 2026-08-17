@@ -14,7 +14,7 @@ const UA_ALIASES: Record<string, string> = {
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
 };
 
-export default function WebChannel({ channelId }: { channelId: string }) {
+export default function WebChannel({ channelId, active = true }: { channelId: string; active?: boolean }) {
   const [st, setSt] = useState<WebChannelState | null>(null);
   const [loaded, setLoaded] = useState(false);
   const webviewRef = useRef<HTMLElement>(null);
@@ -57,6 +57,24 @@ export default function WebChannel({ channelId }: { channelId: string }) {
     wv.addEventListener("dom-ready", onReady);
     return () => wv.removeEventListener("dom-ready", onReady);
   }, [st?.url]);
+
+  // Keep-alive: el webview queda montado oculto al cambiar de canal. Cuando el
+  // canal pasa a segundo plano, pausamos los medios para que el video quede
+  // exactamente donde estaba (sin audio mezclado) al volver.
+  useEffect(() => {
+    if (active) return;
+    const wv = webviewRef.current as unknown as {
+      executeJavaScript: (code: string, userGesture?: boolean) => Promise<unknown>;
+    } | null;
+    if (!wv) return;
+    try {
+      wv
+        .executeJavaScript(`(() => {
+          for (const el of document.querySelectorAll('video, audio')) el.pause();
+        })()`, false)
+        .catch(() => {});
+    } catch {}
+  }, [active]);
 
   if (!st || !st.url) {
     return (

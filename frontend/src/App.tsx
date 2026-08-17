@@ -4,6 +4,7 @@ import { useWebSocket, applyEvent, createInitialState } from "./api/ws";
 import ChannelView from "./components/ChannelView";
 import ChannelBar from "./components/ChannelBar";
 import Home from "./components/Home";
+import WebChannel from "./channels/WebChannel";
 import { getLayout } from "./components/home";
 import CrtShell from "./components/CrtShell";
 import IdleScreensaver from "./components/IdleScreensaver";
@@ -354,6 +355,29 @@ export default function App() {
     ? channels.findIndex((c) => c.id === current.id) + 1
     : 0;
 
+  // Keep-alive de canales web (YouTube, TV, etc.): el webview queda montado y
+  // oculto al cambiar de canal, así al volver se conserva el video donde quedó.
+  // Solo se montan los canales que el usuario visitó en esta sesión.
+  const [keepAliveWeb, setKeepAliveWeb] = useState<string[]>([]);
+  useEffect(() => {
+    const id = state.current_channel_id;
+    if (!id) return;
+    const isWeb = channels.find((c) => c.id === id)?.type === "web";
+    if (isWeb) {
+      setKeepAliveWeb((prev) => (prev.includes(id) ? prev : [...prev, id]));
+    }
+  }, [state.current_channel_id, channels]);
+
+  // Avisar al proceso principal cuál es el webview visible, para que las teclas
+  // multimedia / inserción de texto apunten al canal activo (no al último que
+  // se montó, ya que ahora varios webviews conviven en memoria).
+  useEffect(() => {
+    const catodo = (window as unknown as { catodo?: { setActiveChannel?: (id: string | null) => void } }).catodo;
+    try {
+      catodo?.setActiveChannel?.(state.current_channel_id);
+    } catch {}
+  }, [state.current_channel_id]);
+
   if (channels.length === 0) {
     return (
       <div className="channel-view placeholder">
@@ -427,9 +451,22 @@ export default function App() {
       channelNumber={channelNumber}
       volume={state.volume}
     >
-      {current ? (
+      {keepAliveWeb.map((id) => {
+        const active = state.current_channel_id === id;
+        return (
+          <div
+            key={id}
+            className="channel-view"
+            style={{ visibility: active ? "visible" : "hidden" }}
+          >
+            <WebChannel channelId={id} active={active} />
+          </div>
+        );
+      })}
+      {current && current.type !== "web" && (
         <ChannelView current={current} volume={state.volume} state={state} />
-      ) : (
+      )}
+      {!current && (
         <Home
           channels={channels}
           onPick={switchChannel}

@@ -65,7 +65,11 @@ const CHROME_UA =
 
 // Webview activo (YouTube/TV). Las teclas media del OS no llegan a la interfaz
 // TV dentro del webview, así que se inyectan acá con sendInputEvent.
+// Con keep-alive conviven varios webviews (uno por canal visitado), así que se
+// registran por channelId y activeWebview apunta al canal visible.
 let activeWebview = null;
+const webviewsByChannel = new Map();
+let activeChannelId = null;
 
 // Reproducción o interacción dentro del webview cuenta como actividad: se
 // avisa al backend para que no active el screensaver mientras hay contenido
@@ -233,7 +237,23 @@ function createWindow() {
   };
   win.webContents.on("did-attach-webview", (_e, contents) => {
     try {
-      activeWebview = contents;
+      const channelId = (() => {
+        try {
+          const prefs = contents.getLastWebPreferences();
+          return (prefs?.partition || "").replace(/^persist:/, "");
+        } catch {
+          return "";
+        }
+      })();
+      if (channelId) {
+        webviewsByChannel.set(channelId, contents);
+        if (channelId === activeChannelId) activeWebview = contents;
+        contents.on("destroyed", () => {
+          webviewsByChannel.delete(channelId);
+          if (activeWebview === contents) activeWebview = null;
+        });
+      }
+      activeWebview = activeWebview || contents;
       contents.on("destroyed", () => {
         if (activeWebview === contents) activeWebview = null;
       });
@@ -256,14 +276,6 @@ function createWindow() {
       // El user-agent lo define el manifest del plugin vía el atributo del webview
       // (WebChannel). El canal se deduce del partition (persist:<id>) para notificar
       // la navegación al canal correcto.
-      const channelId = (() => {
-        try {
-          const prefs = contents.getLastWebPreferences();
-          return (prefs?.partition || "").replace(/^persist:/, "");
-        } catch {
-          return "";
-        }
-      })();
       if (channelId) {
         contents.on("did-navigate", (_ev, url) => {
           try {
@@ -279,6 +291,16 @@ function createWindow() {
     }
   });
 }
+
+ipcMain.on("set-active-channel", (_event, channelId) => {
+  try {
+    activeChannelId = channelId ? String(channelId) : null;
+    const contents = activeChannelId ? webviewsByChannel.get(activeChannelId) : null;
+    activeWebview = contents && !contents.isDestroyed() ? contents : null;
+  } catch (e) {
+    fs.appendFileSync("/tmp/catodo-dev.log", "\n[CH-ERR] " + e + "\n");
+  }
+});
 
 ipcMain.on("media-key", (_event, key) => {
   try {
