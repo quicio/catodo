@@ -27,6 +27,7 @@ async def lyrics(
         raise HTTPException(status_code=400, detail="artist and track are required")
 
     timeout = httpx.Timeout(5.0, connect=3.0)
+    exact_data: dict | None = None
     async with httpx.AsyncClient(timeout=timeout, headers=HEADERS) as client:
         try:
             params = {
@@ -38,7 +39,11 @@ async def lyrics(
             r = await client.get(LRCLIB_GET, params=params)
             if r.status_code == 200:
                 data = r.json()
-                return _format(data)
+                exact_data = data
+                # Prefer a synchronized result, but do not let an exact match
+                # without timestamps hide a synchronized search result.
+                if data.get("syncedLyrics"):
+                    return _format(data)
         except Exception as e:
             log.debug("lrclib get failed: %s", e)
 
@@ -55,10 +60,18 @@ async def lyrics(
                 if results:
                     best = _pick_best(results, duration)
                     if best:
+                        if best.get("syncedLyrics"):
+                            return _format(best)
+                        # Preserve an exact plain-lyrics match if the search
+                        # did not return a synchronized candidate.
+                        if exact_data and exact_data.get("plainLyrics"):
+                            return _format(exact_data)
                         return _format(best)
         except Exception as e:
             log.debug("lrclib search failed: %s", e)
 
+    if exact_data and exact_data.get("plainLyrics"):
+        return _format(exact_data)
     raise HTTPException(status_code=404, detail="lyrics not found")
 
 
@@ -97,11 +110,16 @@ def _format(data: dict) -> dict:
 def _pick_best(results: list[dict], duration: int | None) -> dict | None:
     if not results:
         return None
+    # A synchronized candidate is more useful than a duration-equivalent
+    # plain-lyrics candidate: the client can render both, but the former can
+    # actually be synced to playback.
+    synced = [item for item in results if item.get("syncedLyrics")]
+    candidates = synced or results
     if duration is None:
-        return results[0]
+        return candidates[0]
     best = None
     best_delta = None
-    for item in results:
+    for item in candidates:
         d = item.get("duration")
         if d is None:
             continue
@@ -109,4 +127,4 @@ def _pick_best(results: list[dict], duration: int | None) -> dict | None:
         if best_delta is None or delta < best_delta:
             best_delta = delta
             best = item
-    return best or results[0]
+    return best or candidates[0]
