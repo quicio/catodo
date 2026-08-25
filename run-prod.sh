@@ -14,32 +14,17 @@ PORT="${CATODO_PROD_PORT:-8767}"
 DATA_DIR="${CATODO_DATA_DIR:-$HOME/.local/share/catodo}"
 LOG="${CATODO_LOG:-$ROOT_DIR/catodo.log}"
 
+# shellcheck source=scripts/_lib.sh
+source "$ROOT_DIR/scripts/_lib.sh"
+
 ACTION="${1:-status}"
 PIDFILE="${CATODO_PIDFILE:-/tmp/catodo.backend.pid}"
 
-backend_stale() {
-    local pid="$1"
-    local src="$BACKEND_DIR/catodo/themes.py"
-    local src_mtime
-    src_mtime=$(stat -c %Y "$src" 2>/dev/null || echo 0)
-    local boot_jiffies pid_start_jiffies
-    boot_jiffies=$(awk '/^btime/ {print $2}' /proc/stat 2>/dev/null || echo 0)
-    pid_start_jiffies=$(awk '{print $22}' "/proc/$pid/stat" 2>/dev/null || echo 0)
-    [ "$pid_start_jiffies" -eq 0 ] && return 0
-    local start_epoch=$(( boot_jiffies + pid_start_jiffies / 100 ))
-    [ "$start_epoch" -lt "$src_mtime" ]
-}
-
-# PID del backend vivo en el puerto (vía ss + inode → PID)
-current_pid() {
-    ss -tlnp 2>/dev/null | grep ":$PORT " | grep -oP 'pid=\K[0-9]+' | head -1 || true
-}
-
 start() {
     local pid
-    pid=$(current_pid)
+    pid=$(current_pid "$PORT")
     if [ -n "$pid" ] && curl -sf -m 2 "http://127.0.0.1:$PORT/api/health" >/dev/null; then
-        if backend_stale "$pid"; then
+        if backend_stale "$pid" "$BACKEND_DIR/catodo/themes.py"; then
             echo "Backend viejo (PID $pid). Reiniciando..."
             kill "$pid" 2>/dev/null || true
             sleep 2
@@ -67,7 +52,7 @@ start() {
 
 stop() {
     local pid
-    pid=$(current_pid)
+    pid=$(current_pid "$PORT")
     if [ -z "$pid" ] && [ -f "$PIDFILE" ]; then
         pid=$(cat "$PIDFILE")
     fi
@@ -87,13 +72,13 @@ stop() {
 
 status() {
     local pid
-    pid=$(current_pid)
+    pid=$(current_pid "$PORT")
     if [ -z "$pid" ]; then
         echo "Backend: no corriendo"
         return 1
     fi
     echo "Backend: PID $pid, puerto $PORT"
-    if backend_stale "$pid"; then
+    if backend_stale "$pid" "$BACKEND_DIR/catodo/themes.py"; then
         echo "  ⚠ código fuente más nuevo que el proceso — reiniciar"
     else
         echo "  ✓ código al día"

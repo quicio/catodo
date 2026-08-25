@@ -7,7 +7,7 @@ import {
   type HomeComponentConfig,
   type HomeComponentPosition,
   type HomeLayout,
-} from "./home";
+} from "./home/index";
 
 /**
  * El Home de Cátodo: un orquestador.

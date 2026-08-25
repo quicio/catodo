@@ -55,7 +55,11 @@ done
 # Detección de SO y gestor de paquetes
 # ---------------------------------------------------------------------------
 distro_id=""
-if [ -r /etc/os-release ]; then
+IS_MACOS=0
+if [ "$(uname -s)" = "Darwin" ]; then
+    IS_MACOS=1
+    distro_id="macos"
+elif [ -r /etc/os-release ]; then
     # shellcheck disable=SC1091
     . /etc/os-release
     distro_id="${ID_LIKE:-$ID}"
@@ -65,16 +69,18 @@ distro_id="$(echo "$distro_id" | tr 'A-Z' 'a-z')"
 PM=""
 PM_INSTALL=""
 PM_UPDATE=""
-case "$distro_id" in
-    *arch*|*manjaro*)
-        PM="pacman"; PM_INSTALL="sudo pacman -S --noconfirm"; PM_UPDATE="sudo pacman -Sy" ;;
-    *debian*|*ubuntu*)
-        PM="apt"; PM_INSTALL="sudo apt-get install -y"; PM_UPDATE="sudo apt-get update" ;;
-    *fedora*|*rhel*|*centos*)
-        PM="dnf"; PM_INSTALL="sudo dnf install -y"; PM_UPDATE="sudo dnf makecache" ;;
-    *suse*)
-        PM="zypper"; PM_INSTALL="sudo zypper install -y"; PM_UPDATE="sudo zypper refresh" ;;
-esac
+if [ "$IS_MACOS" -eq 0 ]; then
+    case "$distro_id" in
+        *arch*|*manjaro*)
+            PM="pacman"; PM_INSTALL="sudo pacman -S --noconfirm"; PM_UPDATE="sudo pacman -Sy" ;;
+        *debian*|*ubuntu*)
+            PM="apt"; PM_INSTALL="sudo apt-get install -y"; PM_UPDATE="sudo apt-get update" ;;
+        *fedora*|*rhel*|*centos*)
+            PM="dnf"; PM_INSTALL="sudo dnf install -y"; PM_UPDATE="sudo dnf makecache" ;;
+        *suse*)
+            PM="zypper"; PM_INSTALL="sudo zypper install -y"; PM_UPDATE="sudo zypper refresh" ;;
+    esac
+fi
 
 # ---------------------------------------------------------------------------
 # Mapa de paquetes del sistema por gestor. Se verifica con `command -v` y,
@@ -83,6 +89,18 @@ esac
 pkg_name() {
     # pkg_name <bin> — devuelve el nombre de paquete para el gestor detectado
     local bin="$1"
+    if [ "$IS_MACOS" -eq 1 ]; then
+        case "$bin" in
+            python3) echo "python" ;;
+            uv) echo "uv" ;;
+            node) echo "node" ;;
+            npm) echo "node" ;;            # viene con node
+            openssl) echo "openssl" ;;     # preinstalado en macOS, no requiere brew
+            brew) echo "brew" ;;           # el propio brew, no es instalable desde aquí
+            cliclick) echo "cliclick" ;;
+        esac
+        return
+    fi
     case "$bin" in
         python3)
             case "$PM" in
@@ -141,6 +159,18 @@ CHECK_DEPENDENCIES=(
     "xdotool|ydotool"
     "wpctl|pactl"
 )
+# En macOS los equivalentes son cliclick + osascript (sin xdotool/ydotool ni
+# wpctl/pactl) — el chequeo de binarios se ajusta más abajo si IS_MACOS.
+if [ "$IS_MACOS" -eq 1 ]; then
+    CHECK_DEPENDENCIES=(
+        "python3"
+        "uv"
+        "node"
+        "npm"
+        "brew"
+        "cliclick"   # opcional: si falta, el remote trackpad usa osascript
+    )
+fi
 
 check_deps() {
     MISSING=()
@@ -190,35 +220,65 @@ install_missing() {
         return 0
     fi
     echo
-    echo "==> Instalando dependencias del sistema faltantes con $PM"
-    if [ "$ASSUME_YES" -ne 1 ]; then
-        echo "Se ejecutará: $PM_UPDATE y $PM_INSTALL (pide sudo)."
-        read -r -p "¿Continuar? [y/N] " confirm
-        case "$confirm" in
-            y|Y|s|S) ;;
-            *) echo "Cancelado."; exit 1 ;;
-        esac
-    fi
-    # uv se auto-instala (curl install.sh de astral) porque es el gestor oficial.
-    local need_uv=0
-    local pkgs=()
-    for m in "${MISSING[@]}"; do
-        if [ "$m" = "uv" ]; then
-            need_uv=1
-            continue
+    if [ "$IS_MACOS" -eq 1 ]; then
+        echo "==> Dependencias faltantes para macOS"
+        if [ "$ASSUME_YES" -ne 1 ]; then
+            echo "Se ejecutará: brew install (sin sudo)."
+            read -r -p "¿Continuar? [y/N] " confirm
+            case "$confirm" in
+                y|Y|s|S) ;;
+                *) echo "Cancelado."; exit 1 ;;
+            esac
         fi
-        local pkg
-        pkg="$(pkg_name "$m")"
-        [ -n "$pkg" ] && pkgs+=("$pkg")
-    done
-    if [ "${#pkgs[@]}" -gt 0 ]; then
-        $PM_UPDATE >/dev/null 2>&1 || true
-        $PM_INSTALL "${pkgs[@]}"
-    fi
-    if [ "$need_uv" -eq 1 ] && ! command -v uv >/dev/null 2>&1; then
-        echo "==> Instalando uv (Astral)"
-        curl -LsSf https://astral.sh/uv/install.sh | sh
-        export PATH="$HOME/.local/bin:$PATH"
+        local need_uv=0
+        local pkgs=()
+        for m in "${MISSING[@]}"; do
+            if [ "$m" = "uv" ]; then
+                need_uv=1
+                continue
+            fi
+            local pkg
+            pkg="$(pkg_name "$m")"
+            [ -n "$pkg" ] && pkgs+=("$pkg")
+        done
+        if [ "${#pkgs[@]}" -gt 0 ]; then
+            brew install "${pkgs[@]}"
+        fi
+        if [ "$need_uv" -eq 1 ] && ! command -v uv >/dev/null 2>&1; then
+            echo "==> Instalando uv (brew)"
+            brew install uv
+        fi
+    else
+        echo "==> Instalando dependencias del sistema faltantes con $PM"
+        if [ "$ASSUME_YES" -ne 1 ]; then
+            echo "Se ejecutará: $PM_UPDATE y $PM_INSTALL (pide sudo)."
+            read -r -p "¿Continuar? [y/N] " confirm
+            case "$confirm" in
+                y|Y|s|S) ;;
+                *) echo "Cancelado."; exit 1 ;;
+            esac
+        fi
+        # uv se auto-instala (curl install.sh de astral) porque es el gestor oficial.
+        local need_uv=0
+        local pkgs=()
+        for m in "${MISSING[@]}"; do
+            if [ "$m" = "uv" ]; then
+                need_uv=1
+                continue
+            fi
+            local pkg
+            pkg="$(pkg_name "$m")"
+            [ -n "$pkg" ] && pkgs+=("$pkg")
+        done
+        if [ "${#pkgs[@]}" -gt 0 ]; then
+            $PM_UPDATE >/dev/null 2>&1 || true
+            $PM_INSTALL "${pkgs[@]}"
+        fi
+        if [ "$need_uv" -eq 1 ] && ! command -v uv >/dev/null 2>&1; then
+            echo "==> Instalando uv (Astral)"
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+            export PATH="$HOME/.local/bin:$PATH"
+        fi
     fi
     # Re-detectar bins tras instalar
     UV_BIN="$(command -v uv || true)"
@@ -230,8 +290,8 @@ install_missing() {
 # ---------------------------------------------------------------------------
 # Validación de requisitos (mode --check o pre-instalación)
 # ---------------------------------------------------------------------------
-echo "==> Detectando sistema: distro='${distro_id:-desconocida}' gestor='${PM:-ninguno}'"
-if [ -z "$PM" ]; then
+echo "==> Detectando sistema: distro='${distro_id:-desconocida}' gestor='${PM:-brew/ninguno}'"
+if [ -z "$PM" ] && [ "$IS_MACOS" -eq 0 ]; then
     echo
     echo "==> No se reconoció el gestor de paquetes de la distro." >&2
     echo "    Instalá manualmente: python3, uv, nodejs, npm, openssl, iproute2," >&2
@@ -317,18 +377,30 @@ if [ "${CATODO_SSL:-0}" = "1" ]; then
     bash "$PROJECT_DIR/scripts/make_cert.sh"
 fi
 
-echo "==> Installing systemd user service"
-mkdir -p "$(dirname "$SERVICE_DST")"
-PROD_PORT="${CATODO_PROD_PORT:-8767}"
-sed -e "s|@PROJECT_DIR@|$PROJECT_DIR|g" -e "s|@UV_BIN@|$UV_BIN|g" -e "s|@PROD_PORT@|$PROD_PORT|g" \
-    "$SERVICE_TEMPLATE" > "$SERVICE_DST"
-systemctl --user daemon-reload
-if [ "$AUTOSTART" -eq 1 ]; then
-    systemctl --user enable --now catodo.service
+if [ "$IS_MACOS" -eq 1 ]; then
+    echo
+    echo "==> macOS autostart (no automatico)"
+    echo "    El unit de systemd no aplica. Para que el backend arranque al login:"
+    echo "      1. Abre System Settings → General → Login Items → Open at Login."
+    echo "      2. Agregá un '+' y elegí un shell script que ejecute:"
+    echo "           bash $PROJECT_DIR/run-prod.sh start"
+    echo "      3. (Alternativa) Creá un .app con Automator que corra el script."
+    echo
+    echo "==> Done. Para arrancar manualmente: bash run-prod.sh start"
 else
-    systemctl --user enable catodo.service
-    systemctl --user start catodo.service
-fi
+    echo "==> Installing systemd user service"
+    mkdir -p "$(dirname "$SERVICE_DST")"
+    PROD_PORT="${CATODO_PROD_PORT:-8767}"
+    sed -e "s|@PROJECT_DIR@|$PROJECT_DIR|g" -e "s|@UV_BIN@|$UV_BIN|g" -e "s|@PROD_PORT@|$PROD_PORT|g" \
+        "$SERVICE_TEMPLATE" > "$SERVICE_DST"
+    systemctl --user daemon-reload
+    if [ "$AUTOSTART" -eq 1 ]; then
+        systemctl --user enable --now catodo.service
+    else
+        systemctl --user enable catodo.service
+        systemctl --user start catodo.service
+    fi
 
-echo "==> Done. Status:"
-systemctl --user --no-pager status catodo.service || true
+    echo "==> Done. Status:"
+    systemctl --user --no-pager status catodo.service || true
+fi

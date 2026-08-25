@@ -13,7 +13,7 @@ import {
   type IconPackId,
   type ShapeId,
 } from "../theme";
-import { LAYOUTS, LAYOUT_LABELS } from "./home";
+import { LAYOUTS, LAYOUT_LABELS } from "./home/index";
 import { Icon, PACKS } from "../icons";
 
 const FONT_LABELS: Record<FontId, string> = {

@@ -12,6 +12,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from catodo import mixer as mixer_facade
+from catodo import uri_opener as uri_opener_facade
 from catodo.api import router as api_router
 from catodo.cast import CastChannel, CastManager
 from catodo.cast import router as cast_router
@@ -19,6 +21,12 @@ from catodo.channels import build_default_registry
 from catodo.config import ensure_ssl, settings
 from catodo.events import EventBroker
 from catodo.idle import IdleManager
+from catodo.infrastructure.factory import (
+    build_input_injector,
+    build_mixer,
+    build_spotify_client,
+    build_uri_opener,
+)
 from catodo.libraries_api import router as libraries_router
 from catodo.lyrics import router as lyrics_router
 from catodo.manager import ChannelManager
@@ -54,7 +62,23 @@ async def lifespan(app):
     plugins = PluginManager()
     plugins._seed_bundled()
 
-    channels = sort_channels(build_default_registry() + plugins.scan())
+    # Composition root: instantiate the OS-touched adapters (mixer, input
+    # injector, URI opener, Spotify client) and expose them on app.state.
+    # The rest of the backend reads these via the `catodo.{mixer,mouse}`
+    # facades, which delegate to whichever adapter was wired here.
+    app.state.mixer = build_mixer()
+    app.state.input_injector = build_input_injector()
+    app.state.uri_opener = build_uri_opener()
+    app.state.spotify_client = build_spotify_client()
+    # Wire the legacy module-level facades so existing call sites
+    # (`from catodo import mixer; mixer.get_volume()`, etc.) keep working
+    # without DI refactors. These facades are the single point of access.
+    mixer_facade.set_port(app.state.mixer)
+    uri_opener_facade.set_port(app.state.uri_opener)
+
+    channels = sort_channels(
+        build_default_registry(app.state.spotify_client) + plugins.scan()
+    )
     for ch in channels:
         manager.register(ch)
     plugins.ensure_all_dependencies()

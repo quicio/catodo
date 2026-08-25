@@ -3,10 +3,15 @@
 # frontend/electron-castlab/, para que run-dev.sh tenga canales con DRM
 # (Movistar TV, HBO Max) sin depender del AUR.
 #
+# Cross-platform: detecta OS con `uname -s` y elige el asset correcto.
+#   Linux:  electron-{ver}-linux-{arch}.zip → extrae a usr/lib/electron-castlab/
+#   macOS:  electron-{ver}-darwin-{arch}.zip → extrae (produce Electron.app/)
+# Ambos respetan idempotencia y --force.
+#
 # Uso:
-#   bash scripts/install_castlab.sh                # última versión estable
-#   bash scripts/install_castlab.sh --version v42.8.0+wvcus
-#   bash scripts/install_castlab.sh --force        # re-descarga aunque exista
+#   bash scripts/install_castlab.sh                  # última versión estable
+#   bash scripts/install_castlab.sh --version v42.8.0+wvcus   # versión específica
+#   bash scripts/install_castlab.sh --force          # re-descarga aunque exista
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -16,7 +21,32 @@ BIN_DIR="$DEST_ROOT/usr/bin"
 REPO="castlabs/electron-releases"
 BASE_URL="https://github.com/$REPO/releases/download"
 
-FORCE=0
+# ---------------------------------------------------------------------------
+# Detectar OS y arquitectura
+# ---------------------------------------------------------------------------
+OS_NAME="$(uname -s)"
+case "$OS_NAME" in
+    Linux)  OS_SEGMENT="linux"  ;;
+    Darwin) OS_SEGMENT="darwin" ;;
+    *)
+        echo "OS no soportado por castLabs: $OS_NAME" >&2
+        exit 1
+        ;;
+esac
+
+ARCH="$(uname -m)"
+case "$ARCH" in
+    x86_64) ASSET_ARCH="x64" ;;
+    aarch64|arm64) ASSET_ARCH="arm64" ;;
+    *)
+        echo "Arquitectura no soportada por castLabs: $ARCH" >&2
+        exit 1
+        ;;
+esac
+
+# ---------------------------------------------------------------------------
+# Resolver versión (default: última estable de castlabs/electron-releases)
+# ---------------------------------------------------------------------------
 VERSION=""
 
 for arg in "$@"; do
@@ -38,23 +68,8 @@ for arg in "$@"; do
             ;;
     esac
 done
+FORCE="${FORCE:-0}"
 
-# ---------------------------------------------------------------------------
-# Detectar arquitectura
-# ---------------------------------------------------------------------------
-ARCH="$(uname -m)"
-case "$ARCH" in
-    x86_64) ASSET_ARCH="x64" ;;
-    aarch64|arm64) ASSET_ARCH="arm64" ;;
-    *)
-        echo "Arquitectura no soportada por castLabs: $ARCH" >&2
-        exit 1
-        ;;
-esac
-
-# ---------------------------------------------------------------------------
-# Resolver versión (default: última estable de castlabs/electron-releases)
-# ---------------------------------------------------------------------------
 if [ -z "$VERSION" ] || [ "$VERSION" = "--version" ]; then
     echo "==> Buscando última versión estable de castLabs..."
     if ! command -v curl >/dev/null 2>&1; then
@@ -79,15 +94,21 @@ for r in rels:
     echo "    Última estable: $VERSION"
 fi
 
-ASSET="electron-${VERSION}-linux-${ASSET_ARCH}.zip"
+ASSET="electron-${VERSION}-${OS_SEGMENT}-${ASSET_ARCH}.zip"
 URL="$BASE_URL/$VERSION/$ASSET"
 
 # ---------------------------------------------------------------------------
-# Descarga
+# Idempotencia: ya está instalado?
 # ---------------------------------------------------------------------------
-if [ -x "$LIB_DIR/electron" ] && [ "$FORCE" -ne 1 ]; then
+INSTALLED_BIN=""
+case "$OS_NAME" in
+    Linux)  INSTALLED_BIN="$LIB_DIR/electron" ;;
+    Darwin) INSTALLED_BIN="$DEST_ROOT/Electron.app/Contents/MacOS/Electron" ;;
+esac
+
+if [ -x "$INSTALLED_BIN" ] && [ "$FORCE" -ne 1 ]; then
     CUR="$(cat "$LIB_DIR/version" 2>/dev/null || echo '?')"
-    echo "==> castLabs ya instalado en $LIB_DIR (versión $CUR)."
+    echo "==> castLabs ya instalado en $INSTALLED_BIN (versión $CUR)."
     echo "    Para reinstalar: bash scripts/install_castlab.sh --force"
     exit 0
 fi
@@ -99,15 +120,17 @@ echo "==> Descargando $ASSET"
 echo "    $URL"
 curl -fL --retry 3 --progress-bar "$URL" -o "$TMP/$ASSET"
 
-echo "==> Extrayendo a $LIB_DIR"
-mkdir -p "$LIB_DIR" "$BIN_DIR"
-unzip -o -q "$TMP/$ASSET" -d "$LIB_DIR"
-chmod +x "$LIB_DIR/electron" "$LIB_DIR/chrome-sandbox" "$LIB_DIR/chrome_crashpad_handler" 2>/dev/null || true
+case "$OS_NAME" in
+    Linux)
+        echo "==> Extrayendo a $LIB_DIR"
+        mkdir -p "$LIB_DIR" "$BIN_DIR"
+        unzip -o -q "$TMP/$ASSET" -d "$LIB_DIR"
+        chmod +x "$LIB_DIR/electron" "$LIB_DIR/chrome-sandbox" "$LIB_DIR/chrome_crashpad_handler" 2>/dev/null || true
+        echo "$VERSION" > "$LIB_DIR/version"
 
-# ---------------------------------------------------------------------------
-# Wrapper `electroncastlab` (bandera de class/name + hook de app-id)
-# ---------------------------------------------------------------------------
-cat > "$BIN_DIR/electroncastlab" <<'EOF'
+        # Wrapper `electroncastlab` (bash, FHS) — sólo Linux, no aplica en macOS
+        # (los flags se pasan directo al invocar el binario).
+        cat > "$BIN_DIR/electroncastlab" <<'EOF'
 #!/usr/bin/bash
 set -euo pipefail
 name=electron-castlab
@@ -132,9 +155,9 @@ export ELECTRON_FORCE_IS_PACKAGED
 unset CHROME_DESKTOP
 exec "$(dirname "$0")/../lib/electron-castlab/electron" "${flags[@]}" -r "$(dirname "$0")/../lib/electron-castlab/linux-app-id.js" "$@"
 EOF
-chmod +x "$BIN_DIR/electroncastlab"
+        chmod +x "$BIN_DIR/electroncastlab"
 
-cat > "$LIB_DIR/linux-app-id.js" <<'EOF'
+        cat > "$LIB_DIR/linux-app-id.js" <<'EOF'
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -180,6 +203,20 @@ if (process.platform === 'linux') {
   }
 }
 EOF
+        ;;
 
-echo "==> castLabs instalado: $LIB_DIR/electron ($VERSION)"
+    Darwin)
+        echo "==> Extrayendo a $DEST_ROOT"
+        mkdir -p "$DEST_ROOT"
+        # El zip de castLabs para darwin contiene Electron.app/. Extraemos en
+        # $DEST_ROOT para que quede $DEST_ROOT/Electron.app/.
+        unzip -o -q "$TMP/$ASSET" -d "$DEST_ROOT"
+        chmod +x "$DEST_ROOT/Electron.app/Contents/MacOS/Electron" 2>/dev/null || true
+        echo "$VERSION" > "$DEST_ROOT/version"
+        # macOS no usa chrome-sandbox SUID ni wrappers bash: la sandbox vive
+        # dentro del bundle firmado. No se crea nada extra.
+        ;;
+esac
+
+echo "==> castLabs instalado: $INSTALLED_BIN ($VERSION)"
 echo "    run-dev.sh lo detecta automáticamente."

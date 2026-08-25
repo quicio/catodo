@@ -64,6 +64,66 @@ Or in dev mode (faster iteration, uses port 8765 so prod at 8767 keeps running):
 ./run-dev.sh    # Vite + Electron + backend-dev auto-recycle
 ```
 
+## macOS (Apple Silicon)
+
+Cátodo corre de forma nativa en macOS Apple Silicon con la misma experiencia que en Linux. El backend, los canales web (YouTube, Crunchyroll, TV), Anime, Arcade, remote, screencast y los 10 temas funcionan sin cambios. Hay algunas diferencias que conviene conocer.
+
+### Requisitos
+
+| Herramienta | Para | Cómo |
+|---|---|---|
+| **brew** | instalar el resto | <https://brew.sh> |
+| **python 3.12+** | backend | `brew install python` o Apple CommandLineTools |
+| **uv** | package manager | `brew install uv` |
+| **node 20+** | build del frontend | `brew install node` |
+| **cliclick** (opcional) | remote trackpad con primitivas relativas | `brew install cliclick` — sin esto, el remote usa `osascript` como fallback (limitado) |
+| **ffmpeg** (opcional) | IPTV futura (stream proxy) | `brew install ffmpeg` |
+
+### Dev local
+
+```bash
+git clone <repo> ~/catodo && cd ~/catodo
+bash install.sh --check       # verifica requisitos (sin modificar el sistema)
+bash install.sh               # instala venv, build, plugin venv (sin sudo)
+bash scripts/install_castlab.sh   # opcional, para DRM en dev
+./run-dev.sh                  # vite + backend + Electron
+```
+
+`./run-dev.sh` arranca backend (puerto `:8765`), Vite (`:1420`) y Electron apuntando a Vite. Si no instalaste `castLabs`, el dev usa stock Electron — los canales no-DRM (YouTube, Crunchyroll, Anime, Arcade) funcionan; los canales DRM (Movistar TV, HBO Max) no reproducen.
+
+### Empaquetado
+
+```bash
+bash build.sh    # produce frontend/release/mac/Catodo.app + Catodo-*.zip
+```
+
+El `.app` resultante es stock Electron sin Widevine (los canales DRM requieren `castLabs` corriendo en dev). Sin notarización: la primera apertura mostrará un warning de Gatekeeper.
+
+### Limitaciones conocidas
+
+- **Spotify deshabilitado.** El canal Ch1 no se registra porque macOS no incluye DBus por defecto. Workaround: usar Spotify en el browser (webview de YouTube/Chromium). Implementar Spotify vía AppleScript queda como follow-up.
+- **Widevine/DRM sólo en dev.** El `.app` empaquetado no incluye castLabs. Para Movistar TV/HBO Max usá `./run-dev.sh` con castLabs instalado localmente.
+- **Autostart no automático.** Agregá `./run-prod.sh` a System Settings → General → Login Items → Open at Login (o vía Automator si preferís un `.app` wrapper).
+- **Notarización Apple ausente.** Gatekeeper bloquea la primera apertura. Click derecho → Abrir, o firmá ad-hoc con `codesign --deep --sign - frontend/release/mac/Catodo.app`.
+
+### Permisos TCC (cliclick/osascript)
+
+La primera vez que uses el remote trackpad (mouse move/click) o inyeción de teclado desde el remote, macOS va a pedir permiso para que Terminal/iTerm/lo-que-corra-el-backend controle accesibilidad:
+
+**System Settings → Privacy & Security → Accessibility** → habilitá el proceso que corre el backend (Terminal, iTerm, Ghostty, etc.). Sin este permiso, `osascript` falla con `Not authorized` y `cliclick` ignora los inputs.
+
+### Estructura cross-platform
+
+El backend usa arquitectura hexagonal para los subsistemas OS-touched:
+
+- `catodo/domain/ports.py` — contratos (`MixerPort`, `InputInjectorPort`, `UriOpenerPort`, `SpotifyClientPort`)
+- `catodo/infrastructure/linux/` — adapters Linux (wpctl/pactl, ydotool/xdotool, xdg-open, DbusSpotifyClient)
+- `catodo/infrastructure/macos/` — adapters macOS (OsascriptMixer, CliclickInjector, MacOpenUriOpener, DbusslessSpotifyClient)
+- `catodo/infrastructure/factory.py` — selecciona según `platform.IS_MACOS`
+- `catodo/main.py:44 lifespan()` — composition root: instancia adapters una vez y los guarda en `app.state`
+
+Para agregar Windows o un nuevo adapter, sólo se toca `infrastructure/<plataforma>/` + la factory.
+
 ## Production install
 
 ```bash
