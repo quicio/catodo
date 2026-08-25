@@ -10,7 +10,7 @@ from catodo.infrastructure.linux.mixer import WpctlPactlMixer
 from catodo.infrastructure.linux.uri_opener import XdgUriOpener
 from catodo.infrastructure.macos.input_injector import _CliclickInjector, _OsascriptInjector
 from catodo.infrastructure.macos.mixer import OsascriptMixer
-from catodo.infrastructure.macos.spotify_client import DbusslessSpotifyClient
+from catodo.infrastructure.macos.spotify_client import ApplescriptSpotifyClient
 from catodo.infrastructure.macos.uri_opener import MacOpenUriOpener
 
 
@@ -52,15 +52,15 @@ def test_spotify_client_macos():
     platform_mod.IS_MACOS = True
     platform_mod.IS_LINUX = False
     client = factory.build_spotify_client()
-    assert isinstance(client, DbusslessSpotifyClient)
-    assert client.is_available() is False
+    assert isinstance(client, ApplescriptSpotifyClient)
+    assert hasattr(client, "is_available")
 
 
 def test_spotify_client_linux():
     platform_mod.IS_MACOS = False
     platform_mod.IS_LINUX = True
     client = factory.build_spotify_client()
-    assert not isinstance(client, DbusslessSpotifyClient)
+    assert not isinstance(client, ApplescriptSpotifyClient)
     assert hasattr(client, "is_available")
 
 

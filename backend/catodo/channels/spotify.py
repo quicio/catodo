@@ -3,9 +3,9 @@
 Channel-level concerns: state history (capped at 20), monotonic position
 estimator, watcher loop that publishes events, lifecycle (open/close/command).
 
-All DBus/MPRIS interaction lives in `catodo.infrastructure.linux.spotify_client
-.DbusSpotifyClient`; the macOS null adapter lives in
-`catodo.infrastructure.macos.spotify_client.DbusslessSpotifyClient`. This file
+Linux uses the DBus/MPRIS port (`catodo.infrastructure.linux.spotify_client
+.DbusSpotifyClient`); macOS uses AppleScript against Spotify.app (`catodo
+.infrastructure.macos.spotify_client.ApplescriptSpotifyClient`). This file
 only consumes the port.
 """
 from __future__ import annotations
@@ -267,24 +267,66 @@ class SpotifyChannel(Channel):
     async def _launch_minimized(self, uri: str) -> None:
         """Lanza Spotify (si no estaba corriendo) y lo manda al fondo para que
         el kiosk no pierda el foco:
+        - macOS: AppleScript set miniaturized (oculta la ventana).
         - Hyprland: mueve la ventana al special workspace (scratchpad) vía IPC.
         - X11: la minimiza con xdotool.
         Best-effort: si nada aplica, Spotify queda visible y nada más."""
+        from catodo import platform as _platform
+
         await self._client.open_uri(uri)
         from catodo import runtime_config
 
         if runtime_config.get("spotify_minimize_on_launch") is False:
             return
+        if _platform.IS_MACOS:
+            await self._hide_macos()
+            return
         if await self._hide_hyprland():
             return
         await self._minimize_xdotool()
+
+    async def _hide_macos(self) -> bool:
+        """macOS: minimiza la ventana de Spotify vía AppleScript.
+
+        Requiere permiso TCC Automation para 'Spotify' (System Settings →
+        Privacy & Security → Automation). Si no está granted, el osascript
+        falla silenciosamente y la ventana queda visible — el kiosk sigue
+        funcionando.
+
+        Espera hasta ~5s para que la ventana aparezca tras el launch de
+        Spotify.app (AppleScript dispara el open location antes de que la
+        ventana exista).
+        """
+        import shutil
+
+        osascript = shutil.which("osascript")
+        if not osascript:
+            return False
+        for attempt in range(10):
+            if attempt:
+                await asyncio.sleep(0.5)
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    osascript, "-e",
+                    'tell application "System Events" to '
+                    'set miniaturized of window 1 of process "Spotify" to true',
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.DEVNULL,
+                )
+                await asyncio.wait_for(proc.wait(), timeout=3)
+                if proc.returncode == 0:
+                    log.info("spotify window minimized on macOS")
+                    return True
+            except Exception:
+                continue
+        return False
 
     async def _hide_hyprland(self) -> bool:
         """Hyprland: mueve la ventana de Spotify al special workspace (scratchpad)
         vía hyprctl IPC. Devuelve True si aplicó.
 
         No confía en la HYPRLAND_INSTANCE_SIGNATURE del entorno: tras un relogeo
-        suele quedar stale apuntando a una instancia muerta. Se enumeran los
+        suele quedar stale apuntando a una instancia muerta. se enumeran los
         sockets en $XDG_RUNTIME_DIR/hypr y se usa la primera instancia viva."""
         import glob
         import os

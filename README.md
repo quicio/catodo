@@ -101,7 +101,7 @@ El `.app` resultante es stock Electron sin Widevine (los canales DRM requieren `
 
 ### Limitaciones conocidas
 
-- **Spotify deshabilitado.** El canal Ch1 no se registra porque macOS no incluye DBus por defecto. Workaround: usar Spotify en el browser (webview de YouTube/Chromium). Implementar Spotify vía AppleScript queda como follow-up.
+- **Spotify requiere Spotify.app instalado.** Ch1 funciona vía AppleScript contra `application "Spotify"`. Si no tenés Spotify desktop instalado, Ch1 se omite del registry sin error (mismo gating que el resto del OS). **Permisos TCC**: la primera vez que abras Spotify desde el kiosk o el remote, macOS pide permiso de **Automation** a Spotify para el shell que corre el backend (Terminal/iTerm/Ghostty/etc). Sin ese permiso, AppleScript falla silencioso — el kiosk sigue pero Spotify no responde. Aprobá desde **System Settings → Privacy & Security → Automation** → permitir el proceso del backend.
 - **Widevine/DRM sólo en dev.** El `.app` empaquetado no incluye castLabs. Para Movistar TV/HBO Max usá `./run-dev.sh` con castLabs instalado localmente.
 - **Autostart no automático.** Agregá `./run-prod.sh` a System Settings → General → Login Items → Open at Login (o vía Automator si preferís un `.app` wrapper).
 - **Notarización Apple ausente.** Gatekeeper bloquea la primera apertura. Click derecho → Abrir, o firmá ad-hoc con `codesign --deep --sign - frontend/release/mac/Catodo.app`.
