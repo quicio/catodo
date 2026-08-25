@@ -4,12 +4,15 @@ import { useWebSocket, applyEvent, createInitialState } from "./api/ws";
 import ChannelView from "./components/ChannelView";
 import ChannelBar from "./components/ChannelBar";
 import Home from "./components/Home.tsx";
+import WebChannel from "./channels/WebChannel";
 import { getLayout } from "./components/home/index";
 import CrtShell from "./components/CrtShell";
 import IdleScreensaver from "./components/IdleScreensaver";
+import { RemotePWAInstaller } from "./components/RemotePWAInstaller";
 import { CastProvider } from "./cast/CastContext";
 import {
   ThemeContext,
+  UiScaleContext,
   applyTheme,
   mergeTheme,
   resolveTheme,
@@ -29,6 +32,17 @@ export default function App() {
   const [voiceFeedback, setVoiceFeedback] = useState<{ text: string; recognized: boolean } | null>(null);
   const [themeState, setThemeState] = useState<ThemeState | null>(null);
   const [homeLayoutId, setHomeLayoutId] = useState<string>("default");
+  const [uiScale, setUiScale] = useState<number>(1);
+
+  const uiScaleRef = useRef(uiScale);
+  uiScaleRef.current = uiScale;
+
+  // Setea la escala de UI y la persiste. El evento `config_changed` que
+  // broadcastea el backend re-confirma y reconcilia con cualquier cliente.
+  const applyUiScale = useCallback((v: number) => {
+    setUiScale(v);
+    api.setConfig({ ui_scale: v }).catch(console.warn);
+  }, []);
 
   const themeRef = useRef(themeState);
   themeRef.current = themeState;
@@ -45,6 +59,16 @@ export default function App() {
 
   const handleEvent = useCallback(
     (event: { event: string; [k: string]: unknown }) => {
+      // Cambio de canal con state nuevo (ej. remote.search → navega YouTube):
+      // emitimos un custom event para que WebChannel recargue el webview con
+      // la URL nueva.
+      if (event.event === "channel_changed" && event.state) {
+        window.dispatchEvent(
+          new CustomEvent("catodo:channel_state", {
+            detail: { id: String(event.channel_id ?? ""), state: event.state },
+          }),
+        );
+      }
       // Teclas multimedia del remote → inyectar en el webview activo. El manifest
       // del canal puede re-mapear la acción a una tecla que entienda su player
       // (ej. Movistar usa Space para play/pause).
@@ -103,6 +127,20 @@ export default function App() {
         if (key === "home_layout_id" && typeof event.value === "string") {
           setHomeLayoutId(event.value);
         }
+        if (key === "ui_scale" && typeof event.value === "number") {
+          setUiScale(event.value);
+        }
+        // Broadcast genérico para subscriptores (ej. NowPlaying del Spotify).
+        window.dispatchEvent(
+          new CustomEvent("catodo:config_changed", {
+            detail: { key, value: event.value },
+          }),
+        );
+      }
+      // Wallpapers cambiaron en el backend (descarga de artista terminó, etc.)
+      // → NowPlaying re-consulta los wallpapers del artista actual.
+      if (event.event === "wallpapers_changed") {
+        window.dispatchEvent(new CustomEvent("catodo:wallpapers_changed"));
       }
       // Comando por voz → feedback breve + "home" lo maneja el frontend.
       if (event.event === "voice_command") {
@@ -245,6 +283,7 @@ export default function App() {
         setThemeState(next);
         applyTheme(next.theme, next.overrides);
         if (typeof cfg.home_layout_id === "string") setHomeLayoutId(cfg.home_layout_id);
+        if (typeof cfg.ui_scale === "number") setUiScale(cfg.ui_scale);
       } catch {
         if (!alive) return;
         const next = resolveTheme({});
@@ -256,6 +295,12 @@ export default function App() {
       alive = false;
     };
   }, []);
+
+  // Aplicar ui_scale al <html>. `zoom` es soportado por Chromium y escala
+  // todo el contenido DOM sin afectar los <webview> (DRM/players externos).
+  useEffect(() => {
+    document.documentElement.style.zoom = String(uiScale);
+  }, [uiScale]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -274,6 +319,16 @@ export default function App() {
       } else if (e.key === "Escape") {
         if (document.fullscreenElement) document.exitFullscreen();
         goHome();
+      } else if (e.ctrlKey && (e.key === "+" || e.key === "=")) {
+        // Ctrl + =  → agrandar UI (estilo browser zoom in)
+        e.preventDefault();
+        applyUiScale(Math.min(2, Math.round((uiScaleRef.current + 0.1) * 100) / 100));
+      } else if (e.ctrlKey && e.key === "-") {
+        e.preventDefault();
+        applyUiScale(Math.max(0.6, Math.round((uiScaleRef.current - 0.1) * 100) / 100));
+      } else if (e.ctrlKey && e.key === "0") {
+        e.preventDefault();
+        applyUiScale(1);
       } else if (e.key === "+" || e.key === "=") {
         api.volume("+").catch(console.warn);
       } else if (e.key === "-" || e.key === "_") {
@@ -300,6 +355,29 @@ export default function App() {
     ? channels.findIndex((c) => c.id === current.id) + 1
     : 0;
 
+  // Keep-alive de canales web (YouTube, TV, etc.): el webview queda montado y
+  // oculto al cambiar de canal, así al volver se conserva el video donde quedó.
+  // Solo se montan los canales que el usuario visitó en esta sesión.
+  const [keepAliveWeb, setKeepAliveWeb] = useState<string[]>([]);
+  useEffect(() => {
+    const id = state.current_channel_id;
+    if (!id) return;
+    const isWeb = channels.find((c) => c.id === id)?.type === "web";
+    if (isWeb) {
+      setKeepAliveWeb((prev) => (prev.includes(id) ? prev : [...prev, id]));
+    }
+  }, [state.current_channel_id, channels]);
+
+  // Avisar al proceso principal cuál es el webview visible, para que las teclas
+  // multimedia / inserción de texto apunten al canal activo (no al último que
+  // se montó, ya que ahora varios webviews conviven en memoria).
+  useEffect(() => {
+    const catodo = (window as unknown as { catodo?: { setActiveChannel?: (id: string | null) => void } }).catodo;
+    try {
+      catodo?.setActiveChannel?.(state.current_channel_id);
+    } catch {}
+  }, [state.current_channel_id]);
+
   if (channels.length === 0) {
     return (
       <div className="channel-view placeholder">
@@ -314,6 +392,8 @@ export default function App() {
     setThemeState(next);
     applyTheme(next.theme, next.overrides);
   };
+
+  const uiScaleCtx = { scale: uiScale, setScale: applyUiScale };
 
   const themeCtx: ThemeState = themeState
     ? {
@@ -364,15 +444,29 @@ export default function App() {
 
   return (
     <CastProvider>
+    <UiScaleContext.Provider value={uiScaleCtx}>
     <ThemeContext.Provider value={themeCtx}>
     <CrtShell
       channelId={state.current_channel_id}
       channelNumber={channelNumber}
       volume={state.volume}
     >
-      {current ? (
+      {keepAliveWeb.map((id) => {
+        const active = state.current_channel_id === id;
+        return (
+          <div
+            key={id}
+            className="channel-view"
+            style={{ visibility: active ? "visible" : "hidden" }}
+          >
+            <WebChannel channelId={id} active={active} />
+          </div>
+        );
+      })}
+      {current && current.type !== "web" && (
         <ChannelView current={current} volume={state.volume} state={state} />
-      ) : (
+      )}
+      {!current && (
         <Home
           channels={channels}
           onPick={switchChannel}
@@ -390,6 +484,7 @@ export default function App() {
       />
     </CrtShell>
     <IdleScreensaver state={idleState} />
+    <RemotePWAInstaller />
     {voiceFeedback && (
       <div
         style={{
@@ -418,6 +513,7 @@ export default function App() {
       </div>
     )}
     </ThemeContext.Provider>
+    </UiScaleContext.Provider>
     </CastProvider>
   );
 }

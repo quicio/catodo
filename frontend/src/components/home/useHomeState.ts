@@ -29,7 +29,13 @@ export function useHomeState(state: AppState): SharedHomeState {
   const [loadingWp, setLoadingWp] = useState(false);
   const [now, setNow] = useState(new Date());
   const [showPair, setShowPair] = useState(false);
-  const [pairInfo, setPairInfo] = useState<{ url?: string; code?: string } | null>(null);
+  const [pairInfo, setPairInfo] = useState<{
+    url?: string;
+    code?: string;
+    lan?: string;
+    public?: string | null;
+    primary?: "lan" | "public";
+  } | null>(null);
   const [showConfig, setShowConfig] = useState(false);
   const [artistWp, setArtistWp] = useState<string[]>([]);
   const [coverReady, setCoverReady] = useState(false);
@@ -177,6 +183,28 @@ export function useHomeState(state: AppState): SharedHomeState {
     setShowPair(true);
   }, []);
   const closePair = useCallback(() => setShowPair(false), []);
+
+  // Atajos de teclado: `c` (o `C`) toggle config, `Esc` la cierra.
+  // Ignora cuando el foco está en un input/textarea/contenteditable para no
+  // pisar escritura normal.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.altKey || e.ctrlKey || e.metaKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) {
+        return;
+      }
+      if (e.key === "Escape" && showConfig) {
+        e.preventDefault();
+        setShowConfig(false);
+      } else if (e.key === "c" || e.key === "C") {
+        e.preventDefault();
+        setShowConfig((s) => !s);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showConfig]);
 
   return {
     wallpapers,

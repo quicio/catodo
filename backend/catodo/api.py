@@ -345,11 +345,32 @@ async def set_config(request: Request) -> dict:
         payload = await request.json()
     except Exception:
         raise HTTPException(status_code=400, detail="invalid JSON body")
+    # Tunnel-group validation: if any of the tunnel keys fails, reject the
+    # WHOLE tunnel group atomically (other tunnel keys in the same payload
+    # are not persisted) — non-tunnel keys in the same payload still go through.
+    tunnel_keys = {"public_domain", "tunnel_enabled", "tunnel_provider",
+                   "tunnel_token_path", "tunnel_require_token"}
+    pending_tunnel = {k: v for k, v in payload.items() if k in tunnel_keys}
+    if pending_tunnel:
+        if "public_domain" in pending_tunnel:
+            # Empty is the legitimate default — Tailscale lo calcula solo,
+            # Cloudflare todavía no se configuró, etc. Sólo validamos cuando
+            # el usuario efectivamente tipeó algo.
+            val = pending_tunnel["public_domain"]
+            if val and not runtime_config.validate_public_domain(val):
+                raise HTTPException(status_code=400, detail="invalid public_domain")
+        if (
+            "tunnel_provider" in pending_tunnel
+            and not runtime_config.validate_tunnel_provider(pending_tunnel["tunnel_provider"])
+        ):
+            raise HTTPException(status_code=400, detail="unknown provider")
     for k, v in payload.items():
         if k == "theme_crt_enabled":
             # Alias legacy → theme_overrides.crt (evento canónico)
             merged = await runtime_config.fold_crt_alias(v)
-            await _broker(request).publish({"event": "config_changed", "key": "theme_overrides", "value": merged})
+            await _broker(request).publish(
+                {"event": "config_changed", "key": "theme_overrides", "value": merged}
+            )
             continue
         if k in runtime_config.KEYS:
             await runtime_config.set(k, v)

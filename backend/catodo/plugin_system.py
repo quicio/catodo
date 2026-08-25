@@ -21,6 +21,14 @@ from catodo.datadir import DATA_DIR, ensure_dirs
 
 log = logging.getLogger("catodo.plugins")
 
+
+def _version_tuple(v: str) -> tuple[int, ...]:
+    """Compara versiones semver-like como tuplas. '1.2.3' → (1, 2, 3)."""
+    try:
+        return tuple(int(x) for x in str(v).split("."))
+    except Exception:
+        return (0,)
+
 CATODO_VERSION = "0.1.0"
 SUPPORTED_TYPES = ("web",)
 UA_ALIASES = {"default": None, "chrome": "chrome", "android-tv": "android-tv"}
@@ -120,6 +128,8 @@ class DeclarativeWebChannel(Channel):
         d["partition"] = self.partition
         d["user_agent"] = self.user_agent
         d["media_keys"] = self.media_keys
+        if self.search_url:
+            d["search_url"] = self.search_url
         if self.order is not None:
             d["order"] = self.order
         return d
@@ -138,7 +148,14 @@ class DeclarativeWebChannel(Channel):
             "configured_url": self._url,
             "partition": self.partition,
             "user_agent": self.user_agent,
+            "search_url": self._manifest.get("search_url"),
         }
+
+    @property
+    def search_url(self) -> str | None:
+        """URL template para búsquedas remotas. Usa {query} como placeholder.
+        None si el canal no soporta búsqueda por URL (cae a /api/type)."""
+        return self._manifest.get("search_url")
 
     def _same_host(self, url: str) -> bool:
         from urllib.parse import urlparse
@@ -160,6 +177,17 @@ class DeclarativeWebChannel(Channel):
                 self._current_url = url
             else:
                 log.warning("plugin %s ignora navegación a host ajeno: %s", self.id, url)
+        elif cmd == "search" and self.search_url:
+            from urllib.parse import quote
+
+            query = str(kwargs.get("query", "")).strip()
+            if not query:
+                return
+            url = self.search_url.replace("{query}", quote(query, safe=""))
+            if self._same_host(url):
+                self._current_url = url
+            else:
+                log.warning("plugin %s search_navigate a host ajeno: %s", self.id, url)
         else:
             log.info("plugin channel %s passthrough: %s %s", self.id, cmd, kwargs)
 
@@ -275,15 +303,41 @@ class PluginManager:
         return channels
 
     def _seed_bundled(self) -> None:
-        """Instala los plugins bundled del repo por defecto que falten."""
+        """Instala los plugins bundled del repo por defecto que falten.
+        Si un plugin ya está instalado pero su manifest quedó desactualizado
+        con respecto al repo bundled, también lo refresca — así un cambio
+        al manifest en el repo (ej. agregar search_url) llega al usuario
+        sin tener que reinstalar a mano."""
         try:
             index = self._repo_index()
         except Exception as e:
             log.warning("could not read bundled repo: %s", e)
             return
+        state = self._load_state()
         for entry in index.get("plugins", []):
-            if entry.get("bundled") and entry.get("id") not in self._load_state():
-                self.install(str(entry["id"]))
+            if not entry.get("bundled"):
+                continue
+            pid = str(entry["id"])
+            if pid not in state:
+                self.install(pid)
+                continue
+            # Ya instalado: refresh del manifest desde el repo bundled si
+            # cambió (version bump). No pisa files del usuario en plugins/<id>/
+            # que no estén en el manifest del repo.
+            installed = state.get(pid, {})
+            installed_ver = installed.get("version", "0.0.0")
+            if _version_tuple(entry.get("version", "0.0.0")) > _version_tuple(installed_ver):
+                try:
+                    bundled_manifest = self._fetch_manifest(pid)
+                    manifest_path = self._manifest_path(pid)
+                    os.makedirs(os.path.dirname(manifest_path), exist_ok=True)
+                    with open(manifest_path, "w") as f:
+                        json.dump(bundled_manifest, f, indent=2)
+                    state[pid] = {**installed, "version": entry["version"]}
+                    self._save_state()
+                    log.info("refreshed bundled plugin %s to v%s", pid, entry["version"])
+                except Exception as e:
+                    log.warning("could not refresh %s: %s", pid, e)
 
     # ---- repo ----
 

@@ -1,7 +1,6 @@
 import type { AppState, ChannelInfo } from "../api/client";
 import Spotify from "../channels/Spotify";
 import MediaChannel from "../channels/MediaChannel";
-import WebChannel from "../channels/WebChannel";
 import ScreenCastView from "../channels/ScreenCastView";
 import ArcadeLauncher from "../channels/ArcadeLauncher";
 
@@ -15,13 +14,6 @@ export default function ChannelView({ current, volume, state }: { current: Chann
       <div className="channel-view placeholder">
         <h1>Cátodo</h1>
         <p>Press 1&ndash;4 to switch channels.</p>
-      </div>
-    );
-  }
-  if (current.type === "web") {
-    return (
-      <div className="channel-view">
-        <WebChannel channelId={current.id} />
       </div>
     );
   }

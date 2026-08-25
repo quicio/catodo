@@ -22,8 +22,8 @@ export const DEFAULT_LAYOUT: HomeLayout = {
     { id: "brand" },
     { id: "channel-grid" },
     { id: "ratings-column" },
-    { id: "appearance-settings-popover", position: "overlay" },
-    { id: "pair-modal", position: "overlay" },
+    // appearance-settings-popover y pair-modal se renderizan siempre en
+    // Home.tsx sin depender del layout — ver comentario en Home.tsx.
   ],
 };
 
@@ -64,7 +64,6 @@ export const FOCUS_LAYOUT: HomeLayout = {
     { id: "clock" },
     { id: "channel-grid" },
     { id: "ratings-column" },
-    { id: "appearance-settings-popover", position: "overlay" },
   ],
 };
 

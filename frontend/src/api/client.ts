@@ -19,6 +19,7 @@ export interface ChannelInfo {
   type: string;
   color?: string;
   order?: number;
+  search_url?: string;
 }
 
 export interface AppState {
@@ -74,6 +75,12 @@ export interface ThemeInfo {
   icons: string;
 }
 
+export interface ModePreset {
+  id: string;
+  name: string;
+  payload: Record<string, unknown>;
+}
+
 export const api = {
   health: () => request<{ status: string }>("/api/health"),
   channels: () => request<ChannelInfo[]>("/api/channels"),
@@ -107,4 +114,26 @@ export const api = {
       { method: "POST" }
     ),
   activity: () => request<{ ok: boolean }>("/api/activity", { method: "POST" }),
+  // --- Mode presets ---
+  modes: () => request<{ presets: ModePreset[] }>("/api/modes"),
+  createMode: (name: string, payload: Record<string, unknown>) =>
+    request<ModePreset>("/api/modes", {
+      method: "POST",
+      body: JSON.stringify({ name, payload }),
+    }),
+  updateMode: (
+    id: string,
+    patch: { name?: string; payload?: Record<string, unknown> }
+  ) =>
+    request<ModePreset>(`/api/modes/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    }),
+  deleteMode: (id: string) =>
+    request<{ deleted: string }>(`/api/modes/${id}`, { method: "DELETE" }),
+  applyMode: (id: string) =>
+    request<{ ok: boolean; preset_id: string; config: RuntimeConfig }>(
+      `/api/modes/${id}/apply`,
+      { method: "POST" }
+    ),
 };

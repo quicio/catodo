@@ -205,8 +205,36 @@ class SpotifyChannel(Channel):
             return self._position_at_resume + (time.monotonic() - self._resume_monotonic)
         return self._position_at_resume
 
+    def _last_resume_uri(self) -> str | None:
+        """URI a reanudar al abrir el canal: última pista (o contexto) escuchada."""
+        for entry in self._history:
+            uri = entry.get("context_uri") or entry.get("spotify_uri")
+            if uri:
+                return str(uri)
+        return None
+
     async def open(self) -> None:
-        await self._client.play()
+        snap = await self._read_state()
+        if not snap.get("available"):
+            # Spotify no está corriendo: abrirlo apuntando a la última pista
+            # para que arranque reproduciendo lo que se estaba escuchando, y
+            # minimizar su ventana para no robarle el foco al kiosk.
+            await self._launch_minimized(self._last_resume_uri() or "spotify:")
+            return
+        if snap.get("status") != "Stopped" and snap.get("title"):
+            # Ya hay una pista cargada (pausada o sonando): reanudar normal.
+            await self._client.play()
+        else:
+            # Nada cargado o cola terminada: retomar la última pista del historial
+            # en lugar de dejar el canal en blanco.
+            uri = self._last_resume_uri()
+            if uri:
+                await self._client.open_uri(uri)
+            else:
+                await self._client.play()
+        # Spotify ya corría: igual asegurarse de que su ventana quede en el
+        # scratchpad (puede haber quedado visible de una sesión anterior).
+        self._hide_task = asyncio.ensure_future(self._hide_hyprland())
 
     async def close(self) -> None:
         await self._client.pause()
@@ -232,9 +260,122 @@ class SpotifyChannel(Channel):
         elif cmd == "open_uri":
             uri = kwargs.get("uri", "")
             if uri:
-                await self._open_uri(uri)
+                await self._client.open_uri(uri)
         else:
             log.warning("unknown spotify command: %s", cmd)
 
+    async def _launch_minimized(self, uri: str) -> None:
+        """Lanza Spotify (si no estaba corriendo) y lo manda al fondo para que
+        el kiosk no pierda el foco:
+        - Hyprland: mueve la ventana al special workspace (scratchpad) vía IPC.
+        - X11: la minimiza con xdotool.
+        Best-effort: si nada aplica, Spotify queda visible y nada más."""
+        await self._client.open_uri(uri)
+        from catodo import runtime_config
+
+        if runtime_config.get("spotify_minimize_on_launch") is False:
+            return
+        if await self._hide_hyprland():
+            return
+        await self._minimize_xdotool()
+
+    async def _hide_hyprland(self) -> bool:
+        """Hyprland: mueve la ventana de Spotify al special workspace (scratchpad)
+        vía hyprctl IPC. Devuelve True si aplicó.
+
+        No confía en la HYPRLAND_INSTANCE_SIGNATURE del entorno: tras un relogeo
+        suele quedar stale apuntando a una instancia muerta. Se enumeran los
+        sockets en $XDG_RUNTIME_DIR/hypr y se usa la primera instancia viva."""
+        import glob
+        import os
+        import shutil
+
+        hyprctl = shutil.which("hyprctl")
+        if not hyprctl:
+            return False
+        base = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
+        candidates = sorted(
+            (
+                os.path.basename(d)
+                for d in glob.glob(os.path.join(base, "hypr", "*"))
+                if os.path.isdir(d)
+            ),
+            reverse=True,
+        )
+        for sig in candidates:
+            env = {**os.environ, "HYPRLAND_INSTANCE_SIGNATURE": sig}
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    hyprctl, "-j", "clients", env=env,
+                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
+                )
+                out, _ = await proc.communicate()
+                if proc.returncode != 0:
+                    continue
+            except Exception:
+                continue
+            # Instancia viva. La ventana de Spotify puede tardar en aparecer
+            # tras el launch: se chequea ya y luego cada ~1s hasta ~10s.
+            for attempt in range(10):
+                if attempt:
+                    await asyncio.sleep(1)
+                try:
+                    proc = await asyncio.create_subprocess_exec(
+                        hyprctl, "-j", "clients", env=env,
+                        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
+                    )
+                    out, _ = await proc.communicate()
+                    if proc.returncode != 0 or (b'"Spotify"' not in out and b'"spotify"' not in out):
+                        continue
+                    await asyncio.create_subprocess_exec(
+                        hyprctl, "dispatch", "movetoworkspacesilent",
+                        "special:spotify,class:Spotify", env=env,
+                        stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+                    )
+                    log.info("spotify moved to hyprland special workspace (%s)", sig)
+                    return True
+                except Exception:
+                    return False
+            return False
+        return False
+
+    async def _minimize_xdotool(self) -> None:
+        """X11: minimiza la ventana de Spotify con xdotool (fallback)."""
+        import shutil
+
+        xdotool = shutil.which("xdotool")
+        if not xdotool:
+            return
+        # La ventana tarda en aparecer tras el launch; se busca por class y
+        # por nombre (fallback) hasta ~10s.
+        patterns = [
+            ["--class", "spotify"],
+            ["--class", "Spotify"],
+            ["--name", "Spotify"],
+        ]
+        for _ in range(10):
+            await asyncio.sleep(1)
+            for pat in patterns:
+                try:
+                    proc = await asyncio.create_subprocess_exec(
+                        xdotool, "search", *pat,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.DEVNULL,
+                    )
+                    out, _ = await proc.communicate()
+                    windows = out.decode().strip().splitlines()
+                    if not windows:
+                        continue
+                    await asyncio.create_subprocess_exec(
+                        xdotool, "windowminimize", windows[0],
+                        stdout=asyncio.subprocess.DEVNULL,
+                        stderr=asyncio.subprocess.DEVNULL,
+                    )
+                    log.info("spotify window minimized (%s)", windows[0])
+                    return
+                except Exception:
+                    return
+
     async def _open_uri(self, uri: str) -> None:
+        """Compat: delega al port. Mantenido por si callers externos lo usan."""
         await self._client.open_uri(uri)

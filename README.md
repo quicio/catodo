@@ -264,16 +264,88 @@ coincide con la convención no-intro de Libretro, queda el placeholder.
 
 El remote (`/remote/`) es una **PWA**: en el iPhone abrí la URL en Safari, tocá
 **Compartir → Agregar a pantalla de inicio** y queda instalado como app fullscreen.
+En Android/Chrome aparece el banner **"Instalar como app"** automáticamente.
 
 Para conectar sin tipear la IP: en la TV abrí el **Home** y tocá el botón **📱** —
 aparece un **QR** que escaneás con la cámara del iPhone y te abre el remote
-directamente (si hay token configurado, va incluido). Como fallback, el remote
-tiene un campo **código/token de emparejamiento** en Settings.
+directamente. El QR codifica la URL **pública** (si tenés un túnel configurado, ver
+abajo) o la **LAN** como fallback. Como fallback extra, el remote tiene un campo
+**código/token de emparejamiento** en Settings.
 
-| Endpoint             | Descripción                              |
-| -------------------- | ---------------------------------------- |
-| `GET /api/pair/info` | URL + código de emparejamiento           |
-| `GET /api/pair/qr`   | QR (SVG) con la URL del remote           |
+| Endpoint                  | Descripción                                                  |
+| ------------------------- | ------------------------------------------------------------ |
+| `GET /api/pair/info`      | URLs (LAN + pública) + código de emparejamiento              |
+| `GET /api/pair/qr`        | QR (SVG) con la URL primaria (`?which=lan` para forzar LAN)  |
+
+## Dominio público y túnel (HTTPS válido desde internet)
+
+Por defecto el remote y `/cast` solo funcionan en tu WiFi (LAN). Para exponer
+Cátodo a internet con HTTPS válido y que el QR funcione desde 4G o desde
+afuera de tu casa, Cátodo puede administrar un **túnel público** con un
+dominio propio. La primera implementación usa **Cloudflare Tunnel**
+(`cloudflared`), pero la arquitectura es pluggable — agregar Tailscale o
+ngrok es agregar un provider nuevo sin tocar el resto del sistema.
+
+**Prerequisitos únicos (one-time):**
+1. Un dominio propio delegado a Cloudflare (~$10/año).
+2. En el panel de Cloudflare: **Zero Trust → Networks → Tunnels** → crear un
+   tunnel de tipo **Cloudflared** → copiar el token JSON.
+3. Apuntar un **CNAME** de tu subdominio (ej. `catodo.tudominio.com`) al
+   tunnel que acabás de crear.
+
+**Configuración en Cátodo (runtime):**
+1. En el Home, abrí ⚙ → **DOMINIO PÚBLICO** → **Mostrar túnel**.
+2. Completá:
+   - **Dominio público**: `catodo.tudominio.com`
+   - **Provider**: `cloudflare` (default)
+   - **Ruta del token**: ruta absoluta al JSON que bajaste (ej.
+     `~/.cloudflared/<tunnel-uuid>.json`)
+   - **Habilitar túnel al arrancar**: ✓
+   - **Exigir token en /api/\***: ✓ (recomendado)
+3. **Guardar** y luego **Iniciar**. El indicador pasa a verde cuando
+   `https://catodo.tudominio.com/api/health` responde.
+
+Desde ese momento el **botón � del Home muestra un QR con
+`https://catodo.tudominio.com/remote?code=…`**. Tu celular lo abre desde
+cualquier red, Safari/Chrome ofrece **"Agregar a pantalla de inicio"**, y la
+app queda instalada como PWA fullscreen. `/cast` también funciona sobre el
+dominio público sin pedirte que aceptes un cert self-signed.
+
+El binario `cloudflared` se descarga solo la primera vez (`scripts/install_cloudflared.sh`,
+incluido por defecto en `install.sh` — usá `--no-cloudflared` para omitirlo).
+
+### Alternativa sin dominio propio: Tailscale Funnel
+
+Si todavía no tenés un dominio delegado a Cloudflare (o no querés migrar los
+NS), podés probar todo el módulo con **Tailscale Funnel**, que te da HTTPS
+válido en `https://<node>.<tailnet>.ts.net` sin registrar dominio:
+
+1. Instalá Tailscale: `curl -fsSL https://tailscale.com/install.sh | sh`
+2. Autenticá: `tailscale up` (te abre un browser para login)
+3. En Cátodo, abrí ⚙ → **DOMINIO PÚBLICO** → **Mostrar túnel**:
+   - **Provider**: `tailscale-funnel`
+   - **Habilitar túnel al arrancar**: ✓
+4. **Iniciar**. El botón 📱 del Home pasa a mostrar el QR con
+   `https://<tu-node>.ts.net/remote?code=…`.
+
+Funciona end-to-end (QR público, PWA instalable, `/cast` con HTTPS válido),
+y cuando migres los NS a Cloudflare, cambiás `tunnel_provider` de
+`tailscale-funnel` a `cloudflare` y completás **Dominio público** + **Ruta
+del token**. Sin tocar una línea de código.
+
+> Tailscale Funnel tiene un límite de tráfico en el plan free. Para uso
+> doméstico alcanza; para algo pesado conviene migrar a Cloudflare.
+
+| Endpoint                    | Descripción                                                  |
+| --------------------------- | ------------------------------------------------------------ |
+| `GET  /api/tunnel/status`   | Estado del túnel (`stopped|starting|running|failed|degraded`) |
+| `GET  /api/tunnel/health`   | Reachability + latencia del dominio público                  |
+| `GET  /api/tunnel/providers`| Providers registrados y si están configurados                |
+| `POST /api/tunnel/start`    | Inicia el túnel                                              |
+| `POST /api/tunnel/stop`     | Detiene el túnel                                             |
+
+El backend publica eventos `tunnel_state` por WebSocket para que el Home
+reaccione en vivo sin recargar.
 
 ## Apariencia (temas y personalización)
 
@@ -332,12 +404,13 @@ El **remote PWA** adopta automáticamente la paleta y los bordes del tema activo
 Cátodo funciona como **pantalla inalámbrica** vía WebRTC (sin protocolos propietarios):
 
 1. En la TV hay un canal **Pantalla** (`screen-cast`); al iniciarse una proyección se abre solo.
-2. En cualquier navegador de la red abrí `https://<ip-catodo>:8765/cast/`, tocá **Compartir pantalla** y listo.
+2. En cualquier navegador abrí `https://<tu-dominio>/cast/` (si tenés túnel público activo) o
+   `https://<ip-catodo>:8766/cast/` (cert self-signed en LAN), tocá **Compartir pantalla** y listo.
 3. Desde el **remote** aparece un indicador "Proyectando" con botón para detener.
 
 **Requisito HTTPS**: `getDisplayMedia` (compartir pantalla) solo funciona en contexto seguro
-(HTTPS o `localhost`). El backend sirve **HTTP en :8765** (todo como siempre) y, si existe
-certificado, **HTTPS en :8766** para `/cast`:
+(HTTPS o `localhost`). Con un dominio público y el túnel activo, `https://<tu-dominio>/cast/`
+tiene cert válido y no pide aceptar nada. Si preferís LAN con cert local, sigue disponible:
 
 ```bash
 bash scripts/make_cert.sh        # genera ~/.local/share/catodo/ssl/{cert,key}.pem

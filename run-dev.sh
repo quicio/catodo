@@ -108,14 +108,29 @@ if [ ! -x "$CASTLAB_ELECTRON" ]; then
     echo "    Instalalo con: bash scripts/install_castlab.sh"
     CASTLAB_ELECTRON=""
 fi
-(
-    cd "$FRONTEND_DIR"
-    if [ -n "$CASTLAB_ELECTRON" ]; then
-        CATODO_BACKEND_URL="$VITE_URL" "$CASTLAB_ELECTRON" . 2>&1 | tee -a /tmp/catodo-dev.log
-    else
-        CATODO_BACKEND_URL="$VITE_URL" npx electron . 2>&1 | tee -a /tmp/catodo-dev.log
-    fi
-) &
-ELECTRON_PID=$!
+ELECTRON_RUN_LOG="/tmp/catodo-electron-run.log"
+
+launch_electron() {
+    local extra=("$@")
+    (
+        cd "$FRONTEND_DIR"
+        {
+            if [ -n "$CASTLAB_ELECTRON" ]; then
+                CATODO_BACKEND_URL="$VITE_URL" "$CASTLAB_ELECTRON" "${extra[@]}" .
+            else
+                CATODO_BACKEND_URL="$VITE_URL" npx electron "${extra[@]}" .
+            fi
+        } 2>&1 | tee -a /tmp/catodo-dev.log
+    ) > "$ELECTRON_RUN_LOG" &
+    ELECTRON_PID=$!
+}
+
+launch_electron
+sleep 4
+if ! kill -0 "$ELECTRON_PID" 2>/dev/null && grep -qE "zygote_host|Check failed|sandbox" "$ELECTRON_RUN_LOG"; then
+    echo "    Electron crasheó por restricciones del sandbox del entorno."
+    echo "    Reintentando con --no-sandbox..."
+    launch_electron --no-sandbox
+fi
 
 wait "$VITE_PID" "$ELECTRON_PID"

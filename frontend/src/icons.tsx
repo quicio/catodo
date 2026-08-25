@@ -10,42 +10,49 @@
  */
 import { MorphIcon } from "morphicons/react";
 import {
-  Music, MonitorPlay, Clapperboard, Tv, Play, Gamepad2,
-  ThumbsUp, ThumbsDown, Check, X, Settings, Smartphone,
+  Music, MonitorPlay, Clapperboard, Tv, Play, Pause, SkipBack, SkipForward,
+  Gamepad2, ThumbsUp, ThumbsDown, Check, X, Settings, Smartphone,
 } from "lucide";
 import {
   GiMusicalNotes, GiTv, GiClapperboard, GiTvTower, GiPlayButton,
+  GiPauseButton, GiFastBackwardButton, GiFastForwardButton,
   GiRetroController, GiThumbUp, GiThumbDown, GiCheckMark, GiCancel,
   GiBigGear, GiSmartphone,
 } from "react-icons/gi";
 import {
   PiMusicNote, PiMonitorPlay, PiFilmSlate, PiTelevision, PiPlay,
+  PiPause, PiSkipBack, PiSkipForward,
   PiGameController, PiThumbsUp, PiThumbsDown, PiCheck, PiX,
   PiGear, PiDeviceMobile,
 } from "react-icons/pi";
 import {
   MdMusicNote, MdOndemandVideo, MdMovie, MdTv, MdPlayArrow,
+  MdPause, MdSkipPrevious, MdSkipNext,
   MdVideogameAsset, MdThumbUp, MdThumbDown, MdCheck, MdClose,
   MdSettings, MdSmartphone,
 } from "react-icons/md";
 import {
   IoMusicalNotes, IoPlayCircle, IoFilm, IoTv, IoPlay,
+  IoPause, IoPlaySkipBack, IoPlaySkipForward,
   IoGameController, IoThumbsUp, IoThumbsDown, IoCheckmark, IoClose,
   IoSettings, IoPhonePortrait,
 } from "react-icons/io5";
 import {
   BsMusicNoteBeamed, BsPlayBtn, BsFilm, BsTv, BsPlayFill,
+  BsPause, BsSkipBackward, BsSkipForward,
   BsController, BsHandThumbsUp, BsHandThumbsDown, BsCheck, BsX,
   BsGear, BsPhone,
 } from "react-icons/bs";
 import {
   VscMusic, VscPlayCircle, VscRecord, VscScreenFull, VscPlay,
+  VscDebugPause, VscDebugStepBack, VscDebugStepOver,
   VscGame, VscThumbsup, VscThumbsdown, VscCheck, VscClose,
   VscGear, VscDeviceMobile,
 } from "react-icons/vsc";
 import {
-  RxDisc, RxDesktop, RxVideo, RxFrame, RxPlay, RxDashboard,
-  RxThickArrowUp, RxThickArrowDown, RxCheck, RxCross2,
+  RxDisc, RxDesktop, RxVideo, RxFrame, RxPlay,
+  RxPause, RxDoubleArrowLeft, RxDoubleArrowRight,
+  RxDashboard, RxThickArrowUp, RxThickArrowDown, RxCheck, RxCross2,
   RxGear, RxMobile,
 } from "react-icons/rx";
 import type { CSSProperties } from "react";
@@ -62,6 +69,9 @@ export type IconName =
   | "clapperboard"
   | "tv"
   | "play"
+  | "pause"
+  | "skip-back"
+  | "skip-forward"
   | "gamepad"
   | "thumbs-up"
   | "thumbs-down"
@@ -79,6 +89,9 @@ const LU_NODES: MorphMap = {
   clapperboard: Clapperboard,
   tv: Tv,
   play: Play,
+  pause: Pause,
+  "skip-back": SkipBack,
+  "skip-forward": SkipForward,
   gamepad: Gamepad2,
   "thumbs-up": ThumbsUp,
   "thumbs-down": ThumbsDown,
@@ -97,6 +110,9 @@ const GI_MAP: StaticMap = {
   clapperboard: GiClapperboard,
   tv: GiTvTower,
   play: GiPlayButton,
+  pause: GiPauseButton,
+  "skip-back": GiFastBackwardButton,
+  "skip-forward": GiFastForwardButton,
   gamepad: GiRetroController,
   "thumbs-up": GiThumbUp,
   "thumbs-down": GiThumbDown,
@@ -112,6 +128,9 @@ const PI_MAP: StaticMap = {
   clapperboard: PiFilmSlate,
   tv: PiTelevision,
   play: PiPlay,
+  pause: PiPause,
+  "skip-back": PiSkipBack,
+  "skip-forward": PiSkipForward,
   gamepad: PiGameController,
   "thumbs-up": PiThumbsUp,
   "thumbs-down": PiThumbsDown,
@@ -127,6 +146,9 @@ const MD_MAP: StaticMap = {
   clapperboard: MdMovie,
   tv: MdTv,
   play: MdPlayArrow,
+  pause: MdPause,
+  "skip-back": MdSkipPrevious,
+  "skip-forward": MdSkipNext,
   gamepad: MdVideogameAsset,
   "thumbs-up": MdThumbUp,
   "thumbs-down": MdThumbDown,
@@ -142,6 +164,9 @@ const IO5_MAP: StaticMap = {
   clapperboard: IoFilm,
   tv: IoTv,
   play: IoPlay,
+  pause: IoPause,
+  "skip-back": IoPlaySkipBack,
+  "skip-forward": IoPlaySkipForward,
   gamepad: IoGameController,
   "thumbs-up": IoThumbsUp,
   "thumbs-down": IoThumbsDown,
@@ -157,6 +182,9 @@ const BS_MAP: StaticMap = {
   clapperboard: BsFilm,
   tv: BsTv,
   play: BsPlayFill,
+  pause: BsPause,
+  "skip-back": BsSkipBackward,
+  "skip-forward": BsSkipForward,
   gamepad: BsController,
   "thumbs-up": BsHandThumbsUp,
   "thumbs-down": BsHandThumbsDown,
@@ -172,6 +200,9 @@ const VSC_MAP: StaticMap = {
   clapperboard: VscRecord,
   tv: VscScreenFull,
   play: VscPlay,
+  pause: VscDebugPause,
+  "skip-back": VscDebugStepBack,
+  "skip-forward": VscDebugStepOver,
   gamepad: VscGame,
   "thumbs-up": VscThumbsup,
   "thumbs-down": VscThumbsdown,
@@ -187,6 +218,9 @@ const RX_MAP: StaticMap = {
   clapperboard: RxVideo,
   tv: RxFrame,
   play: RxPlay,
+  pause: RxPause,
+  "skip-back": RxDoubleArrowLeft,
+  "skip-forward": RxDoubleArrowRight,
   gamepad: RxDashboard,
   "thumbs-up": RxThickArrowUp,
   "thumbs-down": RxThickArrowDown,

@@ -30,6 +30,7 @@ KEYS = {
     "arcade_default_emulator": lambda: "",
     "arcade_boxart_enabled": lambda: True,
     "resume_last_channel": lambda: True,
+    "spotify_minimize_on_launch": lambda: True,
     "per_channel_volume_enabled": lambda: True,
     "per_channel_volume_default": lambda: 50,
     "channel_audio_sinks": lambda: {},
@@ -53,7 +54,32 @@ KEYS = {
     "theme_crt_enabled": lambda: True,
     "theme_overrides": lambda: {},
     "home_layout_id": lambda: "default",
+    "ui_scale": lambda: 1.0,
+    "public_domain": lambda: "",
+    "tunnel_enabled": lambda: False,
+    "tunnel_provider": lambda: "cloudflare",
+    "tunnel_token_path": lambda: "",
+    "tunnel_require_token": lambda: True,
+    # Token de pairing — auto-generado en el startup cuando el túnel
+    # exige auth y no hay CATODO_TOKEN configurado. Se embebe en el QR
+    # para que el remote no tenga que tipearlo a mano.
+    "pair_token": lambda: "",
 }
+
+
+_UI_SCALE_MIN = 0.6
+_UI_SCALE_MAX = 2.0
+
+
+def _sanitize_ui_scale(value) -> float:
+    """Clamp ui_scale al rango permitido; cualquier cosa rara → default 1.0."""
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return 1.0
+    if v != v:  # NaN
+        return 1.0
+    return max(_UI_SCALE_MIN, min(_UI_SCALE_MAX, v))
 
 # Claves cuya lectura devuelve un valor derivado (no el raw del archivo).
 _DERIVED = ("themes", "theme_overrides", "theme_crt_enabled")
@@ -81,7 +107,66 @@ def _effective(key: str, cfg: dict):
         # Sanitización: debe ser string no vacío; cualquier otra cosa → "default".
         v = cfg.get("home_layout_id")
         return v if isinstance(v, str) and v else "default"
+    if key == "ui_scale":
+        return _sanitize_ui_scale(cfg.get("ui_scale"))
+    if key == "public_domain":
+        return _normalize_public_domain(cfg.get("public_domain"))
     return cfg.get(key)
+
+
+_HOSTNAME_RE = __import__("re").compile(r"^[a-z0-9]([a-z0-9\-\.]*[a-z0-9])?$", __import__("re").I)
+
+
+def _normalize_public_domain(value) -> str:
+    """Lowercase, strip scheme/trailing slash/path. Empty → empty.
+
+    Returns the raw value untouched when it doesn't look like a bare hostname,
+    so callers can distinguish "" (legitimate default) from a malformed input.
+    Validation that REJECTS malformed values lives in the API layer.
+    """
+    if not isinstance(value, str):
+        return ""
+    v = value.strip()
+    if not v:
+        return ""
+    # strip scheme
+    if "://" in v:
+        v = v.split("://", 1)[1]
+    # strip path
+    v = v.split("/", 1)[0]
+    # strip port
+    if ":" in v and not v.startswith("["):
+        v = v.rsplit(":", 1)[0]
+    v = v.strip().lower().rstrip(".")
+    if not v or not _HOSTNAME_RE.match(v):
+        return ""  # silent: caller already validated before writing
+    return v
+
+
+def normalize_public_domain(value) -> str:
+    """Public helper used by the API layer for input validation."""
+    return _normalize_public_domain(value)
+
+
+def validate_public_domain(value) -> bool:
+    """True iff `value` is a syntactically valid bare hostname."""
+    if not isinstance(value, str):
+        return False
+    raw = value.strip()
+    if not raw:
+        return False
+    if "://" in raw or "/" in raw or " " in raw:
+        return False
+    return bool(_HOSTNAME_RE.match(raw.lower().rstrip(".")))
+
+
+def validate_tunnel_provider(value) -> bool:
+    """True iff `value` matches a registered provider name."""
+    from catodo.tunnel import available
+
+    if not isinstance(value, str):
+        return False
+    return value in available()
 
 _config: dict | None = None
 _lock = asyncio.Lock()

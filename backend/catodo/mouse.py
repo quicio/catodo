@@ -78,6 +78,16 @@ async def scroll(request: Request) -> dict:
     return {"dy": dy}
 
 
+# Teclas que se reenvían por WS para que el frontend pueda inyectarlas
+# en el webview activo (YouTube/TV), ya que las teclas media del OS no
+# llegan ahí. Las teclas media SIEMPRE se publican por WS (no pasan por
+# el input_injector — el kiosk inyecta el keyCode directo en el webview).
+_MEDIA_EVENTS = frozenset({
+    "playpause", "prev", "next", "stop", "rewind", "forward",
+    "back", "homepage", "voldown", "volup", "mute",
+})
+
+
 @router.post("/key")
 async def key(request: Request) -> dict:
     try:
@@ -86,10 +96,9 @@ async def key(request: Request) -> dict:
         body = {}
     name = str(body.get("key", "")).lower()
     shift = bool(body.get("shift", False))
-    try:
-        await _injector(request).key(name, shift=shift)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+
+    # Teclas media: WS-only (no requieren ydotool/cliclick/osascript).
+    # El kiosk inyecta el keyCode en el webview activo.
     if name in _MEDIA_EVENTS:
         broker = getattr(getattr(request.app, "state", None), "broker", None)
         if broker is not None:
@@ -97,8 +106,14 @@ async def key(request: Request) -> dict:
                 await broker.publish({"event": "media_key", "key": name})
             except Exception as e:
                 log.warning("media_key publish failed: %s", e)
-    return {"key": name, "shift": shift}
+        return {"key": name, "shift": shift, "media": True}
 
+    # Teclas regulares (letras, enter, flechas, etc.): input_injector port.
+    try:
+        await _injector(request).key(name, shift=shift)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"key": name, "shift": shift, "media": False}
 
 @router.post("/type")
 async def type_text(request: Request) -> dict:
