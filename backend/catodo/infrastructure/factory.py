@@ -66,9 +66,9 @@ def build_spotify_client() -> SpotifyClientPort:
     if _spotify_client is not None:
         return _spotify_client
     if platform.IS_MACOS:
-        from catodo.infrastructure.macos.spotify_client import DbusslessSpotifyClient
+        from catodo.infrastructure.macos.spotify_client import ApplescriptSpotifyClient
 
-        _spotify_client = DbusslessSpotifyClient()
+        _spotify_client = ApplescriptSpotifyClient()
     else:
         from catodo.infrastructure.linux.spotify_client import DbusSpotifyClient
 
