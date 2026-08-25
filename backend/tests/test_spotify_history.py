@@ -1,8 +1,35 @@
 """Spotify history — deduplicación de pistas repetidas (ej. tras reinicios)."""
 import asyncio
+from typing import Any
 
 from catodo import store
 from catodo.channels.spotify import SpotifyChannel
+from catodo.domain.ports import SpotifyClientPort
+
+
+class _StubSpotifyClient(SpotifyClientPort):
+    """Minimal port impl for tests — available, no DBus calls."""
+
+    def __init__(self) -> None:
+        self.is_available_return = True
+
+    def is_available(self) -> bool:
+        return self.is_available_return
+
+    async def play(self): return None
+
+    async def pause(self): return None
+
+    async def next(self): return None
+
+    async def previous(self): return None
+
+    async def set_volume(self, level: float): return None
+
+    async def open_uri(self, uri: str): return None
+
+    async def get_state(self) -> dict[str, Any]:
+        return {"available": True, "status": "Stopped"}
 
 
 def _entry(track_id, title, played_at):
@@ -37,16 +64,16 @@ def test_load_history_collapses_consecutive_duplicates(monkeypatch):
     ]
     monkeypatch.setattr(store, "load", lambda *_a, **_k: {"version": 1, "items": entries})
 
-    ch = SpotifyChannel()
+    ch = SpotifyChannel(_StubSpotifyClient())
     assert [h["title"] for h in ch.history()] == ["Kabalah", "Otra", "Kabalah"]
 
 
 async def test_track_change_no_consecutive_duplicate(monkeypatch):
     """Spec: spotify-history / La misma pista detectada dos veces no se duplica."""
     _noop_store(monkeypatch)
-    ch = SpotifyChannel()
+    ch = SpotifyChannel(_StubSpotifyClient())
     ch._last_status = "Playing"
-    meta = {"mpris:trackid": "/com/spotify/track/X", "xesam:title": "X"}
+    meta = {"track_id": "/com/spotify/track/X", "title": "X"}
     ch._on_track_change("/com/spotify/track/X", meta)
     ch._on_track_change("/com/spotify/track/X", meta)
     await asyncio.sleep(0)  # dejar terminar el save en background
@@ -58,15 +85,22 @@ def test_resume_same_track_not_readded(monkeypatch):
     _noop_store(monkeypatch)
     entries = [_entry("/com/spotify/track/A", "Kabalah", 1000)]
     monkeypatch.setattr(store, "load", lambda *_a, **_k: {"version": 1, "items": entries})
-    ch = SpotifyChannel()
 
-    async def fake_get(prop):
-        if prop == "PlaybackStatus":
-            return "Playing"
-        if prop == "Metadata":
-            return {"mpris:trackid": "/com/spotify/track/A", "xesam:title": "Kabalah"}
-        return None
+    client = _StubSpotifyClient()
 
-    monkeypatch.setattr(ch, "_get", fake_get)
+    async def fake_get_state() -> dict[str, Any]:
+        return {
+            "available": True,
+            "status": "Playing",
+            "track_id": "/com/spotify/track/A",
+            "title": "Kabalah",
+            "artist": "Artist",
+            "album": "Album",
+            "art_url": "",
+            "position": 0.0,
+        }
+
+    client.get_state = fake_get_state  # type: ignore[assignment]
+    ch = SpotifyChannel(client)
     asyncio.run(ch._read_state())
     assert len(ch.history()) == 1

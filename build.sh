@@ -51,12 +51,22 @@ with open(os.environ["NOISE_TARGET"], 'wb') as f:
     f.write(png)
 PY
 
-echo "==> Build Electron (AppImage + deb)"
-(cd "$FRONTEND_DIR" && npx electron-builder --linux AppImage deb)
+echo "==> Build Electron (target según OS)"
+if [ "$(uname -s)" = "Darwin" ]; then
+    (cd "$FRONTEND_DIR" && npx electron-builder --mac dir zip)
+else
+    (cd "$FRONTEND_DIR" && npx electron-builder --linux AppImage deb)
+fi
 
 echo "==> Copiando ejecutables a $RELEASE_DIR"
 mkdir -p "$RELEASE_DIR"
-cp "$FRONTEND_DIR"/release/*.AppImage "$FRONTEND_DIR"/release/*.deb "$RELEASE_DIR"/ 2>/dev/null || true
+# Copia portable por OS: AppImage/deb en Linux; .app/.zip en macOS.
+shopt -s nullglob
+for f in "$FRONTEND_DIR"/release/*.AppImage "$FRONTEND_DIR"/release/*.deb \
+         "$FRONTEND_DIR"/release/*.zip "$FRONTEND_DIR"/release/mac/*.app; do
+    cp -R "$f" "$RELEASE_DIR/" 2>/dev/null || true
+done
+shopt -u nullglob
 
 echo
 echo "==> Listo. Ejecutables en $RELEASE_DIR:"

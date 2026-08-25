@@ -1,13 +1,15 @@
 import type { ChannelInfo, AppState } from "../api/client";
 import {
+  AppearanceSettingsPopover,
   DEFAULT_LAYOUT,
+  PairModal,
   homeSlots,
   UnknownSlot,
   useHomeState,
   type HomeComponentConfig,
   type HomeComponentPosition,
   type HomeLayout,
-} from "./home";
+} from "./home/index";
 
 /**
  * El Home de Cátodo: un orquestador.
@@ -89,10 +91,10 @@ export default function Home({
           zIndex: 2,
         }}
       >
-        PRECIONÁ 1-4 O HACÉ CLICK · ESC PARA VOLVER
+        PRECIONÁ 1-4 O HACÉ CLICK · C PARA CONFIG · ESC PARA VOLVER
       </div>
 
-      {overlayComponents.map((c) => (
+{overlayComponents.map((c) => (
         <HomeSlot
           key={c.id}
           config={c}
@@ -104,6 +106,29 @@ export default function Home({
           onLayoutChange={onLayoutChange}
         />
       ))}
+
+      {/* Overlays que viven SIEMPRE en Home, sin importar el layout. Antes
+          dependían de que el layout los incluyera en `components` (con
+          position: "overlay"), pero eso rompía el atajo `c` en layouts
+          minimal/clean/wallpaper-only donde el popover no estaba listado. */}
+      <AppearanceSettingsPopover
+        config={{ id: "appearance-settings-popover", position: "overlay" }}
+        state={state}
+        channels={channels}
+        onPick={onPick}
+        homeState={homeState}
+        layoutId={layoutId}
+        onLayoutChange={onLayoutChange}
+      />
+      <PairModal
+        config={{ id: "pair-modal", position: "overlay" }}
+        state={state}
+        channels={channels}
+        onPick={onPick}
+        homeState={homeState}
+        layoutId={layoutId}
+        onLayoutChange={onLayoutChange}
+      />
     </div>
   );
 }

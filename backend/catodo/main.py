@@ -12,6 +12,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from catodo import mixer as mixer_facade
+from catodo import uri_opener as uri_opener_facade
 from catodo.api import router as api_router
 from catodo.cast import CastChannel, CastManager
 from catodo.cast import router as cast_router
@@ -19,14 +21,24 @@ from catodo.channels import build_default_registry
 from catodo.config import ensure_ssl, settings
 from catodo.events import EventBroker
 from catodo.idle import IdleManager
+from catodo.infrastructure.factory import (
+    build_input_injector,
+    build_mixer,
+    build_spotify_client,
+    build_uri_opener,
+)
 from catodo.libraries_api import router as libraries_router
 from catodo.lyrics import router as lyrics_router
 from catodo.manager import ChannelManager
+from catodo.modes import router as modes_router
 from catodo.mouse import router as mouse_router
 from catodo.mqtt_bridge import MqttBridge
 from catodo.pair import router as pair_router
 from catodo.plugin_system import PluginManager, sort_channels
 from catodo.plugins_api import router as plugins_router
+from catodo.runtime_config import get as _cfg_get
+from catodo.tunnel.manager import TunnelManager
+from catodo.tunnel_api import router as tunnel_router
 from catodo.wallpapers import router as wallpapers_router
 
 logger = logging.getLogger("catodo")
@@ -34,6 +46,39 @@ logger = logging.getLogger("catodo")
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
 _token = os.getenv("CATODO_TOKEN", "")
+
+# Endpoints reachable WITHOUT a token even when the tunnel is public.
+# /api/health — liveness probes
+# /api/pair/info — needed for the remote PWA bootstrap before login
+# /api/tunnel/status + /api/tunnel/providers — needed to display state on
+#   a fresh remote before login
+_PUBLIC_EXEMPT_PREFIXES = (
+    "/api/health",
+    "/api/pair/info",
+    "/api/tunnel/status",
+    "/api/tunnel/providers",
+)
+
+
+def _is_token_required(path: str, host: str = "") -> bool:
+    """Decide whether `/api/<path>` requires the CATODO_TOKEN.
+
+    Order:
+    1. Loopback clients (kiosk Electron, dev tools del operador) → never.
+    2. CATODO_TOKEN env var → always required when set (legacy behavior).
+    3. Tunnel public + tunnel_require_token=true → required.
+    4. Otherwise → not required.
+    Public-exempt endpoints never require the token (regardless of mode).
+    """
+    if _is_loopback(host):
+        return False
+    if any(path.startswith(p) for p in _PUBLIC_EXEMPT_PREFIXES):
+        return False
+    if _token:
+        return True
+    enabled = bool(_cfg_get("tunnel_enabled"))
+    require = bool(_cfg_get("tunnel_require_token"))
+    return enabled and require
 
 
 def _is_loopback(host: str) -> bool:
@@ -54,7 +99,23 @@ async def lifespan(app):
     plugins = PluginManager()
     plugins._seed_bundled()
 
-    channels = sort_channels(build_default_registry() + plugins.scan())
+    # Composition root: instantiate the OS-touched adapters (mixer, input
+    # injector, URI opener, Spotify client) and expose them on app.state.
+    # The rest of the backend reads these via the `catodo.{mixer,mouse}`
+    # facades, which delegate to whichever adapter was wired here.
+    app.state.mixer = build_mixer()
+    app.state.input_injector = build_input_injector()
+    app.state.uri_opener = build_uri_opener()
+    app.state.spotify_client = build_spotify_client()
+    # Wire the legacy module-level facades so existing call sites
+    # (`from catodo import mixer; mixer.get_volume()`, etc.) keep working
+    # without DI refactors. These facades are the single point of access.
+    mixer_facade.set_port(app.state.mixer)
+    uri_opener_facade.set_port(app.state.uri_opener)
+
+    channels = sort_channels(
+        build_default_registry(app.state.spotify_client) + plugins.scan()
+    )
     for ch in channels:
         manager.register(ch)
     plugins.ensure_all_dependencies()
@@ -71,12 +132,28 @@ async def lifespan(app):
     mqtt = MqttBridge(manager=manager, broker=broker)
     await mqtt.start()
 
+    tunnel = TunnelManager(broker=broker)
+
+    # Reconciliar con la realidad: si el túnel quedó "running" antes de un
+    # restart (o quedó "failed" porque el operador no era el correcto
+    # pero alguien ya lo arregló por su cuenta), chequeamos contra
+    # `is_running()` del provider y resyncamos. Sin esto, el manager
+    # arrastra un estado stale y el UI muestra "failed" eternamente.
+    await tunnel.reconcile()
+
+    # Auto-generar pair_token si el túnel exige auth y no hay CATODO_TOKEN
+    # configurado. Sin esto, el QR del remote no embebe código y el remote
+    # queda pidiendo "Código de acceso" al primer 401.
+    from catodo import pair as _pair
+    await _pair.ensure_pair_token()
+
     app.state.broker = broker
     app.state.manager = manager
     app.state.plugins = plugins
     app.state.cast = cast
     app.state.idle = idle
     app.state.mqtt = mqtt
+    app.state.tunnel = tunnel
     app.state.started_at = __import__("time").time()
     app.state.bg_tasks: set = set()
 
@@ -86,6 +163,7 @@ async def lifespan(app):
     finally:
         await idle.stop()
         await mqtt.stop()
+        await tunnel.shutdown()
         for t in app.state.bg_tasks:
             t.cancel()
         await manager.close_all()
@@ -114,14 +192,22 @@ def create_app() -> FastAPI:
             allow_headers=["*"],
         )
 
-    if _token:
-        @app.middleware("http")
-        async def token_middleware(request: Request, call_next):
-            if request.url.path.startswith("/api/"):
-                provided = request.headers.get("X-Catodo-Token") or request.query_params.get("token") or ""
-                if provided != _token:
-                    return JSONResponse(status_code=401, content={"detail": "unauthorized"})
-            return await call_next(request)
+    @app.middleware("http")
+    async def token_middleware(request: Request, call_next):
+        # Always registered; the predicate decides per-request.
+        # We re-read CATODO_TOKEN from the env on every request so tests and
+        # operators can change it without restarting the process.
+        path = request.url.path
+        host = request.client.host if request.client else ""
+        if path.startswith("/api/") and _is_token_required(path, host):
+            provided = request.headers.get("X-Catodo-Token") or request.query_params.get("token") or ""
+            # Token efectivo: CATODO_TOKEN env var O pair_token auto-generado
+            # en runtime_config (ver pair.ensure_pair_token).
+            from catodo import pair as _pair
+            expected = _pair.get_token()
+            if not expected or provided != expected:
+                return JSONResponse(status_code=401, content={"detail": "unauthorized"})
+        return await call_next(request)
 
     @app.middleware("http")
     async def idle_middleware(request: Request, call_next):
@@ -139,7 +225,9 @@ def create_app() -> FastAPI:
     app.include_router(plugins_router, prefix="/api")
     app.include_router(libraries_router, prefix="/api")
     app.include_router(pair_router, prefix="/api")
+    app.include_router(modes_router, prefix="/api")
     app.include_router(cast_router, prefix="/api")
+    app.include_router(tunnel_router)
     if STATIC_DIR.exists():
         app.mount(
             "/",
@@ -150,7 +238,14 @@ def create_app() -> FastAPI:
         @app.middleware("http")
         async def no_cache(request, call_next):
             resp = await call_next(request)
-            if request.url.path.startswith("/assets") or request.url.path == "/" or request.url.path.endswith(".html"):  # noqa: E501
+            path = request.url.path
+            if (path.startswith("/assets")
+                or path == "/"
+                or path.endswith(".html")
+                or path.startswith("/remote/")):
+                # El SW del remote y sus assets NO deben quedar cacheados
+                # por el browser — si cacheamos el SW, las nuevas versiones
+                # no se detectan y el cliente queda viendo código viejo.
                 resp.headers["Cache-Control"] = "no-store, must-revalidate"
             return resp
     return app

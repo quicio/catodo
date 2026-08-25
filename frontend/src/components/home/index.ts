@@ -1,4 +1,6 @@
 export { homeSlots, UnknownSlot } from "./registry";
+export { AppearanceSettingsPopover } from "./AppearanceSettingsPopover";
+export { PairModal } from "./PairModal";
 export {
   DEFAULT_LAYOUT,
   MINIMAL_LAYOUT,

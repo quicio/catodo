@@ -15,7 +15,8 @@
     "preview": "vite preview",
     "electron:dev": "bash ../run-dev.sh",
     "electron:build": "vite build && electron-builder",
-    "electron:build:linux": "vite build && electron-builder --linux AppImage deb"
+    "electron:build:linux": "vite build && electron-builder --linux AppImage deb",
+    "electron:build:mac": "vite build && electron-builder --mac dir zip"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.3.0",
@@ -59,6 +60,14 @@
       ],
       "icon": "../catodo.png",
       "category": "AudioVideo"
+    },
+    "mac": {
+      "target": [
+        "dir",
+        "zip"
+      ],
+      "icon": "../catodo.png",
+      "category": "public.app-category.entertainment"
     }
   }
 }

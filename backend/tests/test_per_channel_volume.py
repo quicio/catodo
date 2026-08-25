@@ -6,8 +6,33 @@ from catodo import manager as mgr_mod
 from catodo.main import app
 
 
+class _AlwaysAvailableSpotify:
+    """SpotifyClientPort stub — available, no DBus calls, no pygobject needed."""
+
+    def is_available(self) -> bool:
+        return True
+
+    async def play(self): return None
+    async def pause(self): return None
+    async def next(self): return None
+    async def previous(self): return None
+    async def set_volume(self, level: float): return None
+    async def open_uri(self, uri: str): return None
+    async def get_state(self): return {"available": True, "status": "Stopped"}
+
+
+def _make_stub_spotify_client():
+    return _AlwaysAvailableSpotify()
+
+
 @pytest.fixture
-def client():
+def client(monkeypatch):
+    # Force the spotify channel to register so the per-channel volume flow has
+    # both a `media` channel (spotify) and the fallback youtube webview. Patch
+    # the symbol imported into `catodo.main` (main does `from factory import`).
+    import catodo.main as main_mod
+
+    monkeypatch.setattr(main_mod, "build_spotify_client", _make_stub_spotify_client)
     with TestClient(app) as c:
         yield c
 

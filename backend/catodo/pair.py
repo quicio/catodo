@@ -1,23 +1,61 @@
-"""Pairing — QR + código para conectar el remote (celular) a Cátodo.
+"""Pairing — URLs (LAN + pública) + QR para conectar el remote (celular).
 
-El QR codifica la URL del remote (con el token si está configurado) para que
-el teléfono lo escanee y quede conectado sin tipear la IP.
+Cuando hay un túnel público configurado y corriendo, `pair_urls()` expone
+la URL pública (que funciona desde cualquier red, vía HTTPS válido del
+proveedor) además de la LAN tradicional. El QR codifica la primaria
+(public si existe, si no LAN); se puede forzar LAN con `?which=lan`.
+
+El token de emparejamiento se resuelve en este orden:
+  1. CATODO_TOKEN env var (legacy, toma precedencia).
+  2. ``pair_token`` en runtime_config — auto-generado en el startup si
+     el túnel exige auth y no hay env var, para que el QR siempre venga
+     con código listo y el remote no tenga que tipearlo a mano.
 """
 from __future__ import annotations
 
 import logging
+import os
+import secrets
 import socket
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response
 
+from catodo import runtime_config
 from catodo.config import settings
 
 log = logging.getLogger("catodo.pair")
 
 router = APIRouter(prefix="/pair", tags=["pair"])
 
-_token = __import__("os").getenv("CATODO_TOKEN", "")
+
+def get_token() -> str:
+    """Token de emparejamiento efectivo. CATODO_TOKEN env var primero."""
+    return os.getenv("CATODO_TOKEN", "") or runtime_config.get("pair_token") or ""
+
+
+def _code_suffix() -> str:
+    tok = get_token()
+    return f"?code={tok}" if tok else ""
+
+
+async def ensure_pair_token() -> str:
+    """Si el túnel exige auth y no hay token configurado, genera uno
+    aleatorio y lo persiste. Idempotente — se llama en el startup.
+
+    Retorna el token efectivo (existente o recién generado)."""
+    if os.getenv("CATODO_TOKEN"):
+        return os.getenv("CATODO_TOKEN", "")
+    if not runtime_config.get("tunnel_require_token"):
+        return ""
+    existing = runtime_config.get("pair_token")
+    if existing:
+        return existing
+    # 128 bits de entropía, URL-safe. Suficiente para un secreto de LAN.
+    new = secrets.token_urlsafe(16)
+    await runtime_config.set("pair_token", new)
+    log.info("auto-generated pair_token (CATODO_TOKEN env var is unset)")
+    return new
 
 
 def lan_ip() -> str:
@@ -32,19 +70,93 @@ def lan_ip() -> str:
         return "127.0.0.1"
 
 
-def pair_url() -> str:
-    # El remote funciona por HTTP; el casting usa el puerto HTTPS (ver /cast).
-    token_part = f"?code={_token}" if _token else ""
-    return f"http://{lan_ip()}:{settings.port}/remote/{token_part}"
+def pair_urls(tunnel_manager=None) -> dict[str, str | None]:
+    """Return {lan, public, primary, code}.
+
+    - `lan` is always set (LAN access never disappears).
+    - `public` is set when the tunnel is *running* AND the active provider
+      can produce a public URL. For most providers (Cloudflare) the URL
+      comes from `public_domain` in runtime config. For Tailscale Funnel
+      it comes from `tailscale status --json` since Tailscale picks the
+      hostname itself.
+    - `primary` is "public" when `public` is available, else "lan".
+    - `code` mirrors CATODO_TOKEN (empty string when unset).
+
+    `tunnel_manager` is the live TunnelManager (passed from the API layer).
+    Falls back to the config flag when None — that's only for unit tests
+    that don't spin up the manager.
+    """
+    code = _code_suffix()
+    lan = f"http://{lan_ip()}:{settings.port}/remote/{code}"
+    public: str | None = None
+
+    # El QR debe apuntar a la URL REAL que funciona. Si el túnel está
+    # configurado pero no corriendo, public queda None y el QR cae a LAN.
+    if _tunnel_is_running(tunnel_manager):
+        provider_name = runtime_config.get("tunnel_provider") or ""
+        if provider_name == "tailscale-funnel":
+            from catodo.tunnel import get_provider
+
+            provider = get_provider(provider_name)
+            if provider is not None and hasattr(provider, "public_url"):
+                pub = provider.public_url()  # type: ignore[attr-defined]
+                if pub:
+                    public = pub.rstrip("/") + f"/remote{code}"
+        else:
+            domain = runtime_config.get("public_domain")
+            if domain:
+                public = f"https://{domain}/remote{code}"
+
+    return {
+        "lan": lan,
+        "public": public,
+        "primary": "public" if public else "lan",
+        "code": get_token(),
+    }
+
+
+def _tunnel_is_running(manager) -> bool:
+    """El túnel debe estar realmente UP (no sólo configurado) para que la
+    URL pública funcione. Si el manager no está disponible, caemos al flag
+    de config (útil para tests que no inicializan el manager)."""
+    if manager is None:
+        return bool(runtime_config.get("tunnel_enabled"))
+    try:
+        st = manager.status()
+        return (st or {}).get("state") == "running"
+    except Exception:
+        return False
+
+
+def _pick_url(urls: dict[str, str | None], which: str | None) -> str | None:
+    if which == "lan":
+        return urls["lan"]
+    if which == "public":
+        return urls["public"] or urls["lan"]
+    return urls["public"] or urls["lan"]
 
 
 @router.get("/info")
-async def pair_info() -> dict:
-    return {"url": pair_url(), "code": _token or "", "host": lan_ip(), "port": settings.port}
+async def pair_info(request: Request) -> dict:
+    urls = pair_urls(tunnel_manager=getattr(request.app.state, "tunnel", None))
+    return {
+        "url": urls["lan"],            # backwards compat
+        "lan": urls["lan"],
+        "public": urls["public"],
+        "primary": urls["primary"],
+        "code": urls["code"],
+        "host": lan_ip(),
+        "port": settings.port,
+    }
 
 
 @router.get("/qr")
-async def pair_qr() -> Response:
+async def pair_qr(request: Request, which: str | None = None) -> Response:
+    urls = pair_urls(tunnel_manager=getattr(request.app.state, "tunnel", None))
+    target = _pick_url(urls, which)
+    if not target:
+        raise HTTPException(status_code=503, detail="no URL available")
+
     import io
 
     import qrcode
@@ -52,7 +164,7 @@ async def pair_qr() -> Response:
 
     buf = io.BytesIO()
     qr = qrcode.QRCode(border=2, box_size=10)
-    qr.add_data(pair_url())
+    qr.add_data(target)
     qr.make(fit=True)
     img = qr.make_image(image_factory=SvgPathImage)
     img.save(buf)
