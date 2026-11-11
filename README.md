@@ -96,6 +96,10 @@ Conventional Commits. Cada release publica artefactos versionados y checksums.
 brew install --cask quicio/tap/catodo
 ```
 
+Requiere macOS en Apple Silicon. Homebrew 5+ rechaza casks de taps de terceros
+hasta que se confían: si aparece `Refusing to load cask ... from untrusted tap`,
+ejecutar `brew trust quicio/tap` una sola vez.
+
 La app incluye el backend en `Catodo.app/Contents/Resources/backend/` y lo lanza
 como sidecar; no hay servicio separado ni `brew services`. Es el mismo tap que
 usa Candil: no hace falta crear otro repo. La app no está notarizada todavía: el

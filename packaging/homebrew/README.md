@@ -21,6 +21,10 @@ publicarlo: copiarlo a `Casks/catodo.rb` del tap y commitear.
 brew install --cask quicio/tap/catodo
 ```
 
+Homebrew 5+ no carga casks de taps de terceros hasta confiarlos; si falla con
+`Refusing to load cask ... from untrusted tap`, correr `brew trust quicio/tap`
+una vez.
+
 Requiere macOS en Apple Silicon (`arm64`): `depends_on arch: :arm64` evita que
 Homebrew instale un binario incompatible en Intel.
 
