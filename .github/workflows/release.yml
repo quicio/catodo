@@ -3,12 +3,20 @@ name: release
 on:
   release:
     types: [published]
+  # Publicar/rebuildear un tag a mano. Necesario cuando el release lo crea
+  # release-please con GITHUB_TOKEN: GitHub no dispara workflows desde ese token.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag a publicar (ej. v0.1.1)"
+        required: true
+        type: string
 
 permissions:
   contents: write
 
 env:
-  RELEASE_TAG: ${{ github.event.release.tag_name }}
+  RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
 
 jobs:
   linux:
