@@ -8,6 +8,15 @@ import pytest
 from catodo.infrastructure.macos.spotify_client import ApplescriptSpotifyClient
 
 
+@pytest.fixture(autouse=True)
+def _fake_osascript(monkeypatch):
+    """`osascript` no existe fuera de macOS; el adapter se testea sin host."""
+    monkeypatch.setattr(
+        "catodo.infrastructure.macos.spotify_client._osascript_bin",
+        lambda: "/usr/bin/osascript",
+    )
+
+
 def test_is_available_true_when_spotify_installed(monkeypatch, tmp_path):
     """is_available devuelve True si /Applications/Spotify.app existe."""
     fake_app = tmp_path / "Spotify.app"

@@ -8,6 +8,18 @@ import pytest
 from catodo.infrastructure.macos.mixer import OsascriptMixer
 
 
+@pytest.fixture(autouse=True)
+def _fake_osascript(monkeypatch):
+    """El adapter existe solo si `osascript` está en PATH; en Linux no está.
+
+    Los tests son de la lógica del adapter, no del host, así que lo simulamos.
+    """
+    monkeypatch.setattr(
+        "catodo.infrastructure.macos.mixer._osascript_bin",
+        lambda: "/usr/bin/osascript",
+    )
+
+
 @pytest.mark.asyncio
 async def test_set_volume_invokes_osascript():
     mixer = OsascriptMixer()

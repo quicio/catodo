@@ -18,6 +18,9 @@ from catodo.infrastructure.macos.uri_opener import MacOpenUriOpener
 def _restore_platform():
     orig_mac = platform_mod.IS_MACOS
     orig_lin = platform_mod.IS_LINUX
+    # Limpiar antes también: si otra suite importó la app, los singletons de la
+    # factory ya quedaron armados para el host y el primer test leería el cache.
+    factory.reset_for_tests()
     yield
     platform_mod.IS_MACOS = orig_mac
     platform_mod.IS_LINUX = orig_lin
