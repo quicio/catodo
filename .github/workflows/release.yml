@@ -122,5 +122,9 @@ jobs:
       - name: Upload to GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "$RELEASE_TAG" release/* --clobber
+        run: |
+          # Sólo archivos: `release/` también contiene el bundle backend-rust/.
+          shopt -s nullglob
+          assets=(release/*.zip release/*.AppImage release/*.deb release/*.tar.gz release/SHA256SUMS)
+          gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
 
