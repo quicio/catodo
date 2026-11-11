@@ -24,6 +24,10 @@ hace innecesaria una formula de Homebrew con servicio launchd.
 - `VERSION` en la raíz es la única fuente de verdad. release-please
   (`release-type: simple`) actualiza `VERSION`, los manifests y `CHANGELOG.md`
   en un PR de release; al mergearlo se crea el tag `vX.Y.Z`.
+- El release lo dispara `release: published` o, si el release lo creó
+  release-please con `GITHUB_TOKEN` (los eventos de ese token no encadenan
+  workflows), un `workflow_dispatch` con `tag`. El job de publish sube sólo
+  archivos de `release/` (el bundle `backend-rust/` es un directorio).
 - CI y release corren en GitHub Actions: `ubuntu-22.04` (x86_64) y `macos-15`
   (arm64). El runner `macos-14` no está disponible para la org (`configuration
   'macos-14-arm64-us-default' is not supported`), por eso se usa `macos-15`.

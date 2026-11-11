@@ -52,7 +52,7 @@ Implementado en el working tree:
 - `rust/` con `catodo-domain`, `catodo-platform`, `catodo-server`, tests de
   contrato y límites de capas.
 
-El primer release (`v0.1.0`, 2026-11-11) está publicado con los artefactos macOS
+Los releases `v0.1.0` y `v0.1.1` (2026-11-11) están publicados con los artefactos macOS
 (versionado + alias estable `Catodo-mac-arm64.zip`), Linux (AppImage, deb, source
 tarball) y `SHA256SUMS`. `brew install --cask quicio/tap/catodo` se verificó en
 esta máquina (macOS arm64): instala, quita la cuarentena y la app arranca con el
@@ -172,7 +172,7 @@ navegador o Electron. Documentar cualquier atajo nuevo acá.
 | tap Homebrew | `Casks/catodo.rb` en `quicio/homebrew-tap` (Candil sigue intacto); `v0.1.0` publicado y `brew install --cask quicio/tap/catodo` verificado | Homebrew 5+ requiere `brew trust quicio/tap`; no usa token |
 | runners macOS en CI | `macos-14` no existe para la org; se usa `macos-15`, que funciona pero se encola por capacidad | no volver a `macos-14` |
 | tests arcade/boxart | flakearon en CI macOS (pasan local y en la corrida previa) | si reincide, aislar el `_scan`/watcher del timing del runner |
-| release-please | la org bloquea que Actions cree PRs, así que no abre el PR de release | publicar a mano o habilitar el permiso de la org + PAT |
+| release-please | habilitado: la org ya permite que Actions cree PRs, y el PR de release se abre solo | el release que crea no dispara `release.yml` (eventos con `GITHUB_TOKEN` no encadenan workflows): correr `gh workflow run release.yml -f tag=vX.Y.Z` |
 | `pygobject` en CI | pasó a extra `mpris` del backend Python; `uv sync` ya no lo compila en Ubuntu 22.04 | el fallback Linux usa `uv sync --extra mpris` |
 | Linux release autocontenido | `install.sh` + deps del sistema | llega en M4 con el backend Rust |
 | app macOS sin notarizar | cask incluye caveat de Gatekeeper | notarización en M2/M5 |
