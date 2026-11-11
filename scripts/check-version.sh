@@ -8,19 +8,20 @@ cd "$ROOT"
 if python3 -c 'import tomllib' >/dev/null 2>&1; then
     PYTHON=(python3)
 elif command -v uv >/dev/null 2>&1; then
-    PYTHON=(uv run --directory "$ROOT/backend" python)
+    # --project (no --directory): el snippet asume que el cwd es la raíz del repo.
+    PYTHON=(uv run --project "$ROOT/backend" python)
 else
     echo "Se necesita Python 3.11+ (tomllib) o uv para verificar versiones" >&2
     exit 1
 fi
 
-"${PYTHON[@]}" - <<'PY'
+"${PYTHON[@]}" - "$ROOT" <<'PY'
 import json
 import sys
 import tomllib
 from pathlib import Path
 
-root = Path.cwd()
+root = Path(sys.argv[1]) if len(sys.argv) > 1 else Path.cwd()
 version = (root / "VERSION").read_text(encoding="utf-8").strip()
 errors: list[str] = []
 
