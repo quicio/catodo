@@ -62,10 +62,14 @@ dependencies = [
     { name = "fastapi" },
     { name = "httpx" },
     { name = "pydantic" },
-    { name = "pygobject", marker = "sys_platform == 'linux'" },
     { name = "qrcode" },
     { name = "uvicorn", extra = ["standard"] },
     { name = "websockets" },
+]
+
+[package.optional-dependencies]
+mpris = [
+    { name = "pygobject", marker = "sys_platform == 'linux'" },
 ]
 
 [package.dev-dependencies]
@@ -84,11 +88,12 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.115" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "pydantic", specifier = ">=2.9" },
-    { name = "pygobject", marker = "sys_platform == 'linux'", specifier = ">=3.56.3" },
+    { name = "pygobject", marker = "sys_platform == 'linux' and extra == 'mpris'", specifier = ">=3.56.3" },
     { name = "qrcode", specifier = ">=8.2" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
     { name = "websockets", specifier = ">=13" },
 ]
+provides-extras = ["mpris"]
 
 [package.metadata.requires-dev]
 dev = [

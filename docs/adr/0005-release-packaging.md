@@ -24,8 +24,9 @@ hace innecesaria una formula de Homebrew con servicio launchd.
 - `VERSION` en la raíz es la única fuente de verdad. release-please
   (`release-type: simple`) actualiza `VERSION`, los manifests y `CHANGELOG.md`
   en un PR de release; al mergearlo se crea el tag `vX.Y.Z`.
-- CI y release corren en GitHub Actions: `ubuntu-22.04` (x86_64) y `macos-14`
-  (arm64).
+- CI y release corren en GitHub Actions: `ubuntu-22.04` (x86_64) y `macos-15`
+  (arm64). El runner `macos-14` no está disponible para la org (`configuration
+  'macos-14-arm64-us-default' is not supported`), por eso se usa `macos-15`.
 - macOS distribuye **una sola app**: `Catodo-<version>-mac-arm64.zip` contiene
   `Catodo.app` con el backend en `Contents/Resources/backend/`. Electron lanza el
   backend como sidecar en un puerto loopback libre, espera `/api/health` y lo

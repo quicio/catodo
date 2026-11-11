@@ -35,6 +35,8 @@ El backend de release es Rust: `Catodo.app` y el AppImage incluyen
 `Contents/Resources/backend/catodo-backend`, que Electron lanza como sidecar.
 `run-dev.sh` y `run-prod.sh` también usan Rust por defecto. Python queda como
 fallback de desarrollo (`CATODO_DEV_BACKEND=python`) y como referencia histórica.
+En Linux, el fallback necesita `cd backend && uv sync --extra mpris` para el
+canal Spotify por DBus; sin eso el backend degrada y reporta el canal sin MPRIS.
 
 ```bash
 cd rust

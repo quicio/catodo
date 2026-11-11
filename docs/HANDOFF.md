@@ -162,7 +162,10 @@ navegador o Electron. Documentar cualquier atajo nuevo acá.
 | Python 3.14 resuelto por uv | `openspec/config.yaml` declara 3.12 | fijar `requires-python` en `pyproject.toml` si importa |
 | specs en `openspec/`, no en `docs/specs/` | decisión, no deuda | `docs/` envuelve; no duplicar |
 | `ROADMAP.md` de raíz inexistente | el backlog real son los changes de openspec | `docs/ROADMAP.md` mapea a openspec |
-| tap Homebrew | `Casks/catodo.rb` agregado a `quicio/homebrew-tap` (Candil sigue intacto) | falta el primer release para que `latest/download` resuelva; no requiere token |
+| tap Homebrew | `Casks/catodo.rb` en `quicio/homebrew-tap` (Candil sigue intacto); `v0.1.0` publicado y `brew install --cask quicio/tap/catodo` verificado | Homebrew 5+ requiere `brew trust quicio/tap`; no usa token |
+| runners macOS en CI | `macos-14` no existe para la org; se usa `macos-15` (verificado con sonda) | no volver a `macos-14` |
+| release-please | la org bloquea que Actions cree PRs, así que no abre el PR de release | publicar a mano o habilitar el permiso de la org + PAT |
+| `pygobject` en CI | pasó a extra `mpris` del backend Python; `uv sync` ya no lo compila en Ubuntu 22.04 | el fallback Linux usa `uv sync --extra mpris` |
 | Linux release autocontenido | `install.sh` + deps del sistema | llega en M4 con el backend Rust |
 | app macOS sin notarizar | cask incluye caveat de Gatekeeper | notarización en M2/M5 |
 

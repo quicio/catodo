@@ -9,10 +9,15 @@ dependencies = [
     "httpx>=0.27",
     "websockets>=13",
     "pydantic>=2.9",
-    "pygobject>=3.56.3 ; sys_platform == 'linux'",
     "qrcode>=8.2",
     "asyncio-mqtt>=0.16.2",
 ]
+
+[project.optional-dependencies]
+# MPRIS/DBus para el backend Python en Linux. El backend de release es Rust, que
+# cubre MPRIS nativo; esto solo hace falta si se usa el fallback de desarrollo en
+# Linux y se quiere el canal Spotify por DBus.
+mpris = ["pygobject>=3.56.3 ; sys_platform == 'linux'"]
 
 [build-system]
 requires = ["hatchling"]
