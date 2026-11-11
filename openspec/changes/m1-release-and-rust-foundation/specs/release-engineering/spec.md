@@ -101,7 +101,7 @@ Los artefactos de producción SHALL excluir dependencias de desarrollo, tests, c
 
 ### Requirement: Cask estático de Homebrew
 
-El tap existente `quicio/homebrew-tap` SHALL contener un único cask `catodo` que instale `Catodo.app` en `/Applications`, con `version :latest`, `sha256 :no_check` y URL a `releases/latest/download/Catodo-mac-arm64.zip`, siguiendo el patrón del cask de Candil. El cask SHALL intentar quitar la cuarentena de Gatekeeper, SHALL preservar los datos de usuario al desinstalar y solo `--zap` SHALL borrar `~/.local/share/catodo/`. No SHALL existir formula `catodo`, servicio launchd ni dependencia de formula.
+El tap existente `quicio/homebrew-tap` SHALL contener un único cask `catodo` que instale `Catodo.app` en `/Applications`, con `version :latest`, `sha256 :no_check` y URL a `releases/latest/download/Catodo-mac-arm64.zip`, siguiendo el patrón del cask de Candil. El release SHALL publicar ese alias de nombre estable junto al artefacto versionado `Catodo-<version>-mac-arm64.zip`, para que la URL del cask no dependa de la versión. El cask SHALL declarar que requiere macOS arm64. El cask SHALL intentar quitar la cuarentena de Gatekeeper, SHALL preservar los datos de usuario al desinstalar y solo `--zap` SHALL borrar `~/.local/share/catodo/`. No SHALL existir formula `catodo`, servicio launchd ni dependencia de formula.
 
 #### Scenario: Instalación con un solo comando
 

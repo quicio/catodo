@@ -7,6 +7,9 @@ cask "catodo" do
   desc "CRT-inspired multimedia shell"
   homepage "https://github.com/quicio/catodo"
 
+  depends_on :macos
+  depends_on arch: :arm64
+
   app "Catodo.app"
 
   # Cátodo no está notarizado por Apple. El cask intenta quitar la cuarentena

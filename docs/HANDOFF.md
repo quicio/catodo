@@ -43,16 +43,19 @@ Implementado en el working tree:
 - `run-dev.sh` y `run-prod.sh` usan Rust por defecto; Python queda como fallback
   (`CATODO_DEV_BACKEND=python`).
 - Zip `Catodo-0.1.0-mac-arm64.zip` (~102 MB), source tarball (~4.5 MB).
-- Cask estático `catodo` para el tap existente `quicio/homebrew-tap`.
+- Cask estático `catodo` publicado en el tap existente
+  [`quicio/homebrew-tap`](https://github.com/quicio/homebrew-tap):
+  `brew install --cask quicio/tap/catodo` (macOS arm64, sin notarizar).
 - API Rust: config/state/WS, canales web, Spotify (AppleScript), media/anime,
   arcade, plugins, libraries, modes, pair/QR, lyrics, wallpapers, tunnel, MQTT,
   cast, voice, mouse, idle y volumen.
 - `rust/` con `catodo-domain`, `catodo-platform`, `catodo-server`, tests de
   contrato y límites de capas.
 
-Pendiente de validación externa (no bloquea el código): agregar el cask estático
-al tap existente `quicio/homebrew-tap`, correr el workflow de release con un tag
-real, y probar `install.sh`/AppImage en un Linux limpio.
+Pendiente de validación externa (no bloquea el código): cortar el primer release
+con un tag real (el cask apunta a `latest/download`, así que hasta entonces
+responde 404), probar `brew install --cask quicio/tap/catodo` contra ese release
+y probar `install.sh`/AppImage en un Linux limpio.
 
 ### Cómo se dejó el gate verde (en macOS)
 
@@ -159,7 +162,7 @@ navegador o Electron. Documentar cualquier atajo nuevo acá.
 | Python 3.14 resuelto por uv | `openspec/config.yaml` declara 3.12 | fijar `requires-python` en `pyproject.toml` si importa |
 | specs en `openspec/`, no en `docs/specs/` | decisión, no deuda | `docs/` envuelve; no duplicar |
 | `ROADMAP.md` de raíz inexistente | el backlog real son los changes de openspec | `docs/ROADMAP.md` mapea a openspec |
-| tap Homebrew | `quicio/homebrew-tap` ya existe (Candil) | agregar `Casks/catodo.rb`; no requiere token |
+| tap Homebrew | `Casks/catodo.rb` agregado a `quicio/homebrew-tap` (Candil sigue intacto) | falta el primer release para que `latest/download` resuelva; no requiere token |
 | Linux release autocontenido | `install.sh` + deps del sistema | llega en M4 con el backend Rust |
 | app macOS sin notarizar | cask incluye caveat de Gatekeeper | notarización en M2/M5 |
 

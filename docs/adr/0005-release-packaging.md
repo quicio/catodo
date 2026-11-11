@@ -33,8 +33,11 @@ hace innecesaria una formula de Homebrew con servicio launchd.
   M4 es el binario Rust.
 - Homebrew usa un **cask estático** `catodo` en el tap existente
   `quicio/homebrew-tap`, con `version :latest`, `sha256 :no_check` y URL a
-  `releases/latest/download`. No hay formula, `brew services` ni
-  `HOMEBREW_TAP_TOKEN`; el cask no se actualiza por release.
+  `releases/latest/download/Catodo-mac-arm64.zip`. El release publica el
+  artefacto versionado (`Catodo-<version>-mac-arm64.zip`) y, además, un alias
+  con nombre estable (`Catodo-mac-arm64.zip`) para que el cask no cambie. No hay
+  formula, `brew services` ni `HOMEBREW_TAP_TOKEN`; el cask no se actualiza por
+  release.
 - El nombre de archivo/producto es ASCII (`Catodo.app`) para evitar un crash de
   V8/Electron en macOS 26 con nombres de ejecutable acentuados. El nombre visible
   se mantiene como “Cátodo” vía `CFBundleDisplayName`.
