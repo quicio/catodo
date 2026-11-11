@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f5efe2"/>
+      <stop offset="0.55" stop-color="#e6ddca"/>
+      <stop offset="1" stop-color="#cfc3ac"/>
+    </linearGradient>
+    <linearGradient id="screen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0c1913"/>
+      <stop offset="0.55" stop-color="#07110c"/>
+      <stop offset="1" stop-color="#040a07"/>
+    </linearGradient>
+    <radialGradient id="backdrop" cx="0.5" cy="0.42" r="0.7">
+      <stop offset="0" stop-color="#1b211d"/>
+      <stop offset="0.65" stop-color="#101412"/>
+      <stop offset="1" stop-color="#080a09"/>
+    </radialGradient>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="22"/>
+    </filter>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="20" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <clipPath id="screenClip">
+      <rect x="245" y="255" width="534" height="360" rx="58"/>
+    </clipPath>
+    <pattern id="scan" width="8" height="8" patternUnits="userSpaceOnUse">
+      <rect width="8" height="1.5" y="0" fill="#ffffff" opacity="0.045"/>
+    </pattern>
+  </defs>
+
+  <rect x="28" y="28" width="968" height="968" rx="226" fill="url(#backdrop)"/>
+  <rect x="28" y="28" width="968" height="968" rx="226" fill="none" stroke="#2a312d" stroke-width="4"/>
+
+  <ellipse cx="512" cy="846" rx="328" ry="38" fill="#000000" opacity="0.55" filter="url(#soft)"/>
+
+  <rect x="146" y="168" width="732" height="610" rx="112" fill="url(#body)" stroke="#b8ac95" stroke-width="6"/>
+  <rect x="146" y="676" width="732" height="102" rx="46" fill="#d7ccb6"/>
+  <rect x="170" y="192" width="684" height="36" rx="18" fill="#ffffff" opacity="0.16"/>
+
+  <rect x="222" y="232" width="580" height="404" rx="78" fill="#3a3328"/>
+  <rect x="236" y="246" width="552" height="376" rx="64" fill="url(#screen)"/>
+  <rect x="236" y="246" width="552" height="376" rx="64" fill="url(#scan)" clip-path="url(#screenClip)"/>
+  <path d="M300 300 L470 300 L360 390 Z" fill="#ffffff" opacity="0.035" clip-path="url(#screenClip)"/>
+
+  <path d="M640 336 C596 288 532 266 470 266 C356 266 292 340 292 438 C292 536 356 610 470 610 C532 610 596 588 640 540"
+        fill="none" stroke="#63f7b5" stroke-width="88" stroke-linecap="round" filter="url(#glow)"/>
+  <path d="M640 336 C596 288 532 266 470 266 C356 266 292 340 292 438 C292 536 356 610 470 610 C532 610 596 588 640 540"
+        fill="none" stroke="#c5ffe2" stroke-width="30" stroke-linecap="round" opacity="0.7"/>
+
+  <circle cx="252" cy="728" r="15" fill="#ff7a3d"/>
+  <circle cx="252" cy="728" r="24" fill="#ff7a3d" opacity="0.22"/>
+  <rect x="300" y="723" width="132" height="7" rx="3.5" fill="#9c917d"/>
+  <g fill="#8b816f">
+    <rect x="726" y="706" width="8" height="44" rx="4"/>
+    <rect x="746" y="706" width="8" height="44" rx="4"/>
+    <rect x="766" y="706" width="8" height="44" rx="4"/>
+    <rect x="786" y="706" width="8" height="44" rx="4"/>
+  </g>
+</svg>
