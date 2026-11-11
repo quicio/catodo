@@ -4,11 +4,14 @@ After=default.target
 
 [Service]
 Type=simple
-WorkingDirectory=@PROJECT_DIR@/backend
+WorkingDirectory=@PROJECT_DIR@
 Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/%U/bus
+Environment=CATODO_HOST=127.0.0.1
 Environment=CATODO_PORT=@PROD_PORT@
+Environment=CATODO_STATIC_DIR=@PROJECT_DIR@/backend/static
+Environment=CATODO_PLUGINS_REPO=@PROJECT_DIR@/plugins-repo
 Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin:%h/.local/share/catodo/bin
-ExecStart=@UV_BIN@ run --directory @PROJECT_DIR@/backend python -m catodo
+ExecStart=@BACKEND_BIN@
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=5

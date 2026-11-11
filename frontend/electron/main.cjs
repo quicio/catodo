@@ -29,33 +29,207 @@ app.commandLine.appendSwitch("disable-vulkan");
 // El shell usa Electron castLabs (ECS) que incluye Widevine para DRM.
 // No hace falta nada extra acá.
 
-// El backend se resuelve desde una única fuente: CATODO_BACKEND_URL, o el
-// host/puerto por defecto (CATODO_HOST/CATODO_PORT). El host/puerto solo se
-// usan para el probe de autodetección HTTPS y como default cuando no hay
-// override.
-const BACKEND_HOST = process.env.CATODO_HOST || "127.0.0.1";
-const BACKEND_PORT = process.env.CATODO_PORT || "8765";
-const BACKEND_URL_OVERRIDE = process.env.CATODO_BACKEND_URL || null;
-
-// Auto-detección: si el backend sirve HTTPS (self-signed, necesario para /cast
-// y getDisplayMedia), la app se conecta por https e ignora el cert del kiosk.
+const { spawn } = require("child_process");
+const { resolveBackend, freePort, waitForHealth } = require("./backend.cjs");
 const https = require("https");
-function detectHttps() {
-  if (BACKEND_URL_OVERRIDE) {
-    return Promise.resolve(/^https:/.test(BACKEND_URL_OVERRIDE));
-  }
+
+// Se asigna cuando el backend está listo: "http(s)://host:port" sin barra final.
+let BACKEND_URL = null;
+let backendProcess = null;
+let backendLogStream = null;
+let isQuitting = false;
+let stoppingBackend = false;
+let mainWindow = null;
+
+function bundledBackendPath() {
+  if (!app.isPackaged) return null;
+  const candidate = path.join(process.resourcesPath, "backend", "catodo-backend");
+  return fs.existsSync(candidate) ? candidate : null;
+}
+
+function backendErrorPage() {
+  const html = `<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Cátodo — sin backend</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; height: 100vh; display: grid; place-items: center;
+      background: #080808; color: #e8e8e8;
+      font: 16px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    main { max-width: 42rem; padding: 2rem; text-align: center; }
+    h1 { font-size: 1.4rem; letter-spacing: .08em; text-transform: uppercase; }
+    p { color: #9a9a9a; }
+    button { margin-top: 1.5rem; padding: .7rem 1.4rem; border: 1px solid #555;
+      background: #111; color: #eee; cursor: pointer; letter-spacing: .08em;
+      text-transform: uppercase; }
+    button:hover { border-color: #aaa; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Backend no disponible</h1>
+    <p>Cátodo no pudo iniciar o encontrar el backend. Revisá los logs de la app
+       y reintentá.</p>
+    <button onclick="window.catodo && window.catodo.retryBackend()">Reintentar</button>
+  </main>
+</body>
+</html>`;
+  return "data:text/html;charset=utf-8," + encodeURIComponent(html);
+}
+
+function scheduleBackendRetry(win) {
+  if (win.__catodoRetryTimer) clearTimeout(win.__catodoRetryTimer);
+  win.__catodoRetryTimer = setTimeout(() => {
+    win.__catodoRetryTimer = null;
+    if (!win.isDestroyed()) loadBackend(win);
+  }, 5000);
+}
+
+function stopBundledBackend(timeoutMs = 3000) {
   return new Promise((resolve) => {
-    const req = https.get(
-      `https://${BACKEND_HOST}:${BACKEND_PORT}/api/health`,
-      { rejectUnauthorized: false, timeout: 2000 },
-      () => { req.destroy(); resolve(true); }
-    );
-    req.on("error", () => resolve(false));
-    req.on("timeout", () => { req.destroy(); resolve(false); });
+    const child = backendProcess;
+    if (!child || child.exitCode !== null) {
+      backendProcess = null;
+      if (backendLogStream) {
+        backendLogStream.end();
+        backendLogStream = null;
+      }
+      resolve();
+      return;
+    }
+    stoppingBackend = true;
+    backendProcess = null;
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      stoppingBackend = false;
+      if (backendLogStream) {
+        backendLogStream.end();
+        backendLogStream = null;
+      }
+      resolve();
+    };
+    child.once("exit", finish);
+    try {
+      child.kill("SIGTERM");
+    } catch {
+      finish();
+      return;
+    }
+    setTimeout(() => {
+      if (!finished) {
+        try { child.kill("SIGKILL"); } catch { /* ya terminó */ }
+      }
+    }, timeoutMs);
+    setTimeout(finish, timeoutMs + 500);
   });
 }
-// Se asigna tras detectHttps(): "http(s)://host:port" sin barra final.
-let BACKEND_URL = null;
+
+async function startBundledBackend() {
+  const binary = bundledBackendPath();
+  if (!binary) return null;
+
+  if (backendProcess && backendProcess.exitCode === null) {
+    if (BACKEND_URL && await waitForHealth(BACKEND_URL, 2000)) return BACKEND_URL;
+    await stopBundledBackend(1000);
+  }
+
+  const port = await freePort();
+  const logDir = app.getPath("logs");
+  fs.mkdirSync(logDir, { recursive: true });
+  const logPath = path.join(logDir, "backend.log");
+  backendLogStream = null;
+  fs.appendFileSync(logPath, `\n=== ${new Date().toISOString()} starting ${binary} on 127.0.0.1:${port} ===\n`);
+
+  const logFd = fs.openSync(logPath, "a");
+  const backendRoot = path.dirname(binary);
+  const child = spawn(binary, [], {
+    env: {
+      ...process.env,
+      CATODO_HOST: "127.0.0.1",
+      CATODO_PORT: String(port),
+      CATODO_STATIC_DIR: path.join(backendRoot, "static"),
+      CATODO_PLUGINS_REPO: path.join(backendRoot, "plugins-repo"),
+    },
+    stdio: ["ignore", logFd, logFd],
+  });
+  fs.closeSync(logFd);
+  backendProcess = child;
+
+  child.on("spawn", () => {
+    try {
+      fs.appendFileSync(logPath, `=== spawned pid=${child.pid} ===\n`);
+    } catch { /* best effort */ }
+  });
+  child.on("exit", (code, signal) => {
+    if (backendProcess === child) backendProcess = null;
+    if (!isQuitting) {
+      try {
+        fs.appendFileSync(logPath, `\n=== backend exited code=${code} signal=${signal} ===\n`);
+      } catch { /* best effort */ }
+      if (!stoppingBackend && mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.loadURL(backendErrorPage());
+        scheduleBackendRetry(mainWindow);
+      }
+    }
+  });
+  child.on("error", (err) => {
+    try {
+      fs.appendFileSync(logPath, `\n=== backend spawn error: ${err} ===\n`);
+    } catch { /* best effort */ }
+  });
+
+  const url = `http://127.0.0.1:${port}`;
+  const healthy = await waitForHealth(url, 20000);
+  if (!healthy) {
+    await stopBundledBackend(1000);
+    return null;
+  }
+  BACKEND_URL = url;
+  return url;
+}
+
+async function loadBackend(win) {
+  let resolved = null;
+  const override = process.env.CATODO_BACKEND_URL || null;
+
+  if (override) {
+    resolved = {
+      url: override.replace(/\/+$/, ""),
+      useHttps: override.startsWith("https:"),
+    };
+  } else if (bundledBackendPath()) {
+    const url = await startBundledBackend();
+    if (url) resolved = { url, useHttps: false };
+  } else {
+    resolved = await resolveBackend({ packaged: app.isPackaged });
+  }
+
+  if (!resolved) {
+    win.loadURL(backendErrorPage());
+    scheduleBackendRetry(win);
+    return;
+  }
+  if (win.__catodoRetryTimer) {
+    clearTimeout(win.__catodoRetryTimer);
+    win.__catodoRetryTimer = null;
+  }
+  BACKEND_URL = resolved.url;
+  if (resolved.useHttps) {
+    // Aceptar el cert self-signed del kiosk en fetch, WS y el loadURL inicial.
+    session.defaultSession.setCertificateVerifyProc((request, callback) => callback(0));
+  }
+  win.loadURL(BACKEND_URL);
+}
+
+process.on("exit", () => {
+  if (backendProcess && backendProcess.exitCode === null) {
+    try { backendProcess.kill("SIGKILL"); } catch { /* best effort */ }
+  }
+});
 
 // Icono de la aplicación
 const APP_ICON = path.join(__dirname, "..", "..", "catodo.png");
@@ -95,6 +269,7 @@ function reportWebviewActivity() {
 // BACKEND_URL. Usado por el poller de actividad y la notificación de
 // navegación de los webviews.
 function postToBackend(apiPath, body) {
+  if (!BACKEND_URL) return;
   const url = new URL(apiPath, BACKEND_URL);
   const mod = url.protocol === "https:" ? https : http;
   const req = mod.request(url, {
@@ -172,6 +347,10 @@ function createWindow() {
       preload: path.join(__dirname, "preload.cjs"),
     },
   });
+  mainWindow = win;
+  win.on("closed", () => {
+    if (mainWindow === win) mainWindow = null;
+  });
 
   win.setFocusable(true);
   win.setMenu(null);
@@ -179,7 +358,7 @@ function createWindow() {
   win.webContents.setUserAgent(CHROME_UA);
   patchNavigator(win.webContents);
 
-  win.loadURL(BACKEND_URL);
+  loadBackend(win);
 
   win.webContents.on("did-fail-load", (_e, code, desc, url) => {
     console.error(`[catodo] failed to load ${url}: ${desc} (${code})`);
@@ -292,6 +471,13 @@ function createWindow() {
   });
 }
 
+ipcMain.on("retry-backend", (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win && !win.isDestroyed()) {
+    stopBundledBackend(1000).finally(() => loadBackend(win));
+  }
+});
+
 ipcMain.on("set-active-channel", (_event, channelId) => {
   try {
     activeChannelId = channelId ? String(channelId) : null;
@@ -354,19 +540,18 @@ ipcMain.handle("open-login", async (_e, url) => {
   return true;
 });
 
-detectHttps().then((useHttps) => {
-  BACKEND_URL =
-    BACKEND_URL_OVERRIDE ||
-    (useHttps ? `https://${BACKEND_HOST}:${BACKEND_PORT}` : `http://${BACKEND_HOST}:${BACKEND_PORT}`);
-  app.whenReady().then(() => {
-    if (useHttps) {
-      // Aceptar el cert self-signed del kiosk en fetch, WS y el loadURL inicial.
-      session.defaultSession.setCertificateVerifyProc((request, callback) => callback(0));
-    }
-    createWindow();
-    app.on("activate", () => {
-      if (BrowserWindow.getAllWindows().length === 0) createWindow();
-    });
+app.on("before-quit", (event) => {
+  if (isQuitting) return;
+  if (!backendProcess) return;
+  isQuitting = true;
+  event.preventDefault();
+  stopBundledBackend().finally(() => app.quit());
+});
+
+app.whenReady().then(() => {
+  createWindow();
+  app.on("activate", () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 

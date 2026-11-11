@@ -17,7 +17,7 @@
     "electron:dev": "bash ../run-dev.sh",
     "electron:build": "vite build && electron-builder",
     "electron:build:linux": "vite build && electron-builder --linux AppImage deb",
-    "electron:build:mac": "vite build && electron-builder --mac dir zip"
+    "electron:build:mac": "vite build && electron-builder --mac zip"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.3.0",
@@ -46,10 +46,27 @@
   },
   "build": {
     "appId": "dev.catodo.frontend",
-    "productName": "Cátodo",
+    "productName": "Catodo",
+    "asar": true,
+    "compression": "maximum",
+    "electronLanguages": [
+      "en-US",
+      "es"
+    ],
+    "npmRebuild": false,
+    "artifactName": "Catodo-${version}-${os}-${arch}.${ext}",
     "files": [
       "dist/**/*",
-      "electron/**/*"
+      "electron/**/*",
+      "!node_modules/**/*",
+      "!**/*.map",
+      "!**/node_modules/*/{CHANGELOG.md,README.md,readme.md,LICENSE,license,License,*.md}"
+    ],
+    "extraResources": [
+      {
+        "from": "backend-bundle",
+        "to": "backend"
+      }
     ],
     "directories": {
       "output": "release"
@@ -64,11 +81,13 @@
     },
     "mac": {
       "target": [
-        "dir",
         "zip"
       ],
       "icon": "../catodo.png",
-      "category": "public.app-category.entertainment"
+      "category": "public.app-category.entertainment",
+      "extendInfo": {
+        "CFBundleDisplayName": "Cátodo"
+      }
     }
   }
 }

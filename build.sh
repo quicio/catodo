@@ -11,62 +11,14 @@ RELEASE_DIR="$ROOT_DIR/release"
 echo "==> Descargando wallpapers nuevos si hace falta"
 python3 "$ROOT_DIR/scripts/fetch_wallpapers.py" 2 2>/dev/null || true
 
-echo "==> Build frontend"
-(cd "$FRONTEND_DIR" && npm run build)
-
-echo "==> Copiando frontend a backend/static"
-# Preservar backend/static/{remote,cast} (no forman parte del bundle Vite)
-for d in remote cast; do
-  if [ -d "$BACKEND_DIR/static/$d" ]; then
-    cp -r "$BACKEND_DIR/static/$d" "/tmp/catodo-$d-backup"
-  fi
-done
-rm -rf "$BACKEND_DIR/static"
-mkdir -p "$BACKEND_DIR/static"
-cp -r "$FRONTEND_DIR/dist/"* "$BACKEND_DIR/static/"
-for d in remote cast; do
-  if [ -d "/tmp/catodo-$d-backup" ]; then
-    cp -r "/tmp/catodo-$d-backup" "$BACKEND_DIR/static/$d"
-    rm -rf "/tmp/catodo-$d-backup"
-  fi
-done
-
-# recrear noise.png (usado por efectos del canal Anime)
-NOISE_TARGET="$BACKEND_DIR/static/noise.png" python3 - <<'PY'
-import os, struct, zlib, random
-random.seed(42)
-W, H = 128, 128
-raw = b''
-for y in range(H):
-    raw += b'\x00'
-    for x in range(W):
-        v = random.randint(0, 255)
-        raw += bytes([v, v, v, 255])
-def chunk(t, d):
-    return struct.pack('>I', len(d)) + t + d + struct.pack('>I', zlib.crc32(t+d) & 0xffffffff)
-ihdr = struct.pack('>IIBBBBB', W, H, 8, 6, 0, 0, 0)
-sig = b'\x89PNG\r\n\x1a\n'
-png = sig + chunk(b'IHDR', ihdr) + chunk(b'IDAT', zlib.compress(raw, 9)) + chunk(b'IEND', b'')
-with open(os.environ["NOISE_TARGET"], 'wb') as f:
-    f.write(png)
-PY
+"$ROOT_DIR/scripts/build-static.sh"
 
 echo "==> Build Electron (target según OS)"
 if [ "$(uname -s)" = "Darwin" ]; then
-    (cd "$FRONTEND_DIR" && npx electron-builder --mac dir zip)
+    "$ROOT_DIR/scripts/package-macos-app.sh"
 else
-    (cd "$FRONTEND_DIR" && npx electron-builder --linux AppImage deb)
+    "$ROOT_DIR/scripts/package-linux-app.sh"
 fi
-
-echo "==> Copiando ejecutables a $RELEASE_DIR"
-mkdir -p "$RELEASE_DIR"
-# Copia portable por OS: AppImage/deb en Linux; .app/.zip en macOS.
-shopt -s nullglob
-for f in "$FRONTEND_DIR"/release/*.AppImage "$FRONTEND_DIR"/release/*.deb \
-         "$FRONTEND_DIR"/release/*.zip "$FRONTEND_DIR"/release/mac/*.app; do
-    cp -R "$f" "$RELEASE_DIR/" 2>/dev/null || true
-done
-shopt -u nullglob
 
 echo
 echo "==> Listo. Ejecutables en $RELEASE_DIR:"

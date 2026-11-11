@@ -10,6 +10,7 @@ set -uo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BACKEND_DIR="$ROOT_DIR/backend"
+BACKEND_BIN="$ROOT_DIR/rust/target/release/catodo-server"
 PORT="${CATODO_PROD_PORT:-8767}"
 DATA_DIR="${CATODO_DATA_DIR:-$HOME/.local/share/catodo}"
 LOG="${CATODO_LOG:-$ROOT_DIR/catodo.log}"
@@ -24,7 +25,7 @@ start() {
     local pid
     pid=$(current_pid "$PORT")
     if [ -n "$pid" ] && curl -sf -m 2 "http://127.0.0.1:$PORT/api/health" >/dev/null; then
-        if backend_stale "$pid" "$BACKEND_DIR/catodo/themes.py"; then
+        if backend_stale "$pid" "$ROOT_DIR/rust/crates/catodo-server/src/main.rs"; then
             echo "Backend viejo (PID $pid). Reiniciando..."
             kill "$pid" 2>/dev/null || true
             sleep 2
@@ -34,11 +35,18 @@ start() {
             return 0
         fi
     fi
-    echo "Iniciando backend..."
+    echo "Iniciando backend (Rust)..."
+    if [ ! -x "$BACKEND_BIN" ]; then
+        echo "    Compilando backend Rust..."
+        (cd "$ROOT_DIR/rust" && cargo build --release -p catodo-server) || return 1
+    fi
     mkdir -p "$DATA_DIR"
-    (cd "$BACKEND_DIR" && \
-        CATODO_PORT="$PORT" CATODO_DATA_DIR="$DATA_DIR" \
-        nohup uv run python -m catodo > "$LOG" 2>&1 & echo $! > "$PIDFILE") </dev/null
+    (cd "$ROOT_DIR" && \
+        CATODO_HOST=127.0.0.1 CATODO_PORT="$PORT" CATODO_RS_PORT="$PORT" \
+        CATODO_DATA_DIR="$DATA_DIR" \
+        CATODO_STATIC_DIR="$BACKEND_DIR/static" \
+        CATODO_PLUGINS_REPO="$ROOT_DIR/plugins-repo" \
+        nohup "$BACKEND_BIN" > "$LOG" 2>&1 & echo $! > "$PIDFILE") </dev/null
     for i in {1..20}; do
         if curl -sf -m 1 "http://127.0.0.1:$PORT/api/health" >/dev/null; then
             echo "Backend listo (PID $(cat "$PIDFILE" 2>/dev/null))."
@@ -78,16 +86,13 @@ status() {
         return 1
     fi
     echo "Backend: PID $pid, puerto $PORT"
-    if backend_stale "$pid" "$BACKEND_DIR/catodo/themes.py"; then
+    if backend_stale "$pid" "$ROOT_DIR/rust/crates/catodo-server/src/main.rs"; then
         echo "  ⚠ código fuente más nuevo que el proceso — reiniciar"
     else
         echo "  ✓ código al día"
     fi
-    curl -s "http://127.0.0.1:$PORT/api/config" | python3 -c "
-import json, sys
-d = json.load(sys.stdin)
-print(f'  {len(d[\"themes\"])} temas')
-" 2>/dev/null
+    curl -s "http://127.0.0.1:$PORT/api/version" 2>/dev/null | sed 's/^/  /'
+    echo
 }
 
 case "$ACTION" in

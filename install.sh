@@ -99,6 +99,7 @@ pkg_name() {
     if [ "$IS_MACOS" -eq 1 ]; then
         case "$bin" in
             python3) echo "python" ;;
+            cargo) echo "rust" ;;
             uv) echo "uv" ;;
             node) echo "node" ;;
             npm) echo "node" ;;            # viene con node
@@ -115,12 +116,12 @@ pkg_name() {
                 apt) echo "python3" ;;
                 dnf|zypper) echo "python3" ;;
             esac ;;
-        uv)
+        cargo)
             case "$PM" in
-                pacman) echo "uv" ;;
-                apt) echo "uv" ;;
-                dnf) echo "uv" ;;
-                zypper) echo "python3-uv" ;;
+                pacman) echo "rust" ;;
+                apt) echo "cargo" ;;
+                dnf) echo "cargo" ;;
+                zypper) echo "cargo" ;;
             esac ;;
         node) case "$PM" in pacman) echo "nodejs";; apt) echo "nodejs";; dnf) echo "nodejs";; zypper) echo "nodejs";; esac ;;
         npm) case "$PM" in pacman) echo "npm";; apt) echo "npm";; dnf) echo "npm";; zypper) echo "npm";; esac ;;
@@ -156,6 +157,7 @@ pkg_name() {
 # - xdotool/ydotool: control de mouse/teclado (X11 / Wayland).
 # - wpctl/pactl: control de volumen (PipeWire / PulseAudio).
 MISSING=()
+OPTIONAL_DEPENDENCIES=()
 CHECK_DEPENDENCIES=(
     "python3"
     "uv"
@@ -171,12 +173,13 @@ CHECK_DEPENDENCIES=(
 if [ "$IS_MACOS" -eq 1 ]; then
     CHECK_DEPENDENCIES=(
         "python3"
-        "uv"
+        "cargo"
         "node"
         "npm"
         "brew"
         "cliclick"   # opcional: si falta, el remote trackpad usa osascript
     )
+    OPTIONAL_DEPENDENCIES=("cliclick")
 fi
 
 check_deps() {
@@ -193,8 +196,16 @@ check_deps() {
         if [ -n "$found" ]; then
             printf "  %-22s OK (%s)\n" "${alts[0]}" "$found"
         else
-            printf "  %-22s FALTA\n" "${alts[0]}"
-            MISSING+=("${alts[0]}")
+            optional=0
+            for opt in "${OPTIONAL_DEPENDENCIES[@]}"; do
+                [ "$opt" = "${alts[0]}" ] && optional=1
+            done
+            if [ "$optional" -eq 1 ]; then
+                printf "  %-22s OPCIONAL (falta)\n" "${alts[0]}"
+            else
+                printf "  %-22s FALTA\n" "${alts[0]}"
+                MISSING+=("${alts[0]}")
+            fi
         fi
     done
     # Chequeos de versión / feature
@@ -329,16 +340,17 @@ if [ "${#MISSING[@]}" -gt 0 ]; then
     fi
 fi
 
-if [ -z "$UV_BIN" ] || [ -z "$NODE_BIN" ] || [ -z "$PYTHON_BIN" ]; then
-    echo "==> Faltan herramientas esenciales (uv/node/python3). Revisá lo anterior." >&2
+if [ -z "$NODE_BIN" ] || [ -z "$PYTHON_BIN" ]; then
+    echo "==> Faltan herramientas esenciales (node/python3). Revisá lo anterior." >&2
     exit 1
 fi
 
 # ---------------------------------------------------------------------------
 # Instalación
 # ---------------------------------------------------------------------------
-echo "==> Instalando Cátodo backend (uv sync)"
-(cd "$BACKEND_DIR" && "$UV_BIN" sync)
+echo "==> Compilando backend Rust"
+(cd "$PROJECT_DIR/rust" && cargo build --release -p catodo-server)
+BACKEND_BIN="$PROJECT_DIR/rust/target/release/catodo-server"
 
 echo "==> Building frontend"
 (cd "$FRONTEND_DIR" && "$NPM_BIN" ci && "$NPM_BIN" run build)
@@ -403,7 +415,7 @@ else
     echo "==> Installing systemd user service"
     mkdir -p "$(dirname "$SERVICE_DST")"
     PROD_PORT="${CATODO_PROD_PORT:-8767}"
-    sed -e "s|@PROJECT_DIR@|$PROJECT_DIR|g" -e "s|@UV_BIN@|$UV_BIN|g" -e "s|@PROD_PORT@|$PROD_PORT|g" \
+    sed -e "s|@PROJECT_DIR@|$PROJECT_DIR|g" -e "s|@BACKEND_BIN@|$BACKEND_BIN|g" -e "s|@PROD_PORT@|$PROD_PORT|g" \
         "$SERVICE_TEMPLATE" > "$SERVICE_DST"
     systemctl --user daemon-reload
     if [ "$AUTOSTART" -eq 1 ]; then

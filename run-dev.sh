@@ -28,6 +28,8 @@ cleanup() {
     pkill -9 -f "vite" 2>/dev/null || true
     pkill -9 -f "electron.*catodo-frontend" 2>/dev/null || true
     pkill -9 -f "python -m catodo" 2>/dev/null || true
+    pkill -9 -f "target/debug/catodo-server" 2>/dev/null || true
+    pkill -9 -f "cargo run -q -p catodo-server" 2>/dev/null || true
 }
 trap cleanup INT TERM EXIT
 
@@ -42,13 +44,13 @@ fi
 
 # ¿El backend que está corriendo es más viejo que el código fuente?
 # Heurística: el start time del proceso es anterior al mtime del entrypoint
-# (themes.py) → el código cambió mientras corría → reiniciar.
+# (main.rs de Rust) → el código cambió mientras corría → reiniciar.
 NEED_BACKEND=1
 OLD_PID=$(current_pid "${CATODO_DEV_PORT:-8765}")
 
-echo "==> Verificando backend (FastAPI en :${CATODO_DEV_PORT:-8765})"
+echo "==> Verificando backend (Rust en :${CATODO_DEV_PORT:-8765})"
 if [ -n "$OLD_PID" ] && curl -s -m 2 -o /dev/null -w "%{http_code}" "http://127.0.0.1:${CATODO_DEV_PORT:-8765}/api/health" 2>/dev/null | grep -q 200; then
-    if backend_stale "$OLD_PID" "$ROOT_DIR/backend/catodo/themes.py"; then
+    if backend_stale "$OLD_PID" "$ROOT_DIR/rust/crates/catodo-server/src/main.rs"; then
         echo "    PID $OLD_PID arrancó antes del último cambio en el código. Lo reinicio."
         kill "$OLD_PID" 2>/dev/null || true
         sleep 1
@@ -65,7 +67,11 @@ fi
 
 if [ "$NEED_BACKEND" -eq 1 ]; then
     echo "    Iniciando backend con el código actual..."
-    (cd "$ROOT_DIR/backend" && CATODO_PORT="${CATODO_DEV_PORT:-8765}" uv run python -m catodo) 2>&1 | tee -a /tmp/catodo-dev.log &
+    if [ "${CATODO_DEV_BACKEND:-rust}" = "python" ]; then
+        (cd "$ROOT_DIR/backend" && CATODO_PORT="${CATODO_DEV_PORT:-8765}" uv run python -m catodo) 2>&1 | tee -a /tmp/catodo-dev.log &
+    else
+        (cd "$ROOT_DIR/rust" &&             CATODO_HOST=127.0.0.1             CATODO_PORT="${CATODO_DEV_PORT:-8765}"             CATODO_RS_PORT="${CATODO_DEV_PORT:-8765}"             CATODO_STATIC_DIR="$ROOT_DIR/backend/static"             CATODO_PLUGINS_REPO="$ROOT_DIR/plugins-repo"             cargo run -q -p catodo-server) 2>&1 | tee -a /tmp/catodo-dev.log &
+    fi
     BACKEND_PID=$!
 
     for i in {1..20}; do
