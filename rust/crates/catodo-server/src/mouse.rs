@@ -36,6 +36,7 @@ async fn run(binary: &str, args: &[&str]) -> bool {
         .unwrap_or(false)
 }
 
+#[cfg(target_os = "macos")]
 fn which(binary: &str) -> bool {
     std::env::var_os("PATH")
         .map(|paths| {
