@@ -12,7 +12,7 @@ echo "==> Backend tests (pytest)"
 (cd "$ROOT/backend" && uv run --group dev pytest -q --tb=short "$ROOT/backend/tests") || FAIL=1
 
 echo "==> Frontend typecheck (tsc)"
-(cd "$ROOT/frontend" && npx tsc --noEmit) || FAIL=1
+(cd "$ROOT/frontend" && npm run typecheck) || FAIL=1
 
 if [ "$FAIL" -eq 0 ]; then
     echo "==> All checks passed"

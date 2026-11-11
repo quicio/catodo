@@ -21,6 +21,7 @@ cd backend && uv run python -m catodo     # backend solo
 ./run-dev.sh                       # dev: backend :8765 + Vite :1420
 ./run-prod.sh start                # prod: backend :8767 + bundle estático
 cd frontend && npm ci              # necesario una vez, sin esto el tsc del gate falla
+cd frontend && npm run typecheck   # tsc --noEmit, parte del gate
 cd frontend && npm run electron:build:linux
 ```
 

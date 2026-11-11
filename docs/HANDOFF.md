@@ -35,9 +35,10 @@ Linux (`systemd/`, `install.sh`, AppImage).
 
 Dos problemas de entorno, ninguno del producto, ya resueltos:
 
-1. **`frontend/node_modules` ausente**: `scripts/check.sh` corre `npx tsc`, que
-   sin dependencias instaladas descarga el paquete equivocado (`tsc@2.0.4`) y
-   falla con un mensaje engañoso. Solución: `cd frontend && npm ci`.
+1. **`frontend/node_modules` ausente**: `check.sh` corre `npm run typecheck`
+   (`tsc --noEmit`). Sin dependencias falla con `sh: tsc: command not found`;
+   solución: `cd frontend && npm ci`. Antes usaba `npx tsc`, que descargaba el
+   paquete equivocado (`tsc@2.0.4`) y daba un mensaje engañoso.
 2. **`test_arcade` usaba `/bin/true`** como emulador falso (no existe en macOS).
    Ahora resuelve el binario con `shutil.which("true")` — portable sin perder el
    sentido del test.
@@ -120,7 +121,6 @@ navegador o Electron. Documentar cualquier atajo nuevo acá.
 
 | tema | estado | qué hacer |
 |---|---|---|
-| `check.sh` usa `npx tsc` | requiere `node_modules` previo y `package.json` no tiene script `typecheck` | agregar script `typecheck` para que falle con un mensaje claro si falta `npm ci` |
 | Python 3.14 resuelto por uv | `openspec/config.yaml` declara 3.12 | fijar `requires-python` en `pyproject.toml` si importa |
 | specs en `openspec/`, no en `docs/specs/` | decisión, no deuda | `docs/` envuelve; no duplicar |
 | `ROADMAP.md` de raíz inexistente | el backlog real son los 7 changes de openspec | `docs/ROADMAP.md` mapea a openspec |
