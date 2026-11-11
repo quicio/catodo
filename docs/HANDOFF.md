@@ -52,10 +52,17 @@ Implementado en el working tree:
 - `rust/` con `catodo-domain`, `catodo-platform`, `catodo-server`, tests de
   contrato y límites de capas.
 
-Pendiente de validación externa (no bloquea el código): cortar el primer release
-con un tag real (el cask apunta a `latest/download`, así que hasta entonces
-responde 404), probar `brew install --cask quicio/tap/catodo` contra ese release
-y probar `install.sh`/AppImage en un Linux limpio.
+El primer release (`v0.1.0`, 2026-11-11) está publicado con los artefactos macOS
+(versionado + alias estable `Catodo-mac-arm64.zip`), Linux (AppImage, deb, source
+tarball) y `SHA256SUMS`. `brew install --cask quicio/tap/catodo` se verificó en
+esta máquina (macOS arm64): instala, quita la cuarentena y la app arranca con el
+sidecar Rust.
+
+Pendiente de validación externa (no bloquea el código): probar
+`install.sh`/AppImage en un Linux limpio. En CI, los runners macOS arm64 tienen
+capacidad limitada (los jobs de `macos-15` se encolan varios minutos) y
+`tests/test_arcade.py` + `test_boxart.py` fallaron una vez ahí aunque pasan
+local; revisar si vuelve a pasar.
 
 ### Cómo se dejó el gate verde (en macOS)
 
@@ -163,7 +170,8 @@ navegador o Electron. Documentar cualquier atajo nuevo acá.
 | specs en `openspec/`, no en `docs/specs/` | decisión, no deuda | `docs/` envuelve; no duplicar |
 | `ROADMAP.md` de raíz inexistente | el backlog real son los changes de openspec | `docs/ROADMAP.md` mapea a openspec |
 | tap Homebrew | `Casks/catodo.rb` en `quicio/homebrew-tap` (Candil sigue intacto); `v0.1.0` publicado y `brew install --cask quicio/tap/catodo` verificado | Homebrew 5+ requiere `brew trust quicio/tap`; no usa token |
-| runners macOS en CI | `macos-14` no existe para la org; se usa `macos-15` (verificado con sonda) | no volver a `macos-14` |
+| runners macOS en CI | `macos-14` no existe para la org; se usa `macos-15`, que funciona pero se encola por capacidad | no volver a `macos-14` |
+| tests arcade/boxart | flakearon en CI macOS (pasan local y en la corrida previa) | si reincide, aislar el `_scan`/watcher del timing del runner |
 | release-please | la org bloquea que Actions cree PRs, así que no abre el PR de release | publicar a mano o habilitar el permiso de la org + PAT |
 | `pygobject` en CI | pasó a extra `mpris` del backend Python; `uv sync` ya no lo compila en Ubuntu 22.04 | el fallback Linux usa `uv sync --extra mpris` |
 | Linux release autocontenido | `install.sh` + deps del sistema | llega en M4 con el backend Rust |
