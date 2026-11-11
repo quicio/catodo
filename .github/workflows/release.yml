@@ -102,6 +102,15 @@ jobs:
           done
       - name: Checksums
         run: ./scripts/checksums.sh release
+      # El cask es estático (`version :latest`) y apunta a
+      # releases/latest/download/Catodo-mac-arm64.zip, así que además del
+      # artefacto versionado publicamos un alias con nombre estable.
+      - name: Stable alias for the cask
+        env:
+          VERSION: ${{ env.RELEASE_TAG }}
+        run: |
+          version="${VERSION#v}"
+          cp "release/Catodo-${version}-mac-arm64.zip" "release/Catodo-mac-arm64.zip"
       - name: Upload to GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
