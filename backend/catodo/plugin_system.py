@@ -16,8 +16,10 @@ import subprocess
 import zipfile
 from urllib.request import urlopen
 
+from catodo import __version__ as CATODO_VERSION
 from catodo.channel import Channel
 from catodo.datadir import DATA_DIR, ensure_dirs
+from catodo.paths import plugins_repo
 
 log = logging.getLogger("catodo.plugins")
 
@@ -29,14 +31,13 @@ def _version_tuple(v: str) -> tuple[int, ...]:
     except Exception:
         return (0,)
 
-CATODO_VERSION = "0.1.0"
 SUPPORTED_TYPES = ("web",)
 UA_ALIASES = {"default": None, "chrome": "chrome", "android-tv": "android-tv"}
 
 PLUGINS_DIR = os.path.join(DATA_DIR, "plugins")
 STATE_FILE = os.path.join(DATA_DIR, "plugins.json")
 VENV_DIR = os.path.join(DATA_DIR, "plugin-venv")
-REPO_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "plugins-repo")
+REPO_DIR = str(plugins_repo())
 
 _REQUIRED = ("id", "name", "version", "type")
 

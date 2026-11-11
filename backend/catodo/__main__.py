@@ -1,10 +1,12 @@
 import argparse
 
+from catodo import __version__
 from catodo.main import run
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="catodo", description="Cátodo multimedia shell backend")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     sub = parser.add_subparsers(dest="command")
 
     p_plugin = sub.add_parser("plugin", help="gestionar plugins (canales instalables)")

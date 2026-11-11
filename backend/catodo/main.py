@@ -5,13 +5,13 @@ import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from catodo import __version__
 from catodo import mixer as mixer_facade
 from catodo import uri_opener as uri_opener_facade
 from catodo.api import router as api_router
@@ -34,6 +34,7 @@ from catodo.modes import router as modes_router
 from catodo.mouse import router as mouse_router
 from catodo.mqtt_bridge import MqttBridge
 from catodo.pair import router as pair_router
+from catodo.paths import static_dir
 from catodo.plugin_system import PluginManager, sort_channels
 from catodo.plugins_api import router as plugins_router
 from catodo.runtime_config import get as _cfg_get
@@ -43,7 +44,7 @@ from catodo.wallpapers import router as wallpapers_router
 
 logger = logging.getLogger("catodo")
 
-STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+STATIC_DIR = static_dir()
 
 _token = os.getenv("CATODO_TOKEN", "")
 
@@ -172,7 +173,7 @@ async def lifespan(app):
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="Cátodo", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="Cátodo", version=__version__, lifespan=lifespan)
 
     if not _is_loopback(settings.host):
         logger.warning("binding to %s — API is network-exposed", settings.host)

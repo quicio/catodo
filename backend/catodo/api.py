@@ -29,6 +29,13 @@ async def health() -> dict:
     return {"status": "ok"}
 
 
+@router.get("/version")
+async def version() -> dict:
+    from catodo import __version__
+
+    return {"version": __version__}
+
+
 @router.post("/activity")
 async def activity(request: Request) -> dict:
     """Ping de actividad local del kiosk (el middleware ya toca el reloj)."""
