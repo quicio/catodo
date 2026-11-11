@@ -173,6 +173,7 @@ navegador o Electron. Documentar cualquier atajo nuevo acá.
 | runners macOS en CI | `macos-14` no existe para la org; se usa `macos-15`, que funciona pero se encola por capacidad | no volver a `macos-14` |
 | tests arcade/boxart | flakearon en CI macOS (pasan local y en la corrida previa) | si reincide, aislar el `_scan`/watcher del timing del runner |
 | release-please | habilitado: la org ya permite que Actions cree PRs, y el PR de release se abre solo | el release que crea no dispara `release.yml` (eventos con `GITHUB_TOKEN` no encadenan workflows): correr `gh workflow run release.yml -f tag=vX.Y.Z` |
+| publish con `--clobber` | si el job falla a mitad, los assets ya borrados quedan faltando (pasó en `v0.1.1`: el workflow del tag todavía subía `release/*` y moría en `backend-rust/`) | el tag `v0.1.1` conserva esa versión vieja; no re-disparar releases viejos. Desde el fix sólo se suben archivos |
 | `pygobject` en CI | pasó a extra `mpris` del backend Python; `uv sync` ya no lo compila en Ubuntu 22.04 | el fallback Linux usa `uv sync --extra mpris` |
 | Linux release autocontenido | `install.sh` + deps del sistema | llega en M4 con el backend Rust |
 | app macOS sin notarizar | cask incluye caveat de Gatekeeper | notarización en M2/M5 |
