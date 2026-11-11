@@ -1,0 +1,46 @@
+name: release-pr-sync
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, labeled]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync-lockfiles:
+    if: >
+      contains(github.event.pull_request.labels.*.name, 'autorelease: pending') &&
+      github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout release PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Sync lockfiles
+        run: ./scripts/sync-version-locks.sh
+
+      - name: Commit lockfile changes
+        run: |
+          if git diff --quiet -- frontend/package-lock.json rust/Cargo.lock clients/tray/Cargo.lock; then
+            echo "Lockfiles already in sync"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/package-lock.json rust/Cargo.lock clients/tray/Cargo.lock
+          git commit -m "chore: sync lockfiles for release"
+          git push

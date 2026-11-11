@@ -1,0 +1,109 @@
+name: release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+env:
+  RELEASE_TAG: ${{ github.event.release.tag_name }}
+
+jobs:
+  linux:
+    name: build linux
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend
+        working-directory: frontend
+        run: npm ci
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Build static
+        run: ./scripts/build-static.sh
+      - name: Build Rust backend
+        run: ./scripts/package-rust-backend.sh
+      - name: Build Linux app
+        run: ./scripts/package-linux-app.sh
+      - name: Build source tarball
+        run: ./scripts/package-src.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-linux
+          path: release/*
+          if-no-files-found: error
+
+  macos:
+    name: build macos
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Install frontend
+        working-directory: frontend
+        run: npm ci
+      - name: Build static
+        run: ./scripts/build-static.sh
+      - name: Build Rust backend
+        run: ./scripts/package-rust-backend.sh
+      - name: Build macOS app
+        run: ./scripts/package-macos-app.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-macos
+          path: release/Catodo-*.zip
+          if-no-files-found: error
+
+  publish:
+    name: publish release assets
+    needs: [linux, macos]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: release
+          merge-multiple: true
+      - name: Verify expected assets
+        env:
+          VERSION: ${{ env.RELEASE_TAG }}
+        run: |
+          version="${VERSION#v}"
+          expected=(
+            "Catodo-${version}-linux-x86_64.AppImage"
+            "Catodo-${version}-linux-amd64.deb"
+            "catodo-${version}-src.tar.gz"
+            "Catodo-${version}-mac-arm64.zip"
+          )
+          for f in "${expected[@]}"; do
+            test -f "release/$f" || { echo "Falta release/$f" >&2; exit 1; }
+          done
+      - name: Checksums
+        run: ./scripts/checksums.sh release
+      - name: Upload to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "$RELEASE_TAG" release/* --clobber
+
