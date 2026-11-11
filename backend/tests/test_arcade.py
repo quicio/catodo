@@ -1,5 +1,6 @@
 """Arcade channel — escaneo, lanzamiento de emulador y endpoint de carátulas."""
 import asyncio
+import shutil
 from pathlib import Path
 
 import pytest
@@ -7,6 +8,9 @@ from fastapi.testclient import TestClient
 
 from catodo.arcade import ArcadeChannel, _build_launch_command, _scan
 from catodo.main import app
+
+# `/bin/true` no existe en macOS: se resuelve el binario en el sistema.
+TRUE_BIN = shutil.which("true") or "/bin/true"
 
 
 class FakeBroker:
@@ -159,7 +163,7 @@ async def test_launch_ok_publishes_events(tmp_path, monkeypatch):
     from catodo import arcade as m
 
     monkeypatch.setattr(m, "_arcade_dir", lambda: str(base))
-    monkeypatch.setattr(m, "_emulators_config", lambda: {"NES": "/bin/true {rom}"})
+    monkeypatch.setattr(m, "_emulators_config", lambda: {"NES": f"{TRUE_BIN} {{rom}}"})
     broker = FakeBroker()
     ch = ArcadeChannel()
     ch.attach_broker(broker)
@@ -191,7 +195,7 @@ async def test_launch_default_emulator(tmp_path, monkeypatch):
 
     monkeypatch.setattr(m, "_arcade_dir", lambda: str(base))
     monkeypatch.setattr(m, "_emulators_config", lambda: {})
-    monkeypatch.setattr(m, "_default_emulator", lambda: "/bin/true {rom}")
+    monkeypatch.setattr(m, "_default_emulator", lambda: f"{TRUE_BIN} {{rom}}")
     broker = FakeBroker()
     ch = ArcadeChannel()
     ch.attach_broker(broker)

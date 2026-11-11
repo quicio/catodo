@@ -21,9 +21,9 @@ Linux (`systemd/`, `install.sh`, AppImage).
 
 | métrica | valor | comando |
 |---|---|---|
-| tests backend | **191 pasan, 2 fallan** (193) en 52.6 s | `./scripts/check.sh` → `pytest` |
-| quality gate completo | falla, 69.6 s | `./scripts/check.sh` |
-| typecheck frontend | **no corre** (ver abajo) | `npx tsc --noEmit` |
+| tests backend | **193 pasan, 0 fallan** | `./scripts/check.sh` → `pytest` |
+| quality gate completo | **verde**, 109 s | `./scripts/check.sh` |
+| typecheck frontend | limpio (tsc 5.9.3 local) | `npx tsc --noEmit` |
 | backend | 53 archivos `.py`, 7.595 líneas | `find backend/catodo -name '*.py' \| xargs cat \| wc -l` |
 | frontend | 39 archivos `.ts/.tsx`, 6.944 líneas | `find frontend/src …` |
 | tests backend | 30 archivos en `backend/tests/` | `ls backend/tests` |
@@ -31,20 +31,25 @@ Linux (`systemd/`, `install.sh`, AppImage).
 | changes activos | 7 en `openspec/changes/` | `ls openspec/changes \| grep -v archive` |
 | git | rama `main`, HEAD `697f9cf` | `git log -1` |
 
-### Por qué el gate está en rojo (y no es el código)
+### Cómo se dejó el gate verde (en macOS)
 
-1. **`test_arcade` (2 tests)**: usan `/bin/true` como emulador falso. En macOS no
-   existe → `FileNotFoundError`. Es un test Linux-only, no un bug del launcher.
-2. **typecheck frontend**: `scripts/check.sh` corre `npx tsc --noEmit`, pero
-   `frontend/node_modules` **no existe** en este clone y `frontend/package.json`
-   **no tiene script `typecheck`**. Sin `node_modules`, `npx` descarga el paquete
-   equivocado (`tsc@2.0.4`, deprecado) y falla con un mensaje engañoso.
+Dos problemas de entorno, ninguno del producto, ya resueltos:
 
-Para tener el gate verde en macOS:
+1. **`frontend/node_modules` ausente**: `scripts/check.sh` corre `npx tsc`, que
+   sin dependencias instaladas descarga el paquete equivocado (`tsc@2.0.4`) y
+   falla con un mensaje engañoso. Solución: `cd frontend && npm ci`.
+2. **`test_arcade` usaba `/bin/true`** como emulador falso (no existe en macOS).
+   Ahora resuelve el binario con `shutil.which("true")` — portable sin perder el
+   sentido del test.
+
+Verificación: `./scripts/check.sh` → ruff limpio, **193 tests**, tsc limpio.
+
+### Instalación en un clone nuevo
 
 ```bash
-cd frontend && npm ci        # devuelve node_modules y el tsc real
-# y para arcade: correr esos dos tests en Linux, o parametrizar el binario falso
+cd backend && uv sync --group dev     # crea backend/.venv
+cd frontend && npm ci                 # crea node_modules (necesario para el gate)
+./scripts/check.sh                    # debe quedar verde
 ```
 
 ## Comandos
@@ -115,8 +120,7 @@ navegador o Electron. Documentar cualquier atajo nuevo acá.
 
 | tema | estado | qué hacer |
 |---|---|---|
-| `test_arcade` con `/bin/true` | Linux-only, falla en macOS | parametrizar el binario o marcar skip por plataforma |
-| `check.sh` usa `npx tsc` | requiere `node_modules` previo y no hay script `typecheck` | `npm ci` en CI/instalación; agregar script `typecheck` al `package.json` |
+| `check.sh` usa `npx tsc` | requiere `node_modules` previo y `package.json` no tiene script `typecheck` | agregar script `typecheck` para que falle con un mensaje claro si falta `npm ci` |
 | Python 3.14 resuelto por uv | `openspec/config.yaml` declara 3.12 | fijar `requires-python` en `pyproject.toml` si importa |
 | specs en `openspec/`, no en `docs/specs/` | decisión, no deuda | `docs/` envuelve; no duplicar |
 | `ROADMAP.md` de raíz inexistente | el backlog real son los 7 changes de openspec | `docs/ROADMAP.md` mapea a openspec |
@@ -132,8 +136,8 @@ navegador o Electron. Documentar cualquier atajo nuevo acá.
 - **No agregar `node_modules` ni `backend/static` al repo**. Ya están ignorados.
 - **No "arreglar" el gate bajando el typecheck**: el problema es `node_modules`,
   no el chequeo.
-- **No asumir Linux-only en tests nuevos**: si un test necesita un binario del
-  sistema, se parametriza o se marca por plataforma (caso `test_arcade`).
+- **No asumir rutas de Linux en tests nuevos**: si un test necesita un binario del
+  sistema, se resuelve con `shutil.which(...)` (caso `test_arcade`).
 
 ## Definición de terminado (por tarea)
 
