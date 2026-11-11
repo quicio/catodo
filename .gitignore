@@ -10,9 +10,20 @@ dist/
 src-tauri/target/
 src-tauri/gen/
 
+# Backend bundle staged into the macOS app by scripts/package-macos-app.sh
+frontend/backend-bundle/*
+!frontend/backend-bundle/.gitkeep
+
 # Tauri 2 tray client
 clients/tray/target/
 clients/tray/gen/
+
+# Rust backend workspace
+rust/target/
+
+# Runtime logs and OpenCode session state
+catodo.log
+.opencode/goals/state.json.sessions/
 
 .DS_Store
 *.swp
