@@ -165,7 +165,7 @@ function TabBar({
     <div
       style={{
         display: "flex",
-        gap: 4,
+        gap: 2,
         padding: "4px 6px",
         borderBottom: "1px solid var(--border)",
         position: "sticky",
@@ -181,12 +181,12 @@ function TabBar({
         return (
           <button
             key={t.id}
+            type="button"
             onClick={() => onChange(t.id)}
             style={{
-              flex: "1 0 auto",
-              minWidth: 60,
-              padding: "7px 8px",
-              fontSize: 11,
+              flex: "0 0 auto",
+              padding: "6px 8px",
+              fontSize: 10.5,
               fontFamily: "var(--font-mono)",
               letterSpacing: 1,
               border: "none",

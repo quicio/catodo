@@ -1,4 +1,5 @@
 import AppearanceSettings from "../AppearanceSettings";
+import { Icon } from "../../icons";
 import { api } from "../../api/client";
 import type { HomeSlotProps } from "./types";
 
@@ -14,12 +15,14 @@ export function AppearanceSettingsPopover({
   layoutId,
   onLayoutChange,
 }: HomeSlotProps) {
-  const { showConfig, openPair, closePair } = homeState;
+  const { showConfig, openPair, closePair, toggleConfig } = homeState;
 
   if (!showConfig) return null;
 
   return (
     <div
+      role="dialog"
+      aria-label="Ajustes de Cátodo"
       onClick={(e) => e.stopPropagation()}
       style={{
         position: "fixed",
@@ -31,7 +34,7 @@ export function AppearanceSettingsPopover({
         border: "1px solid var(--border)",
         borderRadius: "var(--radius-lg)",
         padding: 10,
-        width: "min(420px, 92vw)",
+        width: "min(480px, 92vw)",
         maxHeight: "min(70vh, 640px)",
         fontFamily: "var(--font-mono)",
         boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
@@ -40,6 +43,36 @@ export function AppearanceSettingsPopover({
         zIndex: 20,
       }}
     >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "2px 8px 8px",
+          borderBottom: "1px solid var(--border)",
+        }}
+      >
+        <span style={{ fontSize: 11, letterSpacing: 2, color: "var(--text-dim)" }}>
+          AJUSTES
+        </span>
+        <button
+          type="button"
+          aria-label="Cerrar ajustes"
+          onClick={toggleConfig}
+          style={{
+            width: 30,
+            height: 30,
+            display: "grid",
+            placeItems: "center",
+            background: "transparent",
+            color: "var(--text-dim)",
+            border: "none",
+            cursor: "pointer",
+          }}
+        >
+          <Icon name="x" size={16} strokeWidth={2} color="currentColor" />
+        </button>
+      </div>
       <div style={{ overflowY: "auto", flex: 1 }}>
         <AppearanceSettings
           onPair={() => {

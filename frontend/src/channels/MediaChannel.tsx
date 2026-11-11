@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Icon, type IconName } from "../icons";
 import Anime4KCanvas from "../webgl/Anime4KCanvas";
 
 interface Episode {
@@ -298,7 +299,10 @@ export default function MediaChannel({ channelId, volume }: { channelId: string;
             backdropFilter: "blur(8px)",
           }}
         >
-          ☰ {current.series} · {current.name}
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+            <Icon name="clapperboard" size={16} strokeWidth={2} color="currentColor" />
+            {current.series} · {current.name}
+          </span>
         </button>
         <span style={{ fontSize: 13, opacity: 0.7 }}>{current.season}</span>
       </div>
@@ -493,13 +497,14 @@ export default function MediaChannel({ channelId, volume }: { channelId: string;
             alignItems: "center",
           }}
         >
-          <CtrlBtn onClick={() => nav("prev")} label="⏮" />
+          <CtrlBtn onClick={() => nav("prev")} icon="skip-back" label="Episodio anterior" />
           <CtrlBtn
             onClick={togglePlay}
-            label={isPlaying ? "⏸" : "▶"}
+            icon={isPlaying ? "pause" : "play"}
+            label={isPlaying ? "Pausa" : "Reproducir"}
             primary
           />
-          <CtrlBtn onClick={() => nav("next")} label="⏭" />
+          <CtrlBtn onClick={() => nav("next")} icon="skip-forward" label="Episodio siguiente" />
           <div
             style={{
               marginLeft: 16,
@@ -509,7 +514,7 @@ export default function MediaChannel({ channelId, volume }: { channelId: string;
               gap: 4,
             }}
           >
-            <CtrlBtn onClick={cycleEffect} label="✦" small />
+            <CtrlBtn onClick={cycleEffect} icon="settings" label="Cambiar efecto" small />
             <span
               style={{
                 fontFamily: "var(--font-mono)",
@@ -536,11 +541,13 @@ function fmtTime(sec: number): string {
 }
 
 function CtrlBtn({
+  icon,
   label,
   onClick,
   primary,
   small,
 }: {
+  icon: IconName;
   label: string;
   onClick: () => void;
   primary?: boolean;
@@ -548,6 +555,9 @@ function CtrlBtn({
 }) {
   return (
     <button
+      type="button"
+      aria-label={label}
+      title={label}
       onClick={onClick}
       style={{
         width: primary ? 72 : small ? 44 : 58,
@@ -556,7 +566,6 @@ function CtrlBtn({
         background: primary ? "var(--accent)" : "rgba(255,255,255,0.08)",
         color: primary ? "var(--bg)" : "var(--text)",
         border: "none",
-        fontSize: primary ? 28 : small ? 16 : 22,
         cursor: "pointer",
         display: "grid",
         placeItems: "center",
@@ -568,7 +577,12 @@ function CtrlBtn({
       }
       onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
     >
-      {label}
+      <Icon
+        name={icon}
+        size={primary ? 30 : small ? 18 : 22}
+        strokeWidth={2}
+        color={primary ? "var(--bg)" : "var(--text)"}
+      />
     </button>
   );
 }

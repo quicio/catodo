@@ -84,14 +84,15 @@ export default function Home({
       {/* Hint inferior (parte del contenedor root para preservar el layout actual) */}
       <div
         style={{
-          fontSize: 12,
-          opacity: 0.4,
+          fontSize: 13,
+          opacity: 0.65,
           fontFamily: "var(--font-mono)",
+          letterSpacing: 1.5,
           position: "relative",
           zIndex: 2,
         }}
       >
-        PRECIONÁ 1-4 O HACÉ CLICK · C PARA CONFIG · ESC PARA VOLVER
+        1–8 CANALES · C AJUSTES · CLICK PARA ENTRAR
       </div>
 
 {overlayComponents.map((c) => (

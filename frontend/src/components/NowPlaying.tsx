@@ -233,7 +233,13 @@ export default function NowPlaying({ state }: { state: AppState }) {
     return (
       <div style={containerStyle("var(--bg)")}>
         <div style={{ textAlign: "center", padding: 40 }}>
-          <div style={{ fontSize: 80, marginBottom: 16, opacity: 0.6 }}>♪</div>
+          <Icon
+            name="music"
+            size={64}
+            strokeWidth={1.5}
+            color="var(--text-dim)"
+            style={{ marginBottom: 16, opacity: 0.7 }}
+          />
           <h1 style={{ fontSize: 28, margin: "0 0 8px", fontWeight: 600 }}>
             Spotify no está corriendo
           </h1>
@@ -641,7 +647,7 @@ const lyricsViewportStyle: React.CSSProperties = {
 
 const lyricsHintStyle: React.CSSProperties = {
   marginTop: 32,
-  opacity: 0.4,
+  opacity: 0.65,
   fontSize: 14,
   fontStyle: "italic",
 };

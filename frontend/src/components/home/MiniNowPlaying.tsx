@@ -1,3 +1,4 @@
+import { Icon } from "../../icons";
 import type { HomeSlotProps } from "./types";
 
 /**
@@ -20,8 +21,19 @@ export function MiniNowPlaying({ state, homeState }: HomeSlotProps) {
         fontFamily: "var(--font-display)",
       }}
     >
-      <div style={{ fontSize: 11, opacity: 0.5, letterSpacing: 3, fontFamily: "var(--font-mono)" }}>
-        ♫ NOW PLAYING
+      <div
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          fontSize: 11,
+          opacity: 0.6,
+          letterSpacing: 3,
+          fontFamily: "var(--font-mono)",
+        }}
+      >
+        <Icon name="music" size={12} strokeWidth={2} color="currentColor" />
+        NOW PLAYING
       </div>
       <div style={{ fontSize: 20, fontWeight: 700, marginTop: 4 }}>{spotify.title}</div>
       <div style={{ fontSize: 14, opacity: 0.6 }}>{spotify.artist}</div>

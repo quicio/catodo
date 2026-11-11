@@ -9,12 +9,14 @@ export function Clock({ homeState }: HomeSlotProps) {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
+    hour12: false,
   });
   const date = now.toLocaleDateString("es-AR", {
     weekday: "long",
     day: "numeric",
     month: "long",
   });
+  const dateLabel = date.charAt(0).toUpperCase() + date.slice(1);
 
   return (
     <div
@@ -29,8 +31,8 @@ export function Clock({ homeState }: HomeSlotProps) {
       <div style={{ fontSize: 56, fontWeight: 700, lineHeight: 1, letterSpacing: 1 }}>
         {time}
       </div>
-      <div style={{ fontSize: 14, opacity: 0.55, marginTop: 6, letterSpacing: 2 }}>
-        {date}
+      <div style={{ fontSize: 14, opacity: 0.7, marginTop: 6, letterSpacing: 2 }}>
+        {dateLabel}
       </div>
     </div>
   );

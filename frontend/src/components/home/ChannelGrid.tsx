@@ -32,9 +32,9 @@ export function ChannelGrid({ channels, onPick }: Pick<HomeSlotProps, "channels"
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-        gap: 20,
-        width: "min(820px, 90vw)",
+        gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+        gap: 18,
+        width: "min(960px, calc(100vw - 180px))",
         position: "relative",
         zIndex: 2,
       }}
@@ -43,12 +43,18 @@ export function ChannelGrid({ channels, onPick }: Pick<HomeSlotProps, "channels"
         const iconName = CHANNEL_ICONS[c.id] || (c.type === "web" ? "monitor-play" : "tv");
         const color = c.color || COLORS[c.id] || "var(--text)";
         const isHover = hovered === c.id;
+        const tint = (percent: number) =>
+          `color-mix(in srgb, ${color} ${percent}%, transparent)`;
         return (
           <button
             key={c.id}
+            type="button"
+            aria-label={`Abrir ${c.name}, canal ${i + 1}`}
             onClick={() => onPick(c.id)}
             onMouseEnter={() => setHovered(c.id)}
             onMouseLeave={() => setHovered(null)}
+            onFocus={() => setHovered(c.id)}
+            onBlur={() => setHovered(null)}
             style={{
               display: "flex",
               flexDirection: "column",
@@ -59,7 +65,7 @@ export function ChannelGrid({ channels, onPick }: Pick<HomeSlotProps, "channels"
               background: isHover
                 ? "color-mix(in srgb, var(--text) 8%, transparent)"
                 : "color-mix(in srgb, var(--text) 4%, transparent)",
-              border: `1px solid ${isHover ? color + "66" : "color-mix(in srgb, var(--text) 10%, transparent)"}`,
+              border: `1px solid ${isHover ? tint(45) : "color-mix(in srgb, var(--text) 10%, transparent)"}`,
               cursor: "pointer",
               color: "var(--text)",
               transform: isHover ? "translateY(-6px)" : "translateY(0)",
@@ -74,10 +80,10 @@ export function ChannelGrid({ channels, onPick }: Pick<HomeSlotProps, "channels"
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                background: `${color}2e`,
+                background: tint(18),
                 color,
-                border: `1px solid ${color}77`,
-                boxShadow: `0 0 18px ${color}44`,
+                border: `1px solid ${tint(45)}`,
+                boxShadow: `0 0 18px ${tint(28)}`,
               }}
             >
               <Icon
@@ -92,8 +98,8 @@ export function ChannelGrid({ channels, onPick }: Pick<HomeSlotProps, "channels"
             <div
               style={{
                 fontFamily: "var(--font-mono)",
-                fontSize: 11,
-                opacity: 0.5,
+                fontSize: 12,
+                color: "var(--text-dim)",
                 letterSpacing: 2,
               }}
             >

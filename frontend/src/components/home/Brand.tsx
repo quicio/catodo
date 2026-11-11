@@ -27,7 +27,7 @@ export function Brand() {
         style={{
           marginTop: 10,
           fontSize: 14,
-          opacity: 0.55,
+          opacity: 0.7,
           fontFamily: "var(--font-mono)",
           fontWeight: 700,
           letterSpacing: 3,
