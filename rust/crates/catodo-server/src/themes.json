@@ -1,0 +1,342 @@
+[
+  {
+    "id": "spotify-dark",
+    "name": "Spotify Dark",
+    "colorScheme": "dark",
+    "colors": {
+      "bg": "#0a0a0a",
+      "surface": "#181818",
+      "text": "#f5f5f5",
+      "textDim": "rgba(255,255,255,0.6)",
+      "textFaint": "rgba(255,255,255,0.35)",
+      "accent": "#1db954",
+      "accentSoft": "#4dffb1",
+      "border": "rgba(255,255,255,0.15)",
+      "danger": "#ff6b6b",
+      "success": "#1db954",
+      "chSpotify": "#1db954",
+      "chYoutube": "#ff0033",
+      "chTv": "#4d7cff",
+      "chAnime": "#ffd166",
+      "chCrunchyroll": "#f47521",
+      "chArcade": "#b66dff"
+    },
+    "typography": {
+      "display": "space-grotesk",
+      "mono": "jetbrains-mono"
+    },
+    "shape": "rounded",
+    "density": "comfortable",
+    "effects": {
+      "crt": true,
+      "glow": false
+    },
+    "icons": "lucide"
+  },
+  {
+    "id": "retro-crt",
+    "name": "Retro CRT",
+    "colorScheme": "dark",
+    "colors": {
+      "bg": "#050505",
+      "surface": "#141414",
+      "text": "#e6ffd6",
+      "textDim": "rgba(230,255,214,0.6)",
+      "textFaint": "rgba(230,255,214,0.35)",
+      "accent": "#00ff9c",
+      "accentSoft": "#7dffd0",
+      "border": "rgba(0,255,156,0.35)",
+      "danger": "#ff5f56",
+      "success": "#00ff9c",
+      "chSpotify": "#00ff9c",
+      "chYoutube": "#ff5f56",
+      "chTv": "#4d7cff",
+      "chAnime": "#ffd166",
+      "chCrunchyroll": "#f47521",
+      "chArcade": "#b66dff"
+    },
+    "typography": {
+      "display": "vt323",
+      "mono": "vt323"
+    },
+    "shape": "square",
+    "density": "comfortable",
+    "effects": {
+      "crt": true,
+      "glow": true
+    },
+    "icons": "game-icons"
+  },
+  {
+    "id": "minimal-light",
+    "name": "Minimal Light",
+    "colorScheme": "light",
+    "colors": {
+      "bg": "#f2f2f2",
+      "surface": "#ffffff",
+      "text": "#111111",
+      "textDim": "rgba(0,0,0,0.6)",
+      "textFaint": "rgba(0,0,0,0.35)",
+      "accent": "#0a7c3f",
+      "accentSoft": "#2fae62",
+      "border": "rgba(0,0,0,0.15)",
+      "danger": "#d64545",
+      "success": "#0a7c3f",
+      "chSpotify": "#0a7c3f",
+      "chYoutube": "#cc0000",
+      "chTv": "#2b4dcc",
+      "chAnime": "#b8860b",
+      "chCrunchyroll": "#e05a1f",
+      "chArcade": "#6a3fc4"
+    },
+    "typography": {
+      "display": "inter",
+      "mono": "jetbrains-mono"
+    },
+    "shape": "rounded",
+    "density": "comfortable",
+    "effects": {
+      "crt": false,
+      "glow": false
+    },
+    "icons": "feather"
+  },
+  {
+    "id": "orbital-blue",
+    "name": "Orbital Blue",
+    "colorScheme": "dark",
+    "colors": {
+      "bg": "#04060f",
+      "surface": "#0d1526",
+      "text": "#e8f0ff",
+      "textDim": "rgba(232,240,255,0.6)",
+      "textFaint": "rgba(232,240,255,0.35)",
+      "accent": "#4d7cff",
+      "accentSoft": "#8ab4ff",
+      "border": "rgba(77,124,255,0.35)",
+      "danger": "#ff5f6e",
+      "success": "#3ddc97",
+      "chSpotify": "#1db954",
+      "chYoutube": "#ff3d5a",
+      "chTv": "#4d7cff",
+      "chAnime": "#ffd166",
+      "chCrunchyroll": "#f47521",
+      "chArcade": "#b66dff"
+    },
+    "typography": {
+      "display": "orbitron",
+      "mono": "jetbrains-mono"
+    },
+    "shape": "pill",
+    "density": "spacious",
+    "effects": {
+      "crt": false,
+      "glow": true
+    },
+    "icons": "phosphor"
+  },
+  {
+    "id": "estuary",
+    "name": "Estuary",
+    "colorScheme": "dark",
+    "colors": {
+      "bg": "#0e151a",
+      "surface": "#1a232a",
+      "text": "#f2f6f8",
+      "textDim": "rgba(242,246,248,0.6)",
+      "textFaint": "rgba(242,246,248,0.35)",
+      "accent": "#12b2e7",
+      "accentSoft": "#6fd3f2",
+      "border": "rgba(255,255,255,0.12)",
+      "danger": "#e05252",
+      "success": "#4cc38a",
+      "chSpotify": "#1db954",
+      "chYoutube": "#ff0033",
+      "chTv": "#4d7cff",
+      "chAnime": "#ffd166",
+      "chCrunchyroll": "#f47521",
+      "chArcade": "#b66dff"
+    },
+    "typography": {
+      "display": "oswald",
+      "mono": "jetbrains-mono"
+    },
+    "shape": "square",
+    "density": "compact",
+    "effects": {
+      "crt": false,
+      "glow": false
+    },
+    "icons": "material"
+  },
+  {
+    "id": "smart-tv-coral",
+    "name": "Smart TV Coral",
+    "colorScheme": "dark",
+    "colors": {
+      "bg": "#101014",
+      "surface": "#1c1c22",
+      "text": "#f5f5f7",
+      "textDim": "rgba(245,245,247,0.6)",
+      "textFaint": "rgba(245,245,247,0.35)",
+      "accent": "#ff5a5f",
+      "accentSoft": "#ff9a9e",
+      "border": "rgba(255,255,255,0.12)",
+      "danger": "#ff3b30",
+      "success": "#34c759",
+      "chSpotify": "#1db954",
+      "chYoutube": "#ff0033",
+      "chTv": "#4d7cff",
+      "chAnime": "#ffd166",
+      "chCrunchyroll": "#f47521",
+      "chArcade": "#b66dff"
+    },
+    "typography": {
+      "display": "nunito",
+      "mono": "jetbrains-mono"
+    },
+    "shape": "pill",
+    "density": "spacious",
+    "effects": {
+      "crt": false,
+      "glow": false
+    },
+    "icons": "ionicons"
+  },
+  {
+    "id": "cone-orange",
+    "name": "Cone Orange",
+    "colorScheme": "dark",
+    "colors": {
+      "bg": "#0c0c0c",
+      "surface": "#1a1a1a",
+      "text": "#fafafa",
+      "textDim": "rgba(250,250,250,0.6)",
+      "textFaint": "rgba(250,250,250,0.35)",
+      "accent": "#ff7f00",
+      "accentSoft": "#ffab4d",
+      "border": "rgba(255,255,255,0.14)",
+      "danger": "#e5484d",
+      "success": "#46a758",
+      "chSpotify": "#1db954",
+      "chYoutube": "#ff0033",
+      "chTv": "#4d7cff",
+      "chAnime": "#ffd166",
+      "chCrunchyroll": "#f47521",
+      "chArcade": "#b66dff"
+    },
+    "typography": {
+      "display": "inter",
+      "mono": "jetbrains-mono"
+    },
+    "shape": "rounded",
+    "density": "compact",
+    "effects": {
+      "crt": false,
+      "glow": false
+    },
+    "icons": "bootstrap"
+  },
+  {
+    "id": "amber-vintage",
+    "name": "Amber Vintage",
+    "colorScheme": "dark",
+    "colors": {
+      "bg": "#0a0800",
+      "surface": "#1a1405",
+      "text": "#ffb000",
+      "textDim": "rgba(255,176,0,0.65)",
+      "textFaint": "rgba(255,176,0,0.35)",
+      "accent": "#ffb000",
+      "accentSoft": "#ffcf6b",
+      "border": "rgba(255,176,0,0.35)",
+      "danger": "#ff5f56",
+      "success": "#ffb000",
+      "chSpotify": "#ffb000",
+      "chYoutube": "#ff5f56",
+      "chTv": "#ffd166",
+      "chAnime": "#ffe08a",
+      "chCrunchyroll": "#ff9e3d",
+      "chArcade": "#d89000"
+    },
+    "typography": {
+      "display": "ibm-plex-mono",
+      "mono": "ibm-plex-mono"
+    },
+    "shape": "square",
+    "density": "comfortable",
+    "effects": {
+      "crt": true,
+      "glow": true
+    },
+    "icons": "codicons"
+  },
+  {
+    "id": "cyber-neon",
+    "name": "Cyber Neon",
+    "colorScheme": "dark",
+    "colors": {
+      "bg": "#05060f",
+      "surface": "#10121f",
+      "text": "#eaf6ff",
+      "textDim": "rgba(234,246,255,0.6)",
+      "textFaint": "rgba(234,246,255,0.35)",
+      "accent": "#00e5ff",
+      "accentSoft": "#ff4dd8",
+      "border": "rgba(0,229,255,0.3)",
+      "danger": "#ff3366",
+      "success": "#00ffa3",
+      "chSpotify": "#00ffa3",
+      "chYoutube": "#ff3366",
+      "chTv": "#00b3ff",
+      "chAnime": "#ffe74d",
+      "chCrunchyroll": "#ff7b4d",
+      "chArcade": "#c04dff"
+    },
+    "typography": {
+      "display": "orbitron",
+      "mono": "jetbrains-mono"
+    },
+    "shape": "rounded",
+    "density": "compact",
+    "effects": {
+      "crt": false,
+      "glow": true
+    },
+    "icons": "tabler"
+  },
+  {
+    "id": "paper-mono",
+    "name": "Paper Mono",
+    "colorScheme": "light",
+    "colors": {
+      "bg": "#f4f2ee",
+      "surface": "#ffffff",
+      "text": "#1a1a1a",
+      "textDim": "rgba(26,26,26,0.6)",
+      "textFaint": "rgba(26,26,26,0.35)",
+      "accent": "#222226",
+      "accentSoft": "#55555a",
+      "border": "rgba(26,26,26,0.16)",
+      "danger": "#b3261e",
+      "success": "#2e6b34",
+      "chSpotify": "#1e7d46",
+      "chYoutube": "#b3271e",
+      "chTv": "#2b4dcc",
+      "chAnime": "#8a6d1a",
+      "chCrunchyroll": "#c2521a",
+      "chArcade": "#5b3aa8"
+    },
+    "typography": {
+      "display": "inter",
+      "mono": "jetbrains-mono"
+    },
+    "shape": "square",
+    "density": "comfortable",
+    "effects": {
+      "crt": false,
+      "glow": false
+    },
+    "icons": "radix"
+  }
+]
