@@ -1,66 +1,65 @@
 ---
 id: roadmap
 status: vigente
-version: 1.0.0
+version: 2.0.0
 updated: 2026-11-10
 ---
 
 # Roadmap — Cátodo
 
-El backlog operativo **no vive acá**: vive en `openspec/changes/` (un change por
-trabajo, con proposal + tasks + delta de spec). Este archivo sólo ordena a qué
-apunta cada cosa y cómo se cierra.
+El backlog operativo vive en `openspec/changes/`. Este archivo ordena los
+milestones y el criterio de salida de cada uno.
 
 ## Estado
 
 | # | Fase | Estado | Criterio de salida |
 |---|---|---|---|
 | M0 | Base: 5 canales + kiosko | hecho | `./scripts/check.sh` verde en Linux; canales 1–5 abren y cambian con hotkeys |
-| M1 | Changes abiertos (7) | en curso | cada change cierra con su spec de openspec actualizada y el gate verde |
-| M2 | Port a macOS | en curso (dev) | `./run-dev.sh` levanta backend + UI en macOS; gate verde salvo los 2 tests Linux-only |
-| M3 | Instalación replicable | futuro | `install.sh` + `systemd/` documentados y probados en una máquina limpia |
+| M1 | Release/instalación + walking skeleton Rust | hecho (local) | release `vX.Y.Z` con app única y cask estático; workspace Rust con health/version y CI verde |
+| M2 | Paridad dominio/plataforma Rust | hecho | config/store/events + `/api/config`, `/api/state`, `/api/ws` con tests de contrato |
+| M3 | Channels y plugins en Rust | hecho (macOS) | `/api/channels`, plugins web, Spotify AppleScript, media/anime y arcade; MPRIS Linux pendiente |
+| M4 | Paridad de API y sidecar Rust | hecho (macOS) | el `.app` usa el binario Rust; API de servicios portada; AppImage Linux pendiente de validación |
+| M5 | Cutover y limpieza | en curso | release/dev/prod usan Rust; Python queda como fallback de desarrollo |
 
-## M1 — los 7 changes abiertos
+## M1 — Release + Rust foundation
+
+Change: `openspec/changes/m1-release-and-rust-foundation/`.
+
+Entra:
+
+- `VERSION` único, release-please, CI Linux/macOS y release pipeline con checksums.
+- Cask estático `catodo` en el tap existente `quicio/homebrew-tap`; sin formula ni token.
+- App macOS única con el backend embebido (PyInstaller transitorio); Linux con `install.sh` + systemd.
+- La app empaquetada lanza el sidecar; Linux sin backend embebido hace fallback a `:8767`/`:8765`.
+- Workspace `rust/` con `catodo-domain`, `catodo-platform`, `catodo-server`
+  (health/version en `:8769`), tests de contrato y límites de capas.
+
+No entra: cutover a Rust, bundle Linux autocontenido, notarización Apple,
+auto-update, Windows o Linux arm64.
+
+## Changes abiertos
 
 | change | qué resuelve |
 |---|---|
 | `add-system-tray-client` | cliente de bandeja para controlar Cátodo desde el escritorio |
 | `arcade-cartridge-ux` | UX de cartuchos del launcher arcade |
 | `iptv-channel` | canal IPTV genérico |
+| `m1-release-and-rust-foundation` | release/instalación + esqueleto Rust |
 | `public-domain-tunnel` | túnel para contenido de dominio público |
 | `replicable-installation-and-config` | instalación y configuración reproducibles |
 | `spotify-on-macos` | Ch1 Spotify en macOS (AppleScript) — ya mergeado en parte |
 | `theme-personalization` | personalización granular de temas |
 
 Criterio de cierre de cualquier change: `./scripts/check.sh` sin fallas nuevas,
-spec de la capacidad actualizada, y el comportamiento verificable en `./run-dev.sh`
-(o en la AppImage si toca empaquetado).
-
-## M2 — port a macOS
-
-Commits recientes: `port to mac silicon`, `spotify on macOS: AppleScript adapter`.
-El objetivo es que macOS sea un entorno de desarrollo cómodo, **no** un target.
-
-Entra: backend + frontend en dev, Ch1 Spotify con AppleScript, gate local.
-No entra: AppImage, systemd, Widevine (macOS usa otro camino).
-
-Salida:
-
-1. `./run-dev.sh` levanta `:8765` y `:1420` sin pasos manuales.
-2. `cd frontend && npm ci && npx tsc --noEmit` limpio.
-3. `uv run pytest` sin fallas de plataforma (los de arcade parametrizados).
-
-## M3 — instalación replicable
-
-Un solo `install.sh` que deje una máquina limpia corriendo Cátodo como servicio
-(`systemd/`) sin pasos manuales, y un `check.sh` verde en esa máquina.
+spec de la capacidad actualizada y comportamiento verificable en `./run-dev.sh`
+(o en el release si toca empaquetado).
 
 ## Orden de ataque
 
-1. Arreglar lo que bloquea medir: `npm ci` en frontend + los 2 tests de arcade
-   parametrizados. Sin gate confiable, cualquier cambio es a ciegas.
-2. Cerrar un change chico primero (`arcade-cartridge-ux` o `theme-personalization`)
-   para validar el flujo completo.
-3. Los grandes (`iptv-channel`, `replicable-installation-and-config`).
+1. Cerrar la validación externa de M1: cask en el tap, release de prueba en una
+   rama y `install.sh` en un Linux limpio.
+2. M2: portar config/store/events y el WebSocket manteniendo Python como oráculo.
+3. M3: channels/plugins y un canal nativo.
+4. M4/M5: paridad total, bundle Rust y retiro de Python.
 
 Regla: **una change de openspec, un milestone, un commit lógico**.

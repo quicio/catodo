@@ -18,15 +18,34 @@ Hotkeys `1`–`5` switch channels (`6` is reserved). The channel bar auto-hides 
 ## Architecture
 
 ```
-backend/    FastAPI (serves API + static frontend + wallpaper assets on :8765)
-frontend/   Electron app (Chromium) loading http://127.0.0.1:8765
+rust/       Backend Rust (axum) — API + static frontend + servicios
+backend/    Backend Python legacy (FastAPI) — fallback de desarrollo
+frontend/   Electron app (Chromium) — dev en :8765, release con sidecar
 ```
 
-- **Backend**: FastAPI handles all channels + state + wallpaper downloads + lyrics. Serves the built frontend as static files at `/`. User data lives at `~/.local/share/catodo/`.
+- **Backend**: Rust (axum) handles channels + state + wallpapers + lyrics. Serves the built frontend as static files at `/`. User data lives at `~/.local/share/catodo/`. El backend FastAPI queda como fallback de desarrollo.
 - **Frontend**: React + Vite, built into static HTML/JS, served by the backend.
-- **Shell**: Electron opens a frameless, fullscreen, kiosk window pointing at the backend. In-app `<webview>` tags handle YouTube and TV.
+- **Shell**: Electron opens a frameless, fullscreen, kiosk window. En dev apunta al backend en `:8765`; la app macOS empaquetada incluye el backend en `Contents/Resources/backend/`, lo lanza como sidecar en un puerto libre y lo apaga al salir. In-app `<webview>` tags handle YouTube and TV.
 
 **DRM note**: The TV channel (Movistar) requires Widevine. Install Electron castLabs with `bash scripts/install_castlab.sh` (or `bash install.sh --castlab`); `run-dev.sh` uses it automatically. The packaged AppImage uses stock Electron which does **not** include Widevine — use the dev launcher or run the castLabs binary directly for TV playback.
+
+## Backend Rust
+
+El backend de release es Rust: `Catodo.app` y el AppImage incluyen
+`Contents/Resources/backend/catodo-backend`, que Electron lanza como sidecar.
+`run-dev.sh` y `run-prod.sh` también usan Rust por defecto. Python queda como
+fallback de desarrollo (`CATODO_DEV_BACKEND=python`) y como referencia histórica.
+
+```bash
+cd rust
+cargo test --workspace
+CATODO_RS_PORT=8769 cargo run -p catodo-server
+curl http://127.0.0.1:8769/api/health
+```
+
+Los límites de capas (`domain` puro, `platform` sin HTTP, `server` compone) se
+verifican con `./scripts/check-rust-layers.sh`. El plan de migración está en
+`docs/ROADMAP.md`.
 
 ## Puertos: dev vs prod
 
@@ -40,16 +59,18 @@ estable corriendo y abrir el dev sin que se pisen.
 
 `./run-dev.sh` arranca/recicla el backend en `:8765` y **no toca** el de `:8767`
 si existe. La heurística para saber si el backend en `:8765` está al día es el
-**start time del proceso vs mtime de `themes.py`**: si el código se modificó
-después de que arrancó, se reinicia.
+**start time del proceso vs mtime de `rust/crates/catodo-server/src/main.rs`**:
+si el código se modificó después de que arrancó, se reinicia.
 
 ## Quickstart
 
 ```bash
-# 1. Backend (desde la raíz del repo clonado)
-cd backend
-uv sync
-uv run python -m catodo          # serves http://127.0.0.1:8767 (prod)
+# 1. Backend Rust (default)
+cd rust
+cargo run -p catodo-server       # serves http://127.0.0.1:8769
+
+# Fallback Python legacy:
+# cd backend && uv sync && uv run python -m catodo
 
 # 2. Electron app
 cd ../frontend
@@ -62,6 +83,42 @@ Or in dev mode (faster iteration, uses port 8765 so prod at 8767 keeps running):
 
 ```bash
 ./run-dev.sh    # Vite + Electron + backend-dev auto-recycle
+```
+
+## Releases e instalación
+
+La versión del producto vive en `VERSION` y la maneja release-please con
+Conventional Commits. Cada release publica artefactos versionados y checksums.
+
+### macOS (Homebrew)
+
+```bash
+brew install --cask quicio/tap/catodo
+```
+
+La app incluye el backend en `Catodo.app/Contents/Resources/backend/` y lo lanza
+como sidecar; no hay servicio separado ni `brew services`. Es el mismo tap que
+usa Candil: no hace falta crear otro repo. La app no está notarizada todavía: el
+cask intenta quitar la cuarentena; si Gatekeeper la bloquea, usar
+`xattr -dr com.apple.quarantine /Applications/Catodo.app`.
+
+### Linux
+
+Descargar `catodo-<version>-src.tar.gz` del release, extraerlo y ejecutar:
+
+```bash
+bash install.sh --check
+bash install.sh
+```
+
+El backend queda como servicio systemd de usuario y la app AppImage se genera en
+`frontend/release/`. El tarball ya incluye `backend/static/` construido.
+
+### Versión
+
+```bash
+catodo --version
+curl http://127.0.0.1:8767/api/version
 ```
 
 ## macOS (Apple Silicon)
@@ -94,17 +151,17 @@ bash scripts/install_castlab.sh   # opcional, para DRM en dev
 ### Empaquetado
 
 ```bash
-bash build.sh    # produce frontend/release/mac/Catodo.app + Catodo-*.zip
+bash build.sh    # produce release/Catodo-*.zip con Catodo.app + backend embebido
 ```
 
-El `.app` resultante es stock Electron sin Widevine (los canales DRM requieren `castLabs` corriendo en dev). Sin notarización: la primera apertura mostrará un warning de Gatekeeper.
+El `.app` resultante es stock Electron sin Widevine (los canales DRM requieren `castLabs` corriendo en dev). El build lo firma ad-hoc; sin notarización, la primera apertura todavía puede mostrar el warning de Gatekeeper.
 
 ### Limitaciones conocidas
 
 - **Spotify requiere Spotify.app instalado.** Ch1 funciona vía AppleScript contra `application "Spotify"`. Si no tenés Spotify desktop instalado, Ch1 se omite del registry sin error (mismo gating que el resto del OS). **Permisos TCC**: la primera vez que abras Spotify desde el kiosk o el remote, macOS pide permiso de **Automation** a Spotify para el shell que corre el backend (Terminal/iTerm/Ghostty/etc). Sin ese permiso, AppleScript falla silencioso — el kiosk sigue pero Spotify no responde. Aprobá desde **System Settings → Privacy & Security → Automation** → permitir el proceso del backend.
 - **Widevine/DRM sólo en dev.** El `.app` empaquetado no incluye castLabs. Para Movistar TV/HBO Max usá `./run-dev.sh` con castLabs instalado localmente.
-- **Autostart no automático.** Agregá `./run-prod.sh` a System Settings → General → Login Items → Open at Login (o vía Automator si preferís un `.app` wrapper).
-- **Notarización Apple ausente.** Gatekeeper bloquea la primera apertura. Click derecho → Abrir, o firmá ad-hoc con `codesign --deep --sign - frontend/release/mac/Catodo.app`.
+- **Autostart no automático en builds desde fuente.** La instalación por Homebrew usa la app única; para builds desde fuente, agregá `./run-prod.sh` a Login Items o usá Automator.
+- **Notarización Apple ausente.** El build firma ad-hoc; si Gatekeeper bloquea la primera apertura, usá click derecho → Abrir o `xattr -dr com.apple.quarantine /Applications/Catodo.app`.
 
 ### Permisos TCC (cliclick/osascript)
 

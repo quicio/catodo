@@ -7,8 +7,8 @@ updated: 2026-11-10
 
 # Documentación
 
-Cátodo ya tiene su sistema de specs: **`openspec/`** (schema `spec-driven`, 21
-capacidades y 7 changes activos). Este directorio es el **envoltorio**: cómo
+Cátodo ya tiene su sistema de specs: **`openspec/`** (schema `spec-driven`, 32
+capacidades y 8 changes activos). Este directorio es el **envoltorio**: cómo
 entrar, qué está medido, qué decisiones están cerradas. No duplica specs.
 
 Orden de lectura para un agente nuevo:
@@ -41,8 +41,8 @@ Changes activos en `openspec/changes/`:
 
 ```
 add-system-tray-client   arcade-cartridge-ux   iptv-channel
-public-domain-tunnel     replicable-installation-and-config
-spotify-on-macos         theme-personalization
+m1-release-and-rust-foundation   public-domain-tunnel
+replicable-installation-and-config   spotify-on-macos   theme-personalization
 ```
 
 Para trabajar en una capacidad: leer su `spec.md`, y si el trabajo es grande
@@ -56,6 +56,8 @@ abrir un change (no editar la spec directamente sin pasar por change).
 | [0002](adr/0002-puertos-dev-y-prod.md) | Dos puertos: `:8765` dev, `:8767` prod | aceptada |
 | [0003](adr/0003-widevine-en-dev.md) | Widevine sólo con Electron castLabs en dev | aceptada |
 | [0004](adr/0004-openspec-como-fuente-de-verdad.md) | openspec es la fuente de verdad de specs | aceptada |
+| [0005](adr/0005-release-packaging.md) | Release con `VERSION` único, release-please, app macOS única y cask estático | aceptada |
+| [0006](adr/0006-rust-workspace-coexistence.md) | Workspace Rust `domain`/`platform`/`server` y Rust como camino principal | aceptada |
 
 ## Flujo
 

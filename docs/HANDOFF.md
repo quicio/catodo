@@ -21,15 +21,38 @@ Linux (`systemd/`, `install.sh`, AppImage).
 
 | métrica | valor | comando |
 |---|---|---|
-| tests backend | **193 pasan, 0 fallan** | `./scripts/check.sh` → `pytest` |
-| quality gate completo | **verde**, 109 s | `./scripts/check.sh` |
-| typecheck frontend | limpio (tsc 5.9.3 local) | `npx tsc --noEmit` |
-| backend | 53 archivos `.py`, 7.595 líneas | `find backend/catodo -name '*.py' \| xargs cat \| wc -l` |
+| tests backend | **201 pasan, 0 fallan** | `./scripts/check.sh` → `pytest` |
+| quality gate completo | **verde**, ~50 s | `./scripts/check.sh` |
+| typecheck frontend | limpio (tsc 5.9.3 local) | `npm run typecheck` |
+| Rust workspace | 3 crates, 6.212 líneas `.rs`, tests de contrato verdes | `./scripts/check-rust.sh` |
+| backend | 55 archivos `.py`, 7.695 líneas | `find backend/catodo -name '*.py' \| xargs cat \| wc -l` |
 | frontend | 39 archivos `.ts/.tsx`, 6.944 líneas | `find frontend/src …` |
 | tests backend | 30 archivos en `backend/tests/` | `ls backend/tests` |
-| specs | **21 capacidades** (32 `.md`) en `openspec/specs/` | `ls openspec/specs` |
-| changes activos | 7 en `openspec/changes/` | `ls openspec/changes \| grep -v archive` |
-| git | rama `main`, HEAD `697f9cf` | `git log -1` |
+| specs | 32 capacidades en `openspec/specs/` | `ls openspec/specs` |
+| changes activos | 8 en `openspec/changes/` | `ls openspec/changes \| grep -v archive` |
+| git | rama `main`, HEAD `d619494` + M1 sin commitear | `git log -1` |
+
+### M1–M5 — Release + backend Rust
+
+Implementado en el working tree:
+
+- `VERSION` único, `/api/version`, `catodo --version` y `scripts/check-version.sh`.
+- release-please, CI Linux/macOS, release pipeline, checksums y artefactos.
+- App macOS única con el backend Rust embebido (`release/backend-rust`, ~13 MB);
+  Electron lo lanza como sidecar y lo apaga al salir.
+- `run-dev.sh` y `run-prod.sh` usan Rust por defecto; Python queda como fallback
+  (`CATODO_DEV_BACKEND=python`).
+- Zip `Catodo-0.1.0-mac-arm64.zip` (~102 MB), source tarball (~4.5 MB).
+- Cask estático `catodo` para el tap existente `quicio/homebrew-tap`.
+- API Rust: config/state/WS, canales web, Spotify (AppleScript), media/anime,
+  arcade, plugins, libraries, modes, pair/QR, lyrics, wallpapers, tunnel, MQTT,
+  cast, voice, mouse, idle y volumen.
+- `rust/` con `catodo-domain`, `catodo-platform`, `catodo-server`, tests de
+  contrato y límites de capas.
+
+Pendiente de validación externa (no bloquea el código): agregar el cask estático
+al tap existente `quicio/homebrew-tap`, correr el workflow de release con un tag
+real, y probar `install.sh`/AppImage en un Linux limpio.
 
 ### Cómo se dejó el gate verde (en macOS)
 
@@ -43,7 +66,7 @@ Dos problemas de entorno, ninguno del producto, ya resueltos:
    Ahora resuelve el binario con `shutil.which("true")` — portable sin perder el
    sentido del test.
 
-Verificación: `./scripts/check.sh` → ruff limpio, **193 tests**, tsc limpio.
+Verificación: `./scripts/check.sh` → ruff limpio, **201 tests**, tsc limpio.
 
 ### Instalación en un clone nuevo
 
@@ -56,11 +79,15 @@ cd frontend && npm ci                 # crea node_modules (necesario para el gat
 ## Comandos
 
 ```bash
-./scripts/check.sh                 # gate: ruff + pytest + tsc (69 s)
+./scripts/check.sh                 # gate: ruff + pytest + tsc + version + Rust
+./scripts/check-rust.sh            # fmt + clippy + tests + límites de capas
+./scripts/check-version.sh         # VERSION vs manifests
 ./run-dev.sh                       # backend :8765 + Vite :1420 (HMR)
 ./run-prod.sh start                # backend :8767 + bundle estático
-cd backend && uv run python -m catodo
+cd rust && cargo run -p catodo-server      # backend Rust (default)
+cd backend && uv run python -m catodo     # backend Python (fallback dev)
 cd frontend && npm run electron:build:linux
+cd rust && CATODO_RS_PORT=8769 cargo run -p catodo-server   # backend Rust (M1)
 ```
 
 ## Puertos (no romper)
@@ -69,9 +96,11 @@ cd frontend && npm run electron:build:linux
 |---|---|---|---|
 | dev | `:8765` | Vite `:1420` | `./run-dev.sh` |
 | prod | `:8767` | bundle en `backend/static/` | `./run-prod.sh`, AppImage |
+| rust (M1) | `:8769` | — | `cd rust && cargo run -p catodo-server` |
+| app macOS | puerto libre | bundle embebido | cask `catodo` |
 
-Los dos pueden convivir: dev **no toca** el daemon de prod. La heurística de
-reciclado compara el start time del proceso contra el mtime de `themes.py`.
+Los modos pueden convivir: dev **no toca** el daemon de prod. La heurística de
+reciclado compara el start time del proceso contra el mtime de `rust/crates/catodo-server/src/main.rs`.
 
 ## Mapa de módulos
 
@@ -86,6 +115,10 @@ reciclado compara el start time del proceso contra el mtime de `themes.py`.
 | `backend/catodo/{media,lyrics,cast,arcade,boxart}.py` | servicios por dominio | no conocen React |
 | `frontend/src/` | UI: canales, temas, WebGL, cast | sin lógica de negocio de canales |
 | `frontend/electron/` | shell kiosko (ventana frameless, webview) | sin lógica de canales |
+| `frontend/electron/backend.cjs` | resolución de backend dev/fallback y utilidades del sidecar | no implementa canales |
+| `rust/` | backend Rust: domain, platform, server; release/dev/prod default | Python queda como fallback de desarrollo |
+| `packaging/` | cask de Homebrew y spec de PyInstaller | no se ejecuta en runtime |
+| `.github/workflows/` | CI, release-please y release | no define comportamiento de canales |
 | `openspec/` | **fuente de verdad** de specs y changes | no es documentación de arquitectura |
 
 ## Invariantes que no se rompen
@@ -108,7 +141,9 @@ reciclado compara el start time del proceso contra el mtime de `themes.py`.
 ## Cómo verificar sin ojos humanos
 
 ```bash
-./scripts/check.sh                       # lint + tests + typecheck (el gate)
+./scripts/check.sh                       # lint + tests + typecheck + version + Rust
+./scripts/check-rust.sh                  # fmt + clippy + tests + capas
+./scripts/check-version.sh               # VERSION vs manifests
 cd backend && uv run pytest -q backend/tests/test_api.py
 node scripts/verify-home-layout.mjs      # layouts de home
 node scripts/extract-icon-data.mjs       # iconos
@@ -123,7 +158,10 @@ navegador o Electron. Documentar cualquier atajo nuevo acá.
 |---|---|---|
 | Python 3.14 resuelto por uv | `openspec/config.yaml` declara 3.12 | fijar `requires-python` en `pyproject.toml` si importa |
 | specs en `openspec/`, no en `docs/specs/` | decisión, no deuda | `docs/` envuelve; no duplicar |
-| `ROADMAP.md` de raíz inexistente | el backlog real son los 7 changes de openspec | `docs/ROADMAP.md` mapea a openspec |
+| `ROADMAP.md` de raíz inexistente | el backlog real son los changes de openspec | `docs/ROADMAP.md` mapea a openspec |
+| tap Homebrew | `quicio/homebrew-tap` ya existe (Candil) | agregar `Casks/catodo.rb`; no requiere token |
+| Linux release autocontenido | `install.sh` + deps del sistema | llega en M4 con el backend Rust |
+| app macOS sin notarizar | cask incluye caveat de Gatekeeper | notarización en M2/M5 |
 
 ## Qué NO hacer
 
@@ -138,10 +176,15 @@ navegador o Electron. Documentar cualquier atajo nuevo acá.
   no el chequeo.
 - **No asumir rutas de Linux en tests nuevos**: si un test necesita un binario del
   sistema, se resuelve con `shutil.which(...)` (caso `test_arcade`).
+- **No volver a poner `productName: "Cátodo"`** (con acento): el ejecutable con
+  nombre no-ASCII crashea V8/Electron en macOS 26. Usar `Catodo.app` y
+  `CFBundleDisplayName: "Cátodo"`.
 
 ## Definición de terminado (por tarea)
 
 - [ ] `./scripts/check.sh` sin fallas nuevas (hoy 2 fallas conocidas por entorno).
+- [ ] Si tocó Rust: `./scripts/check-rust.sh` verde y límites de capas OK.
+- [ ] Si tocó versión/release: `./scripts/check-version.sh` verde.
 - [ ] Si tocó UI: verificado con `./run-dev.sh`.
 - [ ] Si tocó un canal: contrato `Channel` respetado y capability declarada.
 - [ ] Spec de openspec actualizada en el mismo commit (`openspec/specs/<cap>/spec.md`).
