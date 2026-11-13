@@ -476,6 +476,15 @@ compartís pantalla. El resto de la app (TV, remote, QR) sigue por HTTP sin camb
 Limitación: requiere un navegador que soporte `getDisplayMedia` (PC; los celulares Android/iOS
 no exponen captura de pantalla). El media va peer-to-peer; STUN público incluido, sin TURN.
 
+## Salir del kiosko
+
+La app corre en pantalla completa, sin menú de aplicación. Para cerrarla:
+
+- **⌘⇧Q** en macOS (`Ctrl+Shift+Q` en Linux) → pide confirmación y cierra el
+  kiosko junto con el backend embebido.
+- **Ajustes → General → Salir de Cátodo** (el botón hace lo mismo).
+- `Esc` sólo sale del canal activo y vuelve al Home; no cierra la app.
+
 ## Reposo / screensaver
 
 Cátodo detecta inactividad y se comporta como una TV: tras `idle_screensaver_seconds`

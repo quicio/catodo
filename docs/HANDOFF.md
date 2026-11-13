@@ -178,6 +178,7 @@ navegador o Electron. Documentar cualquier atajo nuevo acá.
 | tests arcade/boxart | flakearon en CI macOS (pasan local y en la corrida previa) | si reincide, aislar el `_scan`/watcher del timing del runner |
 | release-please | habilitado: la org ya permite que Actions cree PRs, y el PR de release se abre solo | el release que crea no dispara `release.yml` (eventos con `GITHUB_TOKEN` no encadenan workflows): correr `gh workflow run release.yml -f tag=vX.Y.Z` |
 | publish con `--clobber` | si el job falla a mitad, los assets ya borrados quedan faltando (pasó en `v0.1.1`: el workflow del tag todavía subía `release/*` y moría en `backend-rust/`) | el tag `v0.1.1` conserva esa versión vieja; no re-disparar releases viejos. Desde el fix sólo se suben archivos |
+| salida del kiosko | la ventana es `kiosk: true` + fullscreen y `win.setMenu(null)` deja la app sin ⌘Q; agregado ⌘⇧Q con confirmación + botón en Ajustes → General | no romper esos dos caminos al tocar el menú o el teclado |
 | tray client | `add-system-tray-client` tiene las tareas al 100% pero `clients/tray/` (Tauri) no se compila ni se distribuye | integrarlo al pipeline o archivar el change como descartado |
 | specs de apariencia | `theme-system` (modelo v1) se retiró al archivar `theme-personalization`; la capability vigente es `appearance` | no recrear `theme-system` |
 | `pygobject` en CI | pasó a extra `mpris` del backend Python; `uv sync` ya no lo compila en Ubuntu 22.04 | el fallback Linux usa `uv sync --extra mpris` |
