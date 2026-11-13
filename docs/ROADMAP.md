@@ -26,7 +26,7 @@ milestones y el criterio de salida de cada uno.
 | Prioridad | Tema | Detalle |
 |---|---|---|
 | 1 | Validación Linux | `install.sh --check`, idempotencia con systemd y AppImage (con Widevine) en una máquina limpia |
-| 2 | Canal IPTV | Único feature net-new; el change está escrito para Python y debe replantearse para `catodo-server` |
+| 2 | Canal IPTV | Implementado en Rust (parser, zapping, proxy ffmpeg); falta validarlo con una playlist real |
 | 3 | Releases sin pasos manuales | El release de release-please no encadena `release.yml` (`GITHUB_TOKEN`); resolver con PAT o `workflow_run` |
 | 4 | Notarización Apple / auto-update | Requiere Developer ID; hoy se compensa con el `xattr` del cask |
 | 5 | VMP de producción (EVS) | La firma de ECS es de desarrollo; sólo hace falta si un proveedor la rechaza |
