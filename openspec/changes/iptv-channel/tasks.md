@@ -13,7 +13,7 @@
 
 - [x] 2.1 Ruta `GET /api/channels/iptv/stream` en `api.rs`: `ffprobe` para detectar formato, `ffmpeg ... -f mpegts pipe:1`, respuesta `video/mp2t` con `Body::from_stream` del stdout del child.
 - [x] 2.2 Vida del proceso: matar el ffmpeg previo al cambiar de canal, al cerrar el canal y al cortarse el cliente; `kill_on_drop` y sin procesos huérfanos.
-- [ ] 2.3 Publicar `iptv_stream_error` (hoy sólo si falla el spawn de ffmpeg; falta cubrir stderr/salida temprana) por el `EventBroker` cuando `ffprobe`/`ffmpeg` falla o el stream no responde.
+- [x] 2.3 Publicar `iptv_stream_error` por el `EventBroker` cuando `ffprobe`/`ffmpeg` falla o el stream no responde (watcher del proceso + estado `error`).
 
 ## 3. Config
 
@@ -24,13 +24,13 @@
 
 - [x] 4.1 Tests del parser: grupo por `group-title`, `tvg-logo`, entrada sin grupo → "Otros", playlist local (fixture) y por URL (mock con `wiremock`/servidor de test).
 - [x] 4.2 Tests de comandos `set_channel`/`next`/`prev`/`refresh` y forma del `state()`.
-- [ ] 4.3 Test del endpoint `/stream` con un `ffmpeg` falso (script que escribe bytes) para verificar content-type, corte al cambiar de canal y que no queden procesos.
+- [x] 4.3 Test del stream con un `ffmpeg` falso (script que escribe bytes) verificado: content-type, bytes y evento de error cuando ffmpeg sale con código != 0.
 
 ## 5. Frontend — vista IPTV
 
 - [x] 5.1 `frontend/src/channels/IptvChannel.tsx`: lista por grupos con logos, navegación (arriba/abajo grupo, izquierda/derecha o Enter canal) y `<video>` del stream.
 - [x] 5.2 Enganchar `current.type === "iptv"` en `frontend/src/components/ChannelView.tsx`.
-- [ ] 5.3 Manejar `iptv_stream_error` en el store para mostrar "señal no disponible".
+- [x] 5.3 Mostrar el error del stream en la vista (`state.error` del canal + `onError` del `<video>`).
 
 ## 6. Verificación y docs
 

@@ -21,6 +21,7 @@ interface IptvState {
   groups: IptvGroup[];
   current: IptvEntry | null;
   count: number;
+  error?: string | null;
 }
 
 /**
@@ -32,7 +33,7 @@ interface IptvState {
 export default function IptvChannel() {
   const [data, setData] = useState<IptvState | null>(null);
   const [groupIdx, setGroupIdx] = useState(0);
-  const [error, setError] = useState<string | null>(null);
+  const [cmdError, setCmdError] = useState<string | null>(null);
   const groupIdxRef = useRef(0);
 
   const load = useCallback(async () => {
@@ -42,7 +43,7 @@ export default function IptvChannel() {
       const next = (await response.json()) as IptvState;
       setData(next);
     } catch {
-      setError("no se pudo leer la lista");
+      setCmdError("no se pudo leer la lista");
     }
   }, []);
 
@@ -62,7 +63,7 @@ export default function IptvChannel() {
 
   const select = useCallback(
     async (entry: IptvEntry) => {
-      setError(null);
+      setCmdError(null);
       try {
         await fetch(`/api/channels/${CHANNEL}/command`, {
           method: "POST",
@@ -71,7 +72,7 @@ export default function IptvChannel() {
         });
         await load();
       } catch {
-        setError("no se pudo cambiar de canal");
+        setCmdError("no se pudo cambiar de canal");
       }
     },
     [load],
@@ -79,7 +80,7 @@ export default function IptvChannel() {
 
   const zap = useCallback(
     async (direction: "next" | "prev") => {
-      setError(null);
+      setCmdError(null);
       try {
         await fetch(`/api/channels/${CHANNEL}/command`, {
           method: "POST",
@@ -88,7 +89,7 @@ export default function IptvChannel() {
         });
         await load();
       } catch {
-        setError("no se pudo cambiar de canal");
+        setCmdError("no se pudo cambiar de canal");
       }
     },
     [load],
@@ -203,12 +204,14 @@ export default function IptvChannel() {
               playsInline
               controls={false}
               style={{ width: "100%", height: "100%", objectFit: "contain", background: "#000" }}
-              onError={() => setError("señal no disponible")}
+              onError={() => setCmdError("señal no disponible")}
             />
           ) : (
             <div style={placeholderStyle}>Elegí un canal para empezar</div>
           )}
-          {error && <div style={errorStyle}>{error}</div>}
+          {(cmdError || data?.error) && (
+            <div style={errorStyle}>{cmdError || data?.error}</div>
+          )}
         </div>
       </div>
 

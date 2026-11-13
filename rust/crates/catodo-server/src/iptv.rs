@@ -1,6 +1,8 @@
 //! IPTV channel: M3U/M3U8 playlist + live ffmpeg proxy.
 
 use std::process::Stdio;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
@@ -126,11 +128,11 @@ fn header_block(headers: &Map<String, Value>) -> Option<String> {
 }
 
 /// Detecta si la fuente es HLS (se puede re-encapsular con `-c copy`).
-async fn detect_hls(url: &str, headers: &Option<String>) -> bool {
+async fn detect_hls(ffprobe: &str, url: &str, headers: &Option<String>) -> bool {
     if url.contains(".m3u8") {
         return true;
     }
-    let mut cmd = Command::new("ffprobe");
+    let mut cmd = Command::new(ffprobe);
     cmd.args([
         "-v",
         "error",
@@ -178,7 +180,12 @@ pub struct IptvChannel {
     broker: EventBroker,
     cache: RwLock<Option<(Instant, Vec<Entry>)>>,
     current: RwLock<Option<Entry>>,
-    child: Mutex<Option<Child>>,
+    child: Arc<Mutex<Option<Child>>>,
+    /// Identifica el stream vigente: un watcher sólo reporta error si sigue vivo.
+    stream_seq: Arc<AtomicU64>,
+    last_error: Arc<RwLock<Option<String>>>,
+    ffmpeg: String,
+    ffprobe: String,
 }
 
 impl IptvChannel {
@@ -188,8 +195,19 @@ impl IptvChannel {
             broker,
             cache: RwLock::new(None),
             current: RwLock::new(None),
-            child: Mutex::new(None),
+            child: Arc::new(Mutex::new(None)),
+            stream_seq: Arc::new(AtomicU64::new(0)),
+            last_error: Arc::new(RwLock::new(None)),
+            ffmpeg: "ffmpeg".to_string(),
+            ffprobe: "ffprobe".to_string(),
         }
+    }
+
+    /// Permite apuntar a binarios alternativos (tests con scripts falsos).
+    pub fn with_binaries(mut self, ffmpeg: impl Into<String>, ffprobe: impl Into<String>) -> Self {
+        self.ffmpeg = ffmpeg.into();
+        self.ffprobe = ffprobe.into();
+        self
     }
 
     async fn playlist_source(&self) -> String {
@@ -256,6 +274,7 @@ impl IptvChannel {
     }
 
     async fn kill_child(&self) {
+        self.stream_seq.fetch_add(1, Ordering::SeqCst);
         if let Some(mut child) = self.child.lock().await.take() {
             let _ = child.start_kill();
         }
@@ -267,6 +286,7 @@ impl IptvChannel {
             anyhow::bail!("canal IPTV desconocido: {id}");
         };
         self.kill_child().await;
+        *self.last_error.write().await = None;
         *self.current.write().await = Some(entry);
         Ok(())
     }
@@ -277,6 +297,7 @@ impl IptvChannel {
         let next = step_in_group(&entries, current.as_ref(), delta).cloned();
         if let Some(entry) = next {
             self.kill_child().await;
+            *self.last_error.write().await = None;
             *self.current.write().await = Some(entry);
         }
         Ok(())
@@ -285,11 +306,47 @@ impl IptvChannel {
     async fn stream_error(&self, detail: impl Into<String>) {
         let detail = detail.into();
         tracing::warn!(%detail, "iptv stream error");
+        *self.last_error.write().await = Some(detail.clone());
         self.broker.publish(json!({
             "event": "iptv_stream_error",
             "channel_id": CHANNEL_ID,
             "error": detail,
         }));
+    }
+
+    /// Vigila el proceso del stream y reporta una salida anormal.
+    fn watch_child(&self, seq: u64) {
+        let child = self.child.clone();
+        let stream_seq = self.stream_seq.clone();
+        let last_error = self.last_error.clone();
+        let broker = self.broker.clone();
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(Duration::from_millis(500)).await;
+                let mut guard = child.lock().await;
+                let Some(process) = guard.as_mut() else {
+                    return;
+                };
+                match process.try_wait() {
+                    Ok(Some(status)) => {
+                        *guard = None;
+                        drop(guard);
+                        if !status.success() && stream_seq.load(Ordering::SeqCst) == seq {
+                            let detail = format!("ffmpeg terminó con {status}");
+                            *last_error.write().await = Some(detail.clone());
+                            broker.publish(json!({
+                                "event": "iptv_stream_error",
+                                "channel_id": CHANNEL_ID,
+                                "error": detail,
+                            }));
+                        }
+                        return;
+                    }
+                    Ok(None) => {}
+                    Err(_) => return,
+                }
+            }
+        });
     }
 }
 
@@ -309,6 +366,7 @@ impl Channel for IptvChannel {
 
     async fn close(&self) -> anyhow::Result<()> {
         self.kill_child().await;
+        *self.last_error.write().await = None;
         *self.current.write().await = None;
         Ok(())
     }
@@ -331,12 +389,14 @@ impl Channel for IptvChannel {
             .clone()
             .map(|entry| entry_json(&entry));
         let configured = !self.playlist_source().await.is_empty();
+        let error = self.last_error.read().await.clone();
         Ok(json!({
             "id": CHANNEL_ID,
             "configured": configured,
             "groups": groups,
             "current": current,
             "count": entries.len(),
+            "error": error,
         }))
     }
 
@@ -366,10 +426,11 @@ impl Channel for IptvChannel {
     async fn live_stream(&self) -> Option<LiveStream> {
         let entry = self.current.read().await.clone()?;
         let headers = self.headers().await;
-        let hls = detect_hls(&entry.url, &headers).await;
+        let hls = detect_hls(&self.ffprobe, &entry.url, &headers).await;
         let args = ffmpeg_args(&entry.url, &headers, hls);
         self.kill_child().await;
-        let mut command = Command::new("ffmpeg");
+        let seq = self.stream_seq.load(Ordering::SeqCst);
+        let mut command = Command::new(&self.ffmpeg);
         command
             .args(&args)
             .stdin(Stdio::null())
@@ -380,6 +441,7 @@ impl Channel for IptvChannel {
             Ok(mut child) => {
                 let stdout = child.stdout.take();
                 *self.child.lock().await = Some(child);
+                self.watch_child(seq);
                 stdout.map(|stdout| LiveStream {
                     content_type: "video/mp2t".to_string(),
                     stdout,
@@ -459,6 +521,99 @@ https://stream/tres.ts
         let prev = step_in_group(&entries, Some(first), -1).unwrap();
         assert_eq!(prev.name, "Canal Dos");
         assert!(step_in_group(&entries, None, 1).is_none());
+    }
+
+    #[tokio::test]
+    async fn streams_stdout_from_the_configured_binary() {
+        let dir = std::env::temp_dir().join(format!("catodo-iptv-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let playlist = dir.join("lista.m3u");
+        std::fs::write(
+            &playlist,
+            "#EXTM3U\n#EXTINF:-1 group-title=\"Test\",Canal\nhttp://example/stream.ts\n",
+        )
+        .unwrap();
+
+        let ffmpeg = dir.join("ffmpeg-fake");
+        std::fs::write(&ffmpeg, "#!/bin/sh\nprintf 'FAKETS'\n").unwrap();
+        let ffprobe = dir.join("ffprobe-fake");
+        std::fs::write(&ffprobe, "#!/bin/sh\necho mpegts\n").unwrap();
+        for bin in [&ffmpeg, &ffprobe] {
+            let mut perms = std::fs::metadata(bin).unwrap().permissions();
+            std::os::unix::fs::PermissionsExt::set_mode(&mut perms, 0o755);
+            std::fs::set_permissions(bin, perms).unwrap();
+        }
+
+        let config = RuntimeConfig::new(&dir);
+        config
+            .set("iptv_playlist", json!(playlist.to_str().unwrap()))
+            .await
+            .unwrap();
+        let channel = IptvChannel::new(config, EventBroker::new())
+            .with_binaries(ffmpeg.to_str().unwrap(), ffprobe.to_str().unwrap());
+
+        let mut args = Map::new();
+        args.insert("channel".to_string(), json!("ch-0"));
+        channel.command("set_channel", args).await.unwrap();
+
+        let live = channel.live_stream().await.expect("live stream");
+        assert_eq!(live.content_type, "video/mp2t");
+        let mut stdout = live.stdout;
+        let mut buf = Vec::new();
+        tokio::io::AsyncReadExt::read_to_end(&mut stdout, &mut buf)
+            .await
+            .unwrap();
+        assert_eq!(String::from_utf8_lossy(&buf), "FAKETS");
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[tokio::test]
+    async fn reports_early_ffmpeg_exit() {
+        let dir = std::env::temp_dir().join(format!("catodo-iptv-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let playlist = dir.join("lista.m3u");
+        std::fs::write(
+            &playlist,
+            "#EXTM3U\n#EXTINF:-1,Canal\nhttp://example/stream.ts\n",
+        )
+        .unwrap();
+
+        let ffmpeg = dir.join("ffmpeg-fake");
+        std::fs::write(&ffmpeg, "#!/bin/sh\nexit 3\n").unwrap();
+        let ffprobe = dir.join("ffprobe-fake");
+        std::fs::write(&ffprobe, "#!/bin/sh\necho mpegts\n").unwrap();
+        for bin in [&ffmpeg, &ffprobe] {
+            let mut perms = std::fs::metadata(bin).unwrap().permissions();
+            std::os::unix::fs::PermissionsExt::set_mode(&mut perms, 0o755);
+            std::fs::set_permissions(bin, perms).unwrap();
+        }
+
+        let config = RuntimeConfig::new(&dir);
+        config
+            .set("iptv_playlist", json!(playlist.to_str().unwrap()))
+            .await
+            .unwrap();
+        let broker = EventBroker::new();
+        let mut events = broker.subscribe();
+        let channel = IptvChannel::new(config, broker)
+            .with_binaries(ffmpeg.to_str().unwrap(), ffprobe.to_str().unwrap());
+        let mut args = Map::new();
+        args.insert("channel".to_string(), json!("ch-0"));
+        channel.command("set_channel", args).await.unwrap();
+        let _live = channel.live_stream().await;
+
+        let event = tokio::time::timeout(Duration::from_secs(3), events.recv())
+            .await
+            .expect("evento de error")
+            .unwrap();
+        assert_eq!(event["event"], "iptv_stream_error");
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        let state = channel.state().await.unwrap();
+        assert!(state["error"].as_str().is_some());
+
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
