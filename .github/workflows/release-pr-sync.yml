@@ -11,8 +11,7 @@ permissions:
 jobs:
   sync-lockfiles:
     if: >
-      contains(github.event.pull_request.labels.*.name, 'autorelease: pending') &&
-      github.actor != 'github-actions[bot]'
+      contains(github.event.pull_request.labels.*.name, 'autorelease: pending')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout release PR branch
@@ -27,6 +26,10 @@ jobs:
         with:
           node-version: "20"
 
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
@@ -35,12 +38,12 @@ jobs:
 
       - name: Commit lockfile changes
         run: |
-          if git diff --quiet -- frontend/package-lock.json rust/Cargo.lock clients/tray/Cargo.lock; then
+          if git diff --quiet -- frontend/package-lock.json backend/uv.lock rust/Cargo.lock clients/tray/Cargo.lock; then
             echo "Lockfiles already in sync"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add frontend/package-lock.json rust/Cargo.lock clients/tray/Cargo.lock
+          git add frontend/package-lock.json backend/uv.lock rust/Cargo.lock clients/tray/Cargo.lock
           git commit -m "chore: sync lockfiles for release"
           git push

@@ -9,7 +9,9 @@ if python3 -c 'import tomllib' >/dev/null 2>&1; then
     PYTHON=(python3)
 elif command -v uv >/dev/null 2>&1; then
     # --project (no --directory): el snippet asume que el cwd es la raíz del repo.
-    PYTHON=(uv run --project "$ROOT/backend" python)
+    # --no-sync: `uv run` sincroniza el proyecto y reescribe uv.lock, así que sin
+    # esto el chequeo validaría el lock recién regenerado en vez del commiteado.
+    PYTHON=(uv run --no-sync --project "$ROOT/backend" python)
 else
     echo "Se necesita Python 3.11+ (tomllib) o uv para verificar versiones" >&2
     exit 1
