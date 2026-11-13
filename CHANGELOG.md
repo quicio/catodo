@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/quicio/catodo/compare/v0.4.0...v0.4.1) (2026-11-13)
+
+
+### Bug Fixes
+
+* **iptv:** servir fMP4 fragmentado para que Chromium reproduzca ([e9c217d](https://github.com/quicio/catodo/commit/e9c217d691648e5d2d0b5c6baeba1d705fe065c9))
+
 ## [0.4.0](https://github.com/quicio/catodo/compare/v0.3.0...v0.4.0) (2026-11-13)
 
 
