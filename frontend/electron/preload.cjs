@@ -6,4 +6,5 @@ contextBridge.exposeInMainWorld("catodo", {
   insertText: (text) => ipcRenderer.send("insert-text", text),
   setActiveChannel: (channelId) => ipcRenderer.send("set-active-channel", channelId),
   retryBackend: () => ipcRenderer.send("retry-backend"),
+  requestQuit: () => ipcRenderer.send("request-quit"),
 });

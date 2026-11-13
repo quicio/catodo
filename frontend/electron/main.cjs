@@ -1,4 +1,4 @@
-const { app, BrowserWindow, screen, ipcMain, session, components } = require("electron");
+const { app, BrowserWindow, screen, ipcMain, session, components, dialog } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const http = require("http");
@@ -471,6 +471,44 @@ function createWindow() {
     }
   });
 }
+
+// Salida del kiosko: botón de Ajustes y atajo ⌘⇧Q (Ctrl+Shift+Q fuera de macOS).
+// Sin menú de aplicación (win.setMenu(null)) ⌘Q no está disponible, así que sin
+// esto la app fullscreen no tiene una forma visible de cerrarse.
+let quitDialogOpen = false;
+
+async function confirmQuit(win) {
+  if (quitDialogOpen) return;
+  quitDialogOpen = true;
+  try {
+    const target = win && !win.isDestroyed() ? win : BrowserWindow.getFocusedWindow();
+    const { response } = await dialog.showMessageBox(target, {
+      type: "question",
+      buttons: ["Cancelar", "Salir"],
+      defaultId: 0,
+      cancelId: 0,
+      message: "Salir de Cátodo",
+      detail: "Se cierra el kiosko y el backend embebido.",
+    });
+    if (response === 1) app.quit();
+  } finally {
+    quitDialogOpen = false;
+  }
+}
+
+ipcMain.on("request-quit", (event) => {
+  confirmQuit(BrowserWindow.fromWebContents(event.sender));
+});
+
+app.on("web-contents-created", (_event, contents) => {
+  contents.on("before-input-event", (event, input) => {
+    const accel = process.platform === "darwin" ? input.meta : input.control;
+    if (accel && input.shift && String(input.key).toLowerCase() === "q") {
+      event.preventDefault();
+      confirmQuit(BrowserWindow.getFocusedWindow());
+    }
+  });
+});
 
 ipcMain.on("retry-backend", (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);

@@ -335,6 +335,15 @@ export default function AppearanceSettings({
             <Icon name="smartphone" size={18} color="var(--text-dim)" />
             Conectar teléfono
           </button>
+          <div style={sectionLabel}>SESIÓN</div>
+          <button
+            type="button"
+            onClick={() => window.catodo?.requestQuit?.()}
+            style={{ ...rowStyle, color: "var(--danger)" }}
+          >
+            <Icon name="x" size={18} color="var(--danger)" />
+            Salir de Cátodo
+          </button>
           <div style={{ height: 6 }} />
         </>
       )}
