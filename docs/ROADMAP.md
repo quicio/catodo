@@ -1,8 +1,8 @@
 ---
 id: roadmap
 status: vigente
-version: 2.0.0
-updated: 2026-11-10
+version: 2.1.0
+updated: 2026-11-12
 ---
 
 # Roadmap — Cátodo
@@ -15,51 +15,44 @@ milestones y el criterio de salida de cada uno.
 | # | Fase | Estado | Criterio de salida |
 |---|---|---|---|
 | M0 | Base: 5 canales + kiosko | hecho | `./scripts/check.sh` verde en Linux; canales 1–5 abren y cambian con hotkeys |
-| M1 | Release/instalación + walking skeleton Rust | hecho (local) | release `vX.Y.Z` con app única y cask estático; workspace Rust con health/version y CI verde |
+| M1 | Release/instalación + walking skeleton Rust | hecho | release `v0.1.1` publicado con checksums; cask estático en el tap e instalación verificada en macOS arm64 |
 | M2 | Paridad dominio/plataforma Rust | hecho | config/store/events + `/api/config`, `/api/state`, `/api/ws` con tests de contrato |
-| M3 | Channels y plugins en Rust | hecho (macOS) | `/api/channels`, plugins web, Spotify AppleScript, media/anime y arcade; MPRIS Linux pendiente |
-| M4 | Paridad de API y sidecar Rust | hecho (macOS) | el `.app` usa el binario Rust; API de servicios portada; AppImage Linux pendiente de validación |
+| M3 | Channels y plugins en Rust | hecho | `/api/channels`, plugins web, Spotify (AppleScript en macOS, `playerctl` en Linux), media/anime y arcade |
+| M4 | Paridad de API y sidecar Rust | hecho (macOS) | el `.app` y el AppImage usan el binario Rust; falta validar el AppImage en Linux limpio |
 | M5 | Cutover y limpieza | en curso | release/dev/prod usan Rust; Python queda como fallback de desarrollo |
 
-## M1 — Release + Rust foundation
+## Deuda de producto (lo que falta para uso diario)
 
-Change: `openspec/changes/m1-release-and-rust-foundation/`.
-
-Entra:
-
-- `VERSION` único, release-please, CI Linux/macOS y release pipeline con checksums.
-- Cask estático `catodo` en el tap existente `quicio/homebrew-tap`; sin formula ni token.
-- App macOS única con el backend embebido (PyInstaller transitorio); Linux con `install.sh` + systemd.
-- La app empaquetada lanza el sidecar; Linux sin backend embebido hace fallback a `:8767`/`:8765`.
-- Workspace `rust/` con `catodo-domain`, `catodo-platform`, `catodo-server`
-  (health/version en `:8769`), tests de contrato y límites de capas.
-
-No entra: cutover a Rust, bundle Linux autocontenido, notarización Apple,
-auto-update, Windows o Linux arm64.
+| Prioridad | Tema | Detalle |
+|---|---|---|
+| 1 | DRM/Widevine empaquetado | El `.app` y el AppImage usan Electron stock: TV (Movistar) y HBO Max sólo reproducen en dev con castLabs |
+| 2 | Validación Linux | `install.sh --check`, idempotencia con systemd y AppImage en una máquina limpia |
+| 3 | Canal IPTV | Único feature net-new; el change está escrito para Python y debe replantearse para `catodo-server` |
+| 4 | Releases sin pasos manuales | El release de release-please no encadena `release.yml` (`GITHUB_TOKEN`); resolver con PAT o `workflow_run` |
+| 5 | Notarización Apple / auto-update | Requiere Developer ID; hoy se compensa con el `xattr` del cask |
 
 ## Changes abiertos
 
-| change | qué resuelve |
-|---|---|
-| `add-system-tray-client` | cliente de bandeja para controlar Cátodo desde el escritorio |
-| `arcade-cartridge-ux` | UX de cartuchos del launcher arcade |
-| `iptv-channel` | canal IPTV genérico |
-| `m1-release-and-rust-foundation` | release/instalación + esqueleto Rust |
-| `public-domain-tunnel` | túnel para contenido de dominio público |
-| `replicable-installation-and-config` | instalación y configuración reproducibles |
-| `spotify-on-macos` | Ch1 Spotify en macOS (AppleScript) — ya mergeado en parte |
-| `theme-personalization` | personalización granular de temas |
+| change | estado | qué falta |
+|---|---|---|
+| `m1-release-and-rust-foundation` | 56/65 | validaciones externas en Linux y cierre (`9.7`) |
+| `public-domain-tunnel` | 61/64 | pruebas manuales con Cloudflare real, PWA installable y VM limpia |
+| `iptv-channel` | 0/15 | todo; reescribir el plan para el backend Rust |
+| `add-system-tray-client` | tareas 100% | el tray no se empaqueta ni se distribuye: decidir integrarlo al pipeline o descartar el change |
 
-Criterio de cierre de cualquier change: `./scripts/check.sh` sin fallas nuevas,
-spec de la capacidad actualizada y comportamiento verificable en `./run-dev.sh`
-(o en el release si toca empaquetado).
+Changes archivados el 2026-11-12 (specs sincronizadas): `spotify-on-macos`,
+`replicable-installation-and-config`, `arcade-cartridge-ux` y
+`theme-personalization` (que retiró `theme-system` en favor de `appearance`).
 
 ## Orden de ataque
 
-1. Cerrar la validación externa de M1: cask en el tap, release de prueba en una
-   rama y `install.sh` en un Linux limpio.
-2. M2: portar config/store/events y el WebSocket manteniendo Python como oráculo.
-3. M3: channels/plugins y un canal nativo.
-4. M4/M5: paridad total, bundle Rust y retiro de Python.
+1. **DRM empaquetado**: es la diferencia entre demo y producto (2 de 8 canales no
+   funcionan en la app instalada).
+2. **Validación Linux**: `install.sh`, systemd y AppImage en limpio.
+3. **IPTV** en Rust: parser M3U, proxy `ffmpeg` y vista con zapping.
+4. **Releases automáticos** (PAT o `workflow_run`) y notarización cuando haya
+   Apple Developer ID.
+5. **Decisión del tray client**: integrar y empaquetar, o archivar el change como
+   descartado.
 
 Regla: **una change de openspec, un milestone, un commit lógico**.
