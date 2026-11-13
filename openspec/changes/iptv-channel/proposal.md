@@ -21,9 +21,9 @@ El canal TV actual es un webview (Movistar), pero no hay forma de ver **canales 
 
 ## Impact
 
-- **Backend**: nuevo `catodo/iptv.py` con `IptvChannel` (parseo M3U, estado con grupos/canales, comando `set_channel`/`next`/`prev`/`refresh`) + endpoint `/stream` que sirve el proxy ffmpeg. Se registra en `build_default_registry()`.
-- **Config**: claves `iptv_playlist` (ruta o URL) en `runtime_config`.
-- **Frontend**: nueva vista `IptvView.tsx` (lista por grupos + zapping) y routing por tipo `iptv`.
+- **Backend**: nuevo `rust/crates/catodo-server/src/iptv.rs` con `IptvChannel` (parseo M3U, estado con grupos/canales, comandos `set_channel`/`next`/`prev`/`refresh`) + ruta `/api/channels/iptv/stream` que sirve el proxy ffmpeg como pipe vivo. Se registra en `build_default_channels()`.
+- **Config**: claves `iptv_playlist` (ruta o URL) e `iptv_headers` (headers opcionales) en `config.rs`.
+- **Frontend**: nueva vista `IptvChannel.tsx` (lista por grupos + zapping) y rama `type === "iptv"` en `ChannelView.tsx`.
 - **Otros**: tests backend (parseo M3U, resolución de stream, comandos), README.
 
 ## Non-goals

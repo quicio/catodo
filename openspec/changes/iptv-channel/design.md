@@ -1,6 +1,12 @@
 ## Context
 
-Cátodo ya tiene: `MediaChannel` (backend streamea archivos locales con range → `<video>` en el frontend), un canal TV webview, y `ffmpeg`/`ffprobe` instalados en el sistema. El canal IPTV reusa el patrón de streaming del canal media pero con fuente remota (HLS/TS/MP4) vía proxy ffmpeg.
+Cátodo ya tiene: `MediaChannel` (el backend Rust sirve archivos locales con range →
+`<video>` en el frontend), un canal TV webview, y `ffmpeg`/`ffprobe` disponibles en
+el sistema. El canal IPTV reusa ese patrón de streaming, pero con fuente remota
+(HLS/TS/MP4) vía proxy ffmpeg.
+
+El backend de release es Rust (`catodo-server`), así que el canal se implementa
+como un `impl Channel` más, no en el backend Python legacy.
 
 ## Goals / Non-Goals
 
@@ -14,27 +20,73 @@ Cátodo ya tiene: `MediaChannel` (backend streamea archivos locales con range �
 
 ## Decisions
 
-### 1. `IptvChannel` en `catodo/iptv.py`
-Un solo canal `iptv` (order después de TV). Parseo M3U con un parser dedicado:
-`#EXTINF:-1 tvg-logo="..." group-title="..." ,Nombre` + línea de URL. `state()` devuelve `groups: [{name, channels: [{id, name, logo}]}]` y `current`. TTL de la lista (60s) para no re-leer en cada zap.
+### 1. `IptvChannel` en `rust/crates/catodo-server/src/iptv.rs`
+
+Un `impl Channel` con `info() → ChannelInfo::new("iptv", "IPTV", "iptv")`, order
+después de TV, registrado en `build_default_channels()` (`channels.rs`) junto a
+`ArcadeChannel` y los media channels.
+
+Parseo M3U con un parser dedicado (línea a línea):
+`#EXTINF:-1 tvg-logo="..." group-title="..." ,Nombre` + la URL de la línea
+siguiente. `state()` devuelve
+`groups: [{name, channels: [{id, name, logo}]}]` y `current`.
+
+TTL de 60 s sobre la lista para no releer/re-descargar en cada zap; el comando
+`refresh` la invalida.
 
 ### 2. Fuente configurable
-`iptv_playlist` en `runtime_config` (ruta local o URL). `load_playlist()`: si es `http(s)://` descarga con `urllib` (timeout, user-agent), si no, lee el archivo. El `refresh` force recarga.
 
-### 3. Proxy ffmpeg en `/stream`
-Endpoint `GET /api/channels/iptv/stream?channel=<id>` (tipo `SupportsStream`-like, pero por id de canal). Estrategia por formato:
-- Si `ffprobe` reporta `m3u8`/HLS → `ffmpeg -i <url> -c copy -f mpegts pipe:1` (re-encapsulado, sin transcode).
-- Otros (TS crudo, MP4 no soportado) → `ffmpeg -i <url> -c:v libx264 -preset veryfast -c:a aac -f mpegts pipe:1` (transcode).
-Se sirve como `video/mp2t` y el `<video>` del frontend lo reproduce. El proceso vive mientras el cliente lee el stream; se mata al cambiar de canal (`set_channel`/`next`/`prev` matan el proceso previo).
+Claves nuevas en `config.rs` (`KEYS` + default de `RuntimeConfig`):
+
+- `iptv_playlist` (vacío = canal sin lista; env `CATODO_IPTV_PLAYLIST`).
+- `iptv_headers` (objeto opcional `{ "User-Agent": "...", "Referer": "..." }`).
+
+`load_playlist()`: si el valor es `http(s)://` se descarga con `reqwest`
+(timeout de 10 s, headers de `iptv_headers`); si no, se lee como archivo local.
+
+### 3. Proxy ffmpeg en un endpoint propio
+
+El trait `Channel::current_stream()` devuelve un `PathBuf` y la ruta
+`/api/channels/{id}/stream` sirve archivos con Range; IPTV necesita un pipe vivo,
+así que va por una ruta dedicada en `api.rs`:
+
+`GET /api/channels/iptv/stream` → `Body::from_stream(stdout del child)` con
+`content-type: video/mp2t`. Estrategia por formato (según `ffprobe`):
+
+- HLS (`m3u8`) → `ffmpeg -i <url> -c copy -f mpegts pipe:1` (re-encapsulado).
+- Otros (TS crudo, MP4 no soportado por el navegador) → transcode
+  `-c:v libx264 -preset veryfast -c:a aac -f mpegts pipe:1`.
+
+El proceso vive mientras el cliente lee; `set_channel`/`next`/`prev`/`close`
+matan el proceso anterior (`kill_on_drop` + `Child::kill` explícito) para no
+dejar streams huérfanos.
 
 ### 4. Zapping en el frontend
-Nueva vista `IptvView.tsx` (tipo `iptv`): lista por grupos (flechas arriba/abajo cambian grupo, izquierda/derecha o Enter cambian canal), logo o placeholder, y un `<video src="/api/channels/iptv/stream?channel=<id>">`. Al cambiar de canal se re-set `src`. Estado/eventos vienen del store (WS) + comando `set_channel`/`next`/`prev`/`refresh`.
+
+Vista nueva `src/channels/IptvChannel.tsx`, enganchada en
+`src/components/ChannelView.tsx` con `current.type === "iptv"` (mismo lugar donde
+hoy se resuelven `app`, `cast` y `launcher`). Lista por grupos:
+
+- `ArrowUp`/`ArrowDown` cambian de grupo.
+- `ArrowLeft`/`ArrowRight` o `Enter` cambian de canal.
+- `<video src="/api/channels/iptv/stream">`; al cambiar de canal se re-setea el
+  `src` (el backend mata el ffmpeg anterior).
+
+El estado y los eventos llegan por el WS existente; las acciones van por el
+comando del canal (`set_channel`, `next`, `prev`, `refresh`).
 
 ### 5. Fallos
-Si `ffprobe`/`ffmpeg` falla o el stream no responde, se publica `iptv_stream_error {channel}` y la UI muestra "señal no disponible" sin romper el zapping.
+
+Si `ffprobe`/`ffmpeg` falla o el stream no responde, se publica
+`iptv_stream_error {channel}` por el `EventBroker` y la UI muestra "señal no
+disponible" sin romper el zapping.
 
 ## Risks / Trade-offs
 
-- **Transcode consume CPU** → solo para formatos que el navegador no toca; HLS se re-encapsula con `-c copy`. Documentado.
-- **URLs con headers/referer exigidos por el proveedor** → muchos streams gratis los piden; se agrega una clave opcional `iptv_headers` para mandarlos en el proxy. Best-effort.
-- **Playlist remota grande** → TTL de 60s evita re-descargas; el parseo es streaming línea a línea.
+- **Transcode consume CPU** → sólo para formatos que el navegador no reproduce;
+  HLS se re-encapsula con `-c copy`. Documentado.
+- **URLs con headers/referer exigidos por el proveedor** → `iptv_headers`
+  opcional, best-effort.
+- **Playlist remota grande** → TTL de 60 s y parseo streaming línea a línea.
+- **Windows**: el kill de procesos y el pipe de ffmpeg necesitan cuidado extra;
+  el target de release hoy es macOS arm64 + Linux x86_64.
