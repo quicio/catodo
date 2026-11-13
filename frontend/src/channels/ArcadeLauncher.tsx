@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, type AppState } from "../api/client";
+import ArcadeCanvas, { type ArcadeShader } from "./ArcadeCanvas";
 
 interface ArcadeGame {
   name: string;
@@ -453,8 +454,25 @@ const KEYMAP: Record<string, string> = {
 /** Player embebido: stream fMP4 del core + input + controles de sesión. */
 function EmbeddedPlayer({ data, onStop }: { data: ArcadeData; onStop: () => void }) {
   const game = data.current as ArcadeGame | null;
-  const [error, setError] = useState<string | null>(null);
   const held = useRef<Set<string>>(new Set());
+  const [video, setVideo] = useState<{ height: number; shader: ArcadeShader }>({
+    height: 720,
+    shader: "crt",
+  });
+
+  // Preferencias de video del arcade (salida y shader).
+  useEffect(() => {
+    fetch("/api/config")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((cfg: { arcade_output_height?: number; arcade_shader?: string } | null) => {
+        if (!cfg) return;
+        setVideo({
+          height: Number(cfg.arcade_output_height) || 720,
+          shader: (cfg.arcade_shader as ArcadeShader) || "crt",
+        });
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const send = (command: "press" | "release", button: string) =>
@@ -527,39 +545,17 @@ function EmbeddedPlayer({ data, onStop }: { data: ArcadeData; onStop: () => void
         <span>
           {width > 0 ? `${width}×${height}` : ""} {data.fps ? `${data.fps.toFixed(1)} fps` : ""}
         </span>
-        <span style={{ marginLeft: "auto" }}>ESC SALIR · FLECHAS + Z/X</span>
+        <span style={{ marginLeft: "auto" }}>
+          {video.shader.toUpperCase()} · {video.height}p · ESC SALIR · FLECHAS + Z/X
+        </span>
       </div>
 
       <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
-        <video
+        <ArcadeCanvas
           src={`/api/channels/${CHANNEL}/stream`}
-          autoPlay
-          playsInline
-          style={{
-            width: "100%",
-            height: "100%",
-            objectFit: "contain",
-            background: "#000",
-            imageRendering: "pixelated",
-          }}
-          onError={() => setError("no se pudo abrir el stream del juego")}
+          shader={video.shader}
+          outputHeight={video.height}
         />
-        {error && (
-          <div
-            style={{
-              position: "absolute",
-              left: 16,
-              bottom: 16,
-              padding: "6px 10px",
-              borderRadius: "var(--radius-sm)",
-              background: "color-mix(in srgb, var(--danger) 25%, transparent)",
-              border: "1px solid var(--danger)",
-              fontSize: 12,
-            }}
-          >
-            {error}
-          </div>
-        )}
       </div>
 
       <div

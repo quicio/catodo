@@ -1,4 +1,9 @@
-//! Encode del frame del core a fMP4 (video) para el stream del kiosko.
+//! Encode del frame del core a fMP4 para el stream del kiosko.
+//!
+//! El video va por stdin (rawvideo) — camino probado. El audio todavía no está
+//! muxeado: el buffer PCM ya se captura en `runner::SessionShared`, pero el
+//! segundo input de ffmpeg (FIFO) queda trabado al abrir; se resuelve con un
+//! cambio propio (PCM por WebSocket + WebAudio o libav embebido).
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -28,6 +33,7 @@ impl Encoder {
         let (width, height) = (first.width, first.height);
         let fps = shared.fps().clamp(1.0, 240.0);
         let pix_fmt = first.format.ffmpeg_name();
+        tracing::info!(width, height, fps, pix_fmt, "arcade: iniciando encode");
 
         let mut child = Command::new("ffmpeg")
             .args([
@@ -66,13 +72,23 @@ impl Encoder {
             ])
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
+            .stderr(std::process::Stdio::piped())
             .kill_on_drop(true)
             .spawn()
             .context("no se pudo lanzar ffmpeg para el arcade")?;
 
         let mut stdin = child.stdin.take().ok_or_else(|| anyhow!("sin stdin"))?;
         let stdout = child.stdout.take();
+        if let Some(stderr) = child.stderr.take() {
+            tokio::spawn(async move {
+                use tokio::io::{AsyncBufReadExt, BufReader};
+                let mut lines = BufReader::new(stderr).lines();
+                while let Ok(Some(line)) = lines.next_line().await {
+                    tracing::warn!(%line, "arcade ffmpeg");
+                }
+            });
+        }
+
         let stop = Arc::new(AtomicBool::new(false));
         let thread_stop = stop.clone();
         let writer = tokio::spawn(async move {
@@ -87,7 +103,6 @@ impl Encoder {
         })
     }
 
-    /// stdout de ffmpeg (fMP4) para servir por HTTP.
     pub fn take_stdout(&mut self) -> Option<ChildStdout> {
         self.stdout.take()
     }

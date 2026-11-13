@@ -15,7 +15,7 @@
 
 ## 2. Streaming
 
-- [x] 2.1 `av.rs`: ffmpeg rawvideo → fMP4 (`frag_keyframe+empty_moov`, `zerolatency`). **Pendiente audio** (segunda entrada s16le).
+- [x] 2.1 `av.rs`: ffmpeg rawvideo → fMP4 (`frag_keyframe+empty_moov`, `zerolatency`). **Pendiente audio**: con un FIFO como segundo input ffmpeg queda trabado antes de emitir; ver task 2.5.
 - [x] 2.2 `GET /api/channels/arcade/stream` en `api.rs` con `Body::from_stream` (mismo patrón que IPTV) y corte al cambiar de juego.
 - [x] 2.3 Comandos `launch`, `press`, `release`, `reset`, `save_state`, `load_state`, `stop` en el canal.
 - [x] 2.4 Estado del canal: `mode`, `system`, `core`, `fps`, `resolution`, `save_slots`, `error`.
@@ -28,7 +28,7 @@
 ## 4. Frontend
 
 - [x] 4.1 `ArcadeLauncher.tsx`: al elegir un juego, abrir el player embebido en vez de esperar un proceso externo.
-- [ ] 4.2 Player con canvas WebGL reusando `frontend/src/webgl/` y shaders `nearest` / `crt` / `xbr`; fallback a `<video>` con `image-rendering: pixelated`.
+- [x] 4.2 Player con canvas WebGL (`ArcadeCanvas.tsx`): shaders `nearest` / `crt` / `smooth`, salida 720p/1080p desde config; fallback a `<video>`. Falta `xbr` real.
 - [ ] 4.3 Mapeo de teclado hecho (flechas, Z/X, A/S, Enter, Shift); falta Gamepad API.
 - [ ] 4.4 UI de savestates y estado de descarga del core.
 
@@ -37,7 +37,7 @@
 - [ ] 5.1 Test de carga real por sistema con un ROM público (NES validado con `nestest.nes`; falta SNES/GB).
 - [x] 5.2 Test del endpoint `/stream`: content-type, bytes > 0 y corte al cambiar de juego.
 - [x] 5.3 Test de `save_state`/`load_state` (serialize → unserialize).
-- [ ] 5.4 E2E manual: NES y SNES jugables a 720p y 1080p con shader `crt` y `nearest`.
+- [x] 5.4 E2E manual NES a 720p con `crt`; falta SNES y probar 1080p.
 - [ ] 5.5 Medir fps y CPU con 720p/1080p y documentar el resultado.
 - [ ] 5.6 `./scripts/check.sh` verde y `openspec validate arcade-libretro-host` OK.
 
@@ -45,3 +45,9 @@
 
 - [ ] 6.1 README: Arcade embebido, cores on-demand, upscaling y licencias.
 - [ ] 6.2 HANDOFF y ROADMAP actualizados; ADR-0008 referenciado.
+
+## 7. Audio (pendiente)
+
+- [ ] 7.1 El PCM ya se captura en `SessionShared` (ring buffer con tope de ~1 s).
+- [ ] 7.2 El intento con FIFO como segundo input de ffmpeg no arranca (ffmpeg abre ambos extremos pero no emite): evaluar PCM por WebSocket + WebAudio en el renderer, o `ffmpeg-next`/libav embebido.
+- [ ] 7.3 Sincronizar audio con el video y verificar latencia.

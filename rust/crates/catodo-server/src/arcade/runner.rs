@@ -1,6 +1,7 @@
 //! Sesión de emulación: thread del core, callbacks y estado compartido.
 
 use std::cell::RefCell;
+use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU16, AtomicU32, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
@@ -42,6 +43,7 @@ pub struct SessionShared {
     width: AtomicU32,
     height: AtomicU32,
     audio_samples: AtomicU64,
+    audio: Mutex<VecDeque<i16>>,
     core_name: Mutex<Option<String>>,
     error: Mutex<Option<String>>,
 }
@@ -58,6 +60,7 @@ impl Default for SessionShared {
             width: AtomicU32::new(0),
             height: AtomicU32::new(0),
             audio_samples: AtomicU64::new(0),
+            audio: Mutex::new(VecDeque::new()),
             core_name: Mutex::new(None),
             error: Mutex::new(None),
         }
@@ -82,6 +85,21 @@ impl SessionShared {
 
     pub fn sample_rate(&self) -> u32 {
         self.sample_rate.load(Ordering::Relaxed)
+    }
+
+    /// Copia hasta `max` samples al buffer dado (L/R intercalados).
+    pub fn read_audio(&self, out: &mut Vec<i16>, max: usize) {
+        let Ok(mut queue) = self.audio.lock() else {
+            return;
+        };
+        let take = max.min(queue.len());
+        out.clear();
+        out.reserve(take);
+        for _ in 0..take {
+            if let Some(sample) = queue.pop_front() {
+                out.push(sample);
+            }
+        }
     }
 
     pub fn core_name(&self) -> Option<String> {
@@ -140,16 +158,7 @@ unsafe extern "C" fn env_cb(cmd: u32, data: *mut std::ffi::c_void) -> bool {
         ENV_SET_PIXEL_FORMAT => {
             if !data.is_null() {
                 let raw = *(data as *const u32);
-                let format = PixelFormat::from_raw(raw);
-                with_ctx(|ctx| {
-                    if let Ok(mut frame) = ctx.frame.lock() {
-                        if let Some(frame) = frame.as_mut() {
-                            frame.format = format;
-                        }
-                    }
-                    ctx.sample_rate
-                        .store(ctx.sample_rate.load(Ordering::Relaxed), Ordering::Relaxed);
-                });
+                with_ctx(|ctx| ctx.pixel_format.store(raw, Ordering::Relaxed));
             }
             true
         }
