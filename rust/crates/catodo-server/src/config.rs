@@ -43,6 +43,8 @@ pub const KEYS: &[&str] = &[
     "mqtt_pass",
     "mqtt_topic_prefix",
     "tv_url",
+    "iptv_playlist",
+    "iptv_headers",
     "youtube_url",
     "crunchyroll_url",
     "spotify_embed_url",
@@ -92,6 +94,8 @@ pub fn default_value(key: &str) -> Option<Value> {
         "mqtt_pass" => json!(""),
         "mqtt_topic_prefix" => json!("catodo"),
         "tv_url" => Value::String(env_or("CATODO_TV_URL", "https://www.movistartv.cl")),
+        "iptv_playlist" => Value::String(env_or("CATODO_IPTV_PLAYLIST", "")),
+        "iptv_headers" => json!({}),
         "youtube_url" => Value::String(env_or("CATODO_YOUTUBE_URL", "https://www.youtube.com/tv")),
         "crunchyroll_url" => Value::String(env_or(
             "CATODO_CRUNCHYROLL_URL",

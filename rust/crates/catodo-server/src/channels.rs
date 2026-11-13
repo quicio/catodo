@@ -14,8 +14,15 @@ use tokio::sync::RwLock;
 use crate::arcade::ArcadeChannel;
 use crate::config::RuntimeConfig;
 use crate::events::EventBroker;
+use crate::iptv::IptvChannel;
 use crate::media::build_media_channels;
 use crate::spotify::{default_client, SpotifyChannel};
+
+/// Stream en vivo servido por un proceso (ffmpeg) en vez de un archivo.
+pub struct LiveStream {
+    pub content_type: String,
+    pub stdout: tokio::process::ChildStdout,
+}
 
 #[async_trait]
 pub trait Channel: Send + Sync {
@@ -31,6 +38,11 @@ pub trait Channel: Send + Sync {
     }
 
     async fn current_stream(&self) -> Option<PathBuf> {
+        None
+    }
+
+    /// Fuente en vivo (pipe). El canal es dueño del proceso; el caller sólo lee.
+    async fn live_stream(&self) -> Option<LiveStream> {
         None
     }
 
@@ -317,6 +329,7 @@ pub async fn build_default_channels(
         channels.push(spotify);
     }
     channels.extend(build_media_channels(config, broker, data_dir).await);
+    channels.push(Arc::new(IptvChannel::new(config.clone(), broker.clone())));
     channels.push(ArcadeChannel::new(config.clone(), broker.clone()));
     channels.push(Arc::new(PlaceholderChannel::new(
         ChannelInfo::new("screen-cast", "Pantalla", "cast")

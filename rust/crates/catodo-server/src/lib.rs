@@ -7,6 +7,7 @@ pub mod channels;
 pub mod config;
 pub mod events;
 pub mod idle;
+pub mod iptv;
 pub mod libraries;
 pub mod lyrics;
 pub mod manager;

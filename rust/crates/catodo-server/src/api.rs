@@ -248,6 +248,15 @@ async fn channel_stream(
         return not_found(format!("unknown channel: {channel_id}")).into_response();
     };
     let Some(path) = channel.current_stream().await else {
+        // Canales con fuente en vivo (IPTV): el body lee el stdout de ffmpeg.
+        if let Some(live) = channel.live_stream().await {
+            return Response::builder()
+                .status(StatusCode::OK)
+                .header(header::CONTENT_TYPE, live.content_type)
+                .header(header::CACHE_CONTROL, "no-store")
+                .body(Body::from_stream(ReaderStream::new(live.stdout)))
+                .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response());
+        }
         return not_found("channel has no stream").into_response();
     };
     match serve_file(&path, &headers).await {

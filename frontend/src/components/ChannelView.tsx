@@ -3,6 +3,7 @@ import Spotify from "../channels/Spotify";
 import MediaChannel from "../channels/MediaChannel";
 import ScreenCastView from "../channels/ScreenCastView";
 import ArcadeLauncher from "../channels/ArcadeLauncher";
+import IptvChannel from "../channels/IptvChannel";
 
 const REGISTRY: Record<string, React.FC<{ volume: number; state: AppState }>> = {
   spotify: Spotify,
@@ -28,6 +29,13 @@ export default function ChannelView({ current, volume, state }: { current: Chann
     return (
       <div className="channel-view">
         <ScreenCastView />
+      </div>
+    );
+  }
+  if (current.type === "iptv") {
+    return (
+      <div className="channel-view">
+        <IptvChannel />
       </div>
     );
   }

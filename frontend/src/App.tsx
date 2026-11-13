@@ -305,6 +305,12 @@ export default function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const ch = channelsRef.current;
+      // El canal IPTV usa ↑↓/←→ para grupos y zapping; el volumen queda en +/-
+      // y en el remote.
+      const activeType = ch.find(
+        (channel) => channel.id === stateRef.current.current_channel_id,
+      )?.type;
+      const arrowsBelongToChannel = activeType === "iptv";
       if (HOTKEYS.includes(e.key)) {
         const idx = Number(e.key) - 1;
         const target = ch[idx];
@@ -333,10 +339,10 @@ export default function App() {
         api.volume("+").catch(console.warn);
       } else if (e.key === "-" || e.key === "_") {
         api.volume("-").catch(console.warn);
-      } else if (e.key === "ArrowUp") {
+      } else if (e.key === "ArrowUp" && !arrowsBelongToChannel) {
         e.preventDefault();
         api.volume("+").catch(console.warn);
-      } else if (e.key === "ArrowDown") {
+      } else if (e.key === "ArrowDown" && !arrowsBelongToChannel) {
         e.preventDefault();
         api.volume("-").catch(console.warn);
       }
