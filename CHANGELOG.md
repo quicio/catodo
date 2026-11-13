@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.3](https://github.com/quicio/catodo/compare/v0.4.2...v0.4.3) (2026-11-13)
+
+
+### Bug Fixes
+
+* **iptv:** encontrar ffmpeg fuera del PATH de Finder ([f4c2704](https://github.com/quicio/catodo/commit/f4c2704feddb567dbb2023695f638c2fbcfb750e))
+
 ## [0.4.2](https://github.com/quicio/catodo/compare/v0.4.1...v0.4.2) (2026-11-13)
 
 
