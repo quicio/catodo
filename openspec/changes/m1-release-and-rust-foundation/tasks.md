@@ -10,7 +10,7 @@
 ## 2. Release Please y CI
 
 - [x] 2.1 Crear `release-please-config.json` y `.release-please-manifest.json` con `release-type: simple`, `version-file: VERSION`, extra-files de los manifests y `CHANGELOG.md`.
-- [ ] 2.2 Crear `.github/workflows/release-please.yml` en push a `main` con permisos `contents: write` y `pull-requests: write`; verificar que abra un PR de release con un commit `feat:` de prueba.
+- [x] 2.2 Crear `.github/workflows/release-please.yml` en push a `main` con permisos `contents: write` y `pull-requests: write`; verificar que abra un PR de release con un commit `feat:` de prueba.
 - [x] 2.3 Crear `.github/workflows/release-pr-sync.yml` para PRs con label `autorelease: pending`: correr `scripts/sync-version-locks.sh` y commitear lockfiles si cambiaron.
 - [x] 2.4 Crear `scripts/sync-version-locks.sh` (`cargo update --workspace` en `rust/` y `clients/tray/`, `npm version` en `frontend/`) y probarlo.
 - [x] 2.5 Crear `.github/workflows/ci.yml` con jobs backend y frontend en matriz `ubuntu-22.04` + `macos-14`, usando caché de uv y npm.
@@ -36,7 +36,7 @@
 ## 4. Empaquetado Linux y release
 
 - [x] 4.1 Crear `scripts/package-src.sh` que arme `catodo-<version>-src.tar.gz` con `git archive`, overlay de `backend/static/` y `VERSION`, y exclusiones de `.git`, `node_modules`, `.venv`, `dist`, `release`, `target` y cachés.
-- [ ] 4.2 Ajustar el target Linux de electron-builder (AppImage + deb, `artifactName` versionado) y verificar que los artefactos se generen.
+- [x] 4.2 Ajustar el target Linux de electron-builder (AppImage + deb, `artifactName` versionado) y verificar que los artefactos se generen.
 - [ ] 4.3 Extraer el tarball fuente en un directorio limpio y correr `bash install.sh --check`; confirmar que detecta el árbol preconstruido.
 - [ ] 4.4 Correr `bash install.sh` dos veces sobre el tarball extraído y verificar idempotencia, servicio systemd activo y datos preservados.
 - [x] 4.5 Crear `scripts/checksums.sh` que genere `SHA256SUMS` de forma portable (Linux/macOS) y validarlo con `shasum -a 256 -c`.
@@ -46,11 +46,11 @@
 
 ## 5. Homebrew cask
 
-- [ ] 5.1 Agregar `Casks/catodo.rb` estático al tap existente `quicio/homebrew-tap` (el mismo de Candil) y documentar la instalación.
+- [x] 5.1 Agregar `Casks/catodo.rb` estático al tap existente `quicio/homebrew-tap` (el mismo de Candil) y documentar la instalación.
 - [x] 5.2 Crear `packaging/homebrew/Casks/catodo.rb` estático con `version :latest`, `sha256 :no_check`, URL a `latest/download`, `app "Catodo.app"`, postflight de cuarentena y `zap` solo para datos de usuario.
 - [x] 5.3 Confirmar que el cask no depende de formula ni de `brew services`.
-- [ ] 5.4 Probar en macOS: `brew install --cask quicio/tap/catodo`, apertura de la app, backend embebido y datos en `~/.local/share/catodo/`.
-- [ ] 5.5 Probar upgrade y desinstalación: una versión nueva se descarga sin tocar el tap; `brew uninstall` conserva datos y `--zap` los borra.
+- [x] 5.4 Probar en macOS: `brew install --cask quicio/tap/catodo`, apertura de la app, backend embebido y datos en `~/.local/share/catodo/`.
+- [x] 5.5 Probar upgrade y desinstalación: una versión nueva se descarga sin tocar el tap; `brew uninstall` conserva datos y `--zap` los borra.
 - [x] 5.6 Documentar en README instalación, upgrade, desinstalación y el caveat de Gatekeeper.
 
 ## 6. Electron: descubrimiento y ciclo de vida

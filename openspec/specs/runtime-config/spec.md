@@ -15,7 +15,12 @@ The runtime config SHALL support overriding these keys: `anime_dir`, `arcade_dir
 #### Scenario: Theme defaults
 
 - **WHEN** `theme` has no stored override
-- **THEN** reads return the default theme id; `themes` returns the built-in themes plus any custom ones; `theme_crt_enabled` defaults to `true`.
+- **THEN** reads return the default theme id; `themes` returns the built-in themes plus any valid custom ones, fully resolved; `theme_crt_enabled` defaults to `true`.
+
+#### Scenario: Personalization overrides default
+
+- **WHEN** `theme_overrides` has no stored override
+- **THEN** reads return an empty object, meaning every personalization dimension follows the active theme.
 
 #### Scenario: Home layout default
 
