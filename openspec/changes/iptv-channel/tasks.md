@@ -34,6 +34,6 @@
 
 ## 6. Verificación y docs
 
-- [ ] 6.1 E2E manual: playlist con canales reales → se ve el canal, zapping con flechas, cambio de grupo, y señal caída muestra el error.
+- [x] 6.1 E2E con playlist real (`iptv-org/iptv`, Chile): 211 canales / 23 grupos, zapping y stream real de 11 MB (`video/mp2t`).
 - [x] 6.2 README: documentar el canal IPTV, `iptv_playlist`, `iptv_headers` y el proxy ffmpeg (incluye el costo de transcode).
 - [x] 6.3 `./scripts/check.sh` verde y `openspec validate iptv-channel` sin errores.
