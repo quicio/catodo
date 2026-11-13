@@ -1,6 +1,6 @@
 [package]
 name = "catodo-tray"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 description = "System tray client for Cátodo — pairs with the backend, exposes quick actions (modes, play/pause, volume) in the OS tray menu."
 license = "MIT"
