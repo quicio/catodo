@@ -38,7 +38,7 @@ milestones y el criterio de salida de cada uno.
 | `m1-release-and-rust-foundation` | 56/65 | validaciones externas en Linux y cierre (`9.7`) |
 | `public-domain-tunnel` | 61/64 | pruebas manuales con Cloudflare real, PWA installable y VM limpia |
 | `packaged-widevine` | 11/14 | reproducir un canal DRM real con cuenta y validar el AppImage en Linux |
-| `iptv-channel` | 0/15 | todo; reescribir el plan para el backend Rust |
+| `iptv-channel` | 13/15 | validar con una playlist real de canales libres |
 | `add-system-tray-client` | tareas 100% | el tray no se empaqueta ni se distribuye: decidir integrarlo al pipeline o descartar el change |
 
 Changes archivados el 2026-11-12 (specs sincronizadas): `spotify-on-macos`,

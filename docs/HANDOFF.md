@@ -50,13 +50,17 @@ Implementado en el working tree:
 - Cask estático `catodo` publicado en el tap existente
   [`quicio/homebrew-tap`](https://github.com/quicio/homebrew-tap):
   `brew install --cask quicio/tap/catodo` (macOS arm64, sin notarizar).
+- Canal IPTV (`iptv.rs`): playlist M3U/M3U8 local o por URL, grupos, zapping y
+  proxy ffmpeg en vivo (`/api/channels/iptv/stream`); se configura con
+  `iptv_playlist` y `iptv_headers`.
 - API Rust: config/state/WS, canales web, Spotify (AppleScript), media/anime,
   arcade, plugins, libraries, modes, pair/QR, lyrics, wallpapers, tunnel, MQTT,
   cast, voice, mouse, idle y volumen.
 - `rust/` con `catodo-domain`, `catodo-platform`, `catodo-server`, tests de
   contrato y límites de capas.
 
-Los releases `v0.1.0`, `v0.1.1`, `v0.2.0`, `v0.2.1` y `v0.3.0` están publicados
+Los releases `v0.1.0`, `v0.1.1`, `v0.2.0`, `v0.2.1`, `v0.3.0` y `v0.4.0` están
+publicados
 con los artefactos macOS (versionado + alias estable `Catodo-mac-arm64.zip`),
 Linux (AppImage, deb, source tarball) y `SHA256SUMS`. Desde `v0.2.0` los
 artefactos incluyen Electron ECS con Widevine (ADR-0007) y desde `v0.3.0` la app
