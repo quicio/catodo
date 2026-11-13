@@ -1,7 +1,7 @@
 {
   "name": "catodo-frontend",
   "private": true,
-  "version": "0.4.3",
+  "version": "0.4.4",
   "description": "Cátodo desktop shell",
   "author": {
     "name": "Cátodo Project",
