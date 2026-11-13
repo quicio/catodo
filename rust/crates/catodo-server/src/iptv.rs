@@ -237,11 +237,10 @@ fn ffmpeg_args(url: &str, headers: &Option<String>, codecs: &SourceCodecs) -> Ve
             .map(str::to_string),
         );
     }
-    if codecs.audio.as_deref() == Some("aac") {
-        args.extend(["-c:a", "copy"].map(str::to_string));
-    } else {
-        args.extend(["-c:a", "aac", "-b:a", "128k"].map(str::to_string));
-    }
+    // El audio se recodifica siempre: copiar AAC desde MPEG-TS a MP4 requiere
+    // `aac_adtstoasc` y sin eso el muxer rechaza los paquetes (stream vacío).
+    // Recodificar sólo el audio cuesta poco y evita el problema.
+    args.extend(["-c:a", "aac", "-b:a", "128k"].map(str::to_string));
     args.extend(
         [
             "-f",
@@ -517,12 +516,22 @@ impl Channel for IptvChannel {
             .args(&args)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
+            .stderr(Stdio::piped())
             .kill_on_drop(true);
         match command.spawn() {
             Ok(mut child) => {
                 let stdout = child.stdout.take();
+                let stderr = child.stderr.take();
                 *self.child.lock().await = Some(child);
+                if let Some(stderr) = stderr {
+                    tokio::spawn(async move {
+                        use tokio::io::{AsyncBufReadExt, BufReader};
+                        let mut lines = BufReader::new(stderr).lines();
+                        while let Ok(Some(line)) = lines.next_line().await {
+                            tracing::warn!(%line, "iptv ffmpeg");
+                        }
+                    });
+                }
                 self.watch_child(seq);
                 stdout.map(|stdout| LiveStream {
                     content_type: "video/mp4".to_string(),

@@ -55,9 +55,15 @@ así que va por una ruta dedicada en `api.rs`:
 frag_keyframe+empty_moov+default_base_moof`) porque Chromium no reproduce MPEG-TS
 en un `<video>`. Estrategia por codec (según `ffprobe`):
 
-- Video H.264 y audio AAC → `-c copy` (sin transcode).
-- Cualquier otro codec → `-c:v libx264 -preset veryfast -tune zerolatency`
-  y/o `-c:a aac`.
+- Video H.264 → `-c:v copy` (sin transcode).
+- Video de otro codec → `-c:v libx264 -preset veryfast -tune zerolatency`.
+- Audio → **siempre** `-c:a aac`: copiar AAC desde MPEG-TS a MP4 requiere
+  `aac_adtstoasc` y sin eso el muxer rechaza los paquetes (stream vacío).
+  Recodificar sólo el audio cuesta poco.
+
+El binario de ffmpeg/ffprobe se resuelve por PATH y, si no aparece, por las rutas
+habituales (`/opt/homebrew/bin`, `/usr/local/bin`, …): la app abierta desde
+Finder no hereda el PATH del shell.
 
 El proceso vive mientras el cliente lee; `set_channel`/`next`/`prev`/`close`
 matan el proceso anterior (`kill_on_drop` + `Child::kill` explícito) para no
