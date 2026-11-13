@@ -1,4 +1,4 @@
-const { app, BrowserWindow, screen, ipcMain, session } = require("electron");
+const { app, BrowserWindow, screen, ipcMain, session, components } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const http = require("http");
@@ -26,8 +26,9 @@ app.commandLine.appendSwitch("force-color-profile", "srgb");
 // Wayland + Vulkan no son compatibles; desactivar Vulkan para usar OpenGL/ANGLE
 app.commandLine.appendSwitch("disable-vulkan");
 
-// El shell usa Electron castLabs (ECS) que incluye Widevine para DRM.
-// No hace falta nada extra acá.
+// El shell usa Electron castLabs (ECS): el CDM de Widevine se instala en
+// runtime vía la components API. En Electron stock `components` no existe, así
+// que el arranque sigue funcionando sin DRM.
 
 const { spawn } = require("child_process");
 const { resolveBackend, freePort, waitForHealth } = require("./backend.cjs");
@@ -548,7 +549,23 @@ app.on("before-quit", (event) => {
   stopBundledBackend().finally(() => app.quit());
 });
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // Sin esto, ECS nunca instala el CDM y `com.widevine.alpha` no existe.
+  if (components && typeof components.whenReady === "function") {
+    try {
+      await components.whenReady();
+      const status = typeof components.status === "function" ? components.status() : null;
+      fs.appendFileSync(
+        "/tmp/catodo-dev.log",
+        "\n[WIDEVINE] components ready: " + JSON.stringify(status) + "\n",
+      );
+    } catch (err) {
+      fs.appendFileSync(
+        "/tmp/catodo-dev.log",
+        "\n[WIDEVINE] components failed: " + (err && err.stack || err) + "\n",
+      );
+    }
+  }
   createWindow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

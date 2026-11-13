@@ -8,7 +8,6 @@
 #   bash install.sh --check      # solo valida requisitos, no modifica el sistema
 #   bash install.sh --yes        # instala deps del sistema sin confirmar
 #   bash install.sh --autostart  # habilita arranque automático al login
-#   bash install.sh --castlab    # instala Electron castLabs (Widevine) para canales DRM
 #   bash install.sh --no-cloudflared  # no descarga cloudflared (módulo tunnel)
 set -euo pipefail
 
@@ -34,22 +33,19 @@ PYTHON_BIN="$(command -v python3 || true)"
 CHECK_ONLY=0
 ASSUME_YES=0
 AUTOSTART=0
-INSTALL_CASTLAB=0
 INSTALL_CLOUDFLARED=1
 for arg in "$@"; do
     case "$arg" in
         --check) CHECK_ONLY=1 ;;
         --yes|-y) ASSUME_YES=1 ;;
         --autostart) AUTOSTART=1 ;;
-        --castlab) INSTALL_CASTLAB=1 ;;
         --no-cloudflared) INSTALL_CLOUDFLARED=0 ;;
         --cloudflared) INSTALL_CLOUDFLARED=1 ;;
         --help|-h)
-            echo "Uso: bash install.sh [--check] [--yes] [--autostart] [--castlab] [--no-cloudflared]"
+            echo "Uso: bash install.sh [--check] [--yes] [--autostart] [--no-cloudflared]"
             echo "  --check            solo valida requisitos (sin modificar el sistema)"
             echo "  --yes              instala dependencias del sistema sin confirmar"
             echo "  --autostart        habilita el arranque automático al iniciar sesión"
-            echo "  --castlab          instala Electron castLabs (Widevine) para canales DRM"
             echo "  --no-cloudflared   no descarga el binario cloudflared (módulo tunnel)"
             echo "  --cloudflared      (default) descarga cloudflared a ~/.local/share/catodo/bin/"
             exit 0
@@ -373,11 +369,6 @@ done
 
 echo "==> Building Electron AppImage"
 (cd "$FRONTEND_DIR" && "$NPM_BIN" run electron:build:linux)
-
-if [ "$INSTALL_CASTLAB" -eq 1 ]; then
-    echo "==> Instalando Electron castLabs (Widevine)"
-    bash "$PROJECT_DIR/scripts/install_castlab.sh"
-fi
 
 if [ "$INSTALL_CLOUDFLARED" -eq 1 ]; then
     echo "==> Instalando cloudflared (módulo tunnel)"

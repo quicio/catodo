@@ -102,17 +102,9 @@ for i in {1..40}; do
     sleep 0.5
 done
 
-echo "==> Lanzando Electron castLabs (Widevine) apuntando a Vite"
-if [ "$(uname -s)" = "Darwin" ]; then
-    CASTLAB_ELECTRON="$FRONTEND_DIR/electron-castlab/Electron.app/Contents/MacOS/Electron"
-else
-    CASTLAB_ELECTRON="$FRONTEND_DIR/electron-castlab/usr/lib/electron-castlab/electron"
-fi
-if [ ! -x "$CASTLAB_ELECTRON" ]; then
-    echo "    Electron castLabs no encontrado."
-    echo "    Los canales DRM (Movistar TV, HBO Max) no tendrán Widevine."
-    echo "    Instalalo con: bash scripts/install_castlab.sh"
-    CASTLAB_ELECTRON=""
+echo "==> Lanzando Electron (ECS con Widevine) apuntando a Vite"
+if [ ! -d "$FRONTEND_DIR/node_modules/electron/dist" ]; then
+    echo "    Falta el binario de Electron. Corré: cd frontend && npm ci"
 fi
 ELECTRON_RUN_LOG="/tmp/catodo-electron-run.log"
 
@@ -121,11 +113,7 @@ launch_electron() {
     (
         cd "$FRONTEND_DIR"
         {
-            if [ -n "$CASTLAB_ELECTRON" ]; then
-                CATODO_BACKEND_URL="$VITE_URL" "$CASTLAB_ELECTRON" "${extra[@]}" .
-            else
-                CATODO_BACKEND_URL="$VITE_URL" npx electron "${extra[@]}" .
-            fi
+            CATODO_BACKEND_URL="$VITE_URL" npx electron "${extra[@]}" .
         } 2>&1 | tee -a /tmp/catodo-dev.log
     ) > "$ELECTRON_RUN_LOG" &
     ELECTRON_PID=$!

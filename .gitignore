@@ -33,6 +33,4 @@ release/
 backend/static/*
 !backend/static/remote/
 !backend/static/remote/**
-electron-castlab/
-frontend/electron-castlab/
 frontend/src/wallpapers/
