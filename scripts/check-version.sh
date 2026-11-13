@@ -32,6 +32,16 @@ def check(label: str, value: object) -> None:
 pyproject = tomllib.loads((root / "backend/pyproject.toml").read_text(encoding="utf-8"))
 check("backend/pyproject.toml project.version", pyproject["project"]["version"])
 
+uv_lock = root / "backend/uv.lock"
+if uv_lock.is_file():
+    lock_data = tomllib.loads(uv_lock.read_text(encoding="utf-8"))
+    project = next(
+        (pkg for pkg in lock_data.get("package", []) if pkg.get("name") == "catodo"),
+        None,
+    )
+    if project is not None:
+        check("backend/uv.lock catodo version", project.get("version"))
+
 package = json.loads((root / "frontend/package.json").read_text(encoding="utf-8"))
 check("frontend/package.json version", package["version"])
 

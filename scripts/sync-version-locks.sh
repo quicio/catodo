@@ -15,6 +15,11 @@ if [ -f frontend/package-lock.json ]; then
     (cd frontend && npm version "$VERSION" --no-git-tag-version --allow-same-version --ignore-scripts >/dev/null)
 fi
 
+if [ -f backend/pyproject.toml ]; then
+    echo "==> uv lock (backend)"
+    (cd backend && uv lock)
+fi
+
 if [ -f rust/Cargo.toml ]; then
     echo "==> cargo update rust workspace"
     (cd rust && cargo update --workspace)
