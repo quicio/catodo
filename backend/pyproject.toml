@@ -1,6 +1,6 @@
 [project]
 name = "catodo"
-version = "0.4.2"
+version = "0.4.3"
 description = "Cátodo — multimedia shell backend"
 requires-python = ">=3.12"
 dependencies = [
