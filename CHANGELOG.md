@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/quicio/catodo/compare/v0.2.1...v0.3.0) (2026-11-13)
+
+
+### Features
+
+* **ui:** salir del kiosko con Cmd+Shift+Q y botón en Ajustes ([39c26a2](https://github.com/quicio/catodo/commit/39c26a27b9bb3357619b41da7585d497df25a38c))
+
 ## [0.2.1](https://github.com/quicio/catodo/compare/v0.2.0...v0.2.1) (2026-11-13)
 
 
