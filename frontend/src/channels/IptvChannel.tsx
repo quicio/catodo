@@ -39,6 +39,8 @@ export default function IptvChannel() {
   const [audioOnly, setAudioOnly] = useState(false);
   const [stalled, setStalled] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const stallTimer = useRef<number | null>(null);
   const groupIdxRef = useRef(0);
 
   const load = useCallback(async () => {
@@ -71,11 +73,31 @@ export default function IptvChannel() {
     if (currentId) setBuffering(true);
   }, [currentId, reloadKey]);
 
-  // Si en 12 s no llegó ningún frame, el canal está caído o colgado.
+  // Si en 12 s no llegó ningún frame, el canal está caído o colgado. Se
+  // cancela apenas el video reproduce: si no, el aviso aparecía sobre un canal
+  // que estaba andando.
+  const clearStall = useCallback(() => {
+    if (stallTimer.current !== null) {
+      clearTimeout(stallTimer.current);
+      stallTimer.current = null;
+    }
+    setStalled(false);
+  }, []);
+
   useEffect(() => {
     if (!currentId) return;
-    const timer = setTimeout(() => setStalled(true), 12000);
-    return () => clearTimeout(timer);
+    if (stallTimer.current !== null) clearTimeout(stallTimer.current);
+    stallTimer.current = window.setTimeout(() => {
+      const video = videoRef.current;
+      if (video && video.readyState >= 2 && video.currentTime > 0) return;
+      setStalled(true);
+    }, 12000);
+    return () => {
+      if (stallTimer.current !== null) {
+        clearTimeout(stallTimer.current);
+        stallTimer.current = null;
+      }
+    };
   }, [currentId, reloadKey]);
 
   const groups = data?.groups ?? [];
@@ -219,6 +241,7 @@ export default function IptvChannel() {
         <div style={playerStyle}>
           {current ? (
             <video
+              ref={videoRef}
               key={`${current.id}-${reloadKey}`}
               src={STREAM_URL}
               autoPlay
@@ -231,11 +254,11 @@ export default function IptvChannel() {
               }}
               onLoadedData={() => {
                 setBuffering(false);
-                setStalled(false);
+                clearStall();
               }}
               onPlaying={() => {
                 setBuffering(false);
-                setStalled(false);
+                clearStall();
               }}
               onWaiting={() => setBuffering(true)}
               onError={() => {
