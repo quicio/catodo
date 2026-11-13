@@ -51,11 +51,13 @@ El trait `Channel::current_stream()` devuelve un `PathBuf` y la ruta
 así que va por una ruta dedicada en `api.rs`:
 
 `GET /api/channels/iptv/stream` → `Body::from_stream(stdout del child)` con
-`content-type: video/mp2t`. Estrategia por formato (según `ffprobe`):
+`content-type: video/mp4`. Se sirve **fMP4 fragmentado** (`-f mp4 -movflags
+frag_keyframe+empty_moov+default_base_moof`) porque Chromium no reproduce MPEG-TS
+en un `<video>`. Estrategia por codec (según `ffprobe`):
 
-- HLS (`m3u8`) → `ffmpeg -i <url> -c copy -f mpegts pipe:1` (re-encapsulado).
-- Otros (TS crudo, MP4 no soportado por el navegador) → transcode
-  `-c:v libx264 -preset veryfast -c:a aac -f mpegts pipe:1`.
+- Video H.264 y audio AAC → `-c copy` (sin transcode).
+- Cualquier otro codec → `-c:v libx264 -preset veryfast -tune zerolatency`
+  y/o `-c:a aac`.
 
 El proceso vive mientras el cliente lee; `set_channel`/`next`/`prev`/`close`
 matan el proceso anterior (`kill_on_drop` + `Child::kill` explícito) para no

@@ -11,7 +11,7 @@
 
 ## 2. Backend — proxy ffmpeg
 
-- [x] 2.1 Ruta `GET /api/channels/iptv/stream` en `api.rs`: `ffprobe` para detectar formato, `ffmpeg ... -f mpegts pipe:1`, respuesta `video/mp2t` con `Body::from_stream` del stdout del child.
+- [x] 2.1 Ruta `GET /api/channels/iptv/stream` en `api.rs`: `ffprobe` para detectar formato, `ffmpeg ... -f mp4 -movflags frag_keyframe+empty_moov pipe:1`, respuesta `video/mp4` (fMP4) con `Body::from_stream` del stdout del child.
 - [x] 2.2 Vida del proceso: matar el ffmpeg previo al cambiar de canal, al cerrar el canal y al cortarse el cliente; `kill_on_drop` y sin procesos huérfanos.
 - [x] 2.3 Publicar `iptv_stream_error` por el `EventBroker` cuando `ffprobe`/`ffmpeg` falla o el stream no responde (watcher del proceso + estado `error`).
 
@@ -34,6 +34,6 @@
 
 ## 6. Verificación y docs
 
-- [x] 6.1 E2E con playlist real (`iptv-org/iptv`, Chile): 211 canales / 23 grupos, zapping y stream real de 11 MB (`video/mp2t`).
+- [x] 6.1 E2E con playlist real (`iptv-org/iptv`, Chile): 211 canales / 23 grupos, zapping y stream real en fMP4 1080p (`video/mp4`) reproduciendo en la app.
 - [x] 6.2 README: documentar el canal IPTV, `iptv_playlist`, `iptv_headers` y el proxy ffmpeg (incluye el costo de transcode).
 - [x] 6.3 `./scripts/check.sh` verde y `openspec validate iptv-channel` sin errores.

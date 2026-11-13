@@ -34,6 +34,7 @@ export default function IptvChannel() {
   const [data, setData] = useState<IptvState | null>(null);
   const [groupIdx, setGroupIdx] = useState(0);
   const [cmdError, setCmdError] = useState<string | null>(null);
+  const [buffering, setBuffering] = useState(false);
   const groupIdxRef = useRef(0);
 
   const load = useCallback(async () => {
@@ -56,6 +57,12 @@ export default function IptvChannel() {
   useEffect(() => {
     groupIdxRef.current = groupIdx;
   }, [groupIdx]);
+
+  // Al cambiar de canal el backend tarda en abrir el HLS y arrancar ffmpeg.
+  const currentId = data?.current?.id ?? null;
+  useEffect(() => {
+    if (currentId) setBuffering(true);
+  }, [currentId]);
 
   const groups = data?.groups ?? [];
   const group = groups[Math.min(groupIdx, Math.max(groups.length - 1, 0))];
@@ -204,10 +211,19 @@ export default function IptvChannel() {
               playsInline
               controls={false}
               style={{ width: "100%", height: "100%", objectFit: "contain", background: "#000" }}
-              onError={() => setCmdError("señal no disponible")}
+              onLoadedData={() => setBuffering(false)}
+              onPlaying={() => setBuffering(false)}
+              onWaiting={() => setBuffering(true)}
+              onError={() => {
+                setBuffering(false);
+                setCmdError("señal no disponible");
+              }}
             />
           ) : (
             <div style={placeholderStyle}>Elegí un canal para empezar</div>
+          )}
+          {buffering && !cmdError && !data?.error && (
+            <div style={bufferingStyle}>conectando…</div>
           )}
           {(cmdError || data?.error) && (
             <div style={errorStyle}>{cmdError || data?.error}</div>
@@ -314,6 +330,19 @@ const placeholderStyle: React.CSSProperties = {
   placeItems: "center",
   color: "var(--text-dim)",
   fontSize: 14,
+};
+
+const bufferingStyle: React.CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  display: "grid",
+  placeItems: "center",
+  color: "var(--text-dim)",
+  fontFamily: "var(--font-mono)",
+  fontSize: 13,
+  letterSpacing: 2,
+  background: "rgba(0,0,0,0.55)",
+  pointerEvents: "none",
 };
 
 const errorStyle: React.CSSProperties = {

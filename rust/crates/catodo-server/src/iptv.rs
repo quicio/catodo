@@ -128,18 +128,22 @@ fn header_block(headers: &Map<String, Value>) -> Option<String> {
 }
 
 /// Detecta si la fuente es HLS (se puede re-encapsular con `-c copy`).
-async fn detect_hls(ffprobe: &str, url: &str, headers: &Option<String>) -> bool {
-    if url.contains(".m3u8") {
-        return true;
-    }
+/// Codecs de la fuente, para decidir cuándo se puede copiar sin transcodificar.
+#[derive(Debug, Default, PartialEq, Eq)]
+struct SourceCodecs {
+    video: Option<String>,
+    audio: Option<String>,
+}
+
+async fn probe_codecs(ffprobe: &str, url: &str, headers: &Option<String>) -> SourceCodecs {
     let mut cmd = Command::new(ffprobe);
     cmd.args([
         "-v",
         "error",
         "-show_entries",
-        "format=format_name",
+        "stream=codec_type,codec_name",
         "-of",
-        "csv=p=0",
+        "json",
     ]);
     if let Some(block) = headers {
         cmd.arg("-headers").arg(block);
@@ -147,18 +151,40 @@ async fn detect_hls(ffprobe: &str, url: &str, headers: &Option<String>) -> bool 
     cmd.arg(url);
     cmd.stdout(Stdio::piped()).stderr(Stdio::null());
     cmd.kill_on_drop(true);
-    let output = tokio::time::timeout(Duration::from_secs(5), cmd.output()).await;
-    match output {
-        Ok(Ok(out)) if out.status.success() => String::from_utf8_lossy(&out.stdout).contains("hls"),
-        _ => false,
+    let output = tokio::time::timeout(Duration::from_secs(6), cmd.output()).await;
+    let Ok(Ok(output)) = output else {
+        return SourceCodecs::default();
+    };
+    if !output.status.success() {
+        return SourceCodecs::default();
     }
+    let Ok(parsed) = serde_json::from_slice::<Value>(&output.stdout) else {
+        return SourceCodecs::default();
+    };
+    let mut codecs = SourceCodecs::default();
+    for stream in parsed["streams"].as_array().into_iter().flatten() {
+        let name = stream["codec_name"].as_str().map(str::to_string);
+        match stream["codec_type"].as_str() {
+            Some("video") if codecs.video.is_none() => codecs.video = name,
+            Some("audio") if codecs.audio.is_none() => codecs.audio = name,
+            _ => {}
+        }
+    }
+    codecs
 }
 
-fn ffmpeg_args(url: &str, headers: &Option<String>, hls: bool) -> Vec<String> {
+/// Argumentos de ffmpeg para servir un **fMP4 fragmentado** por stdout.
+///
+/// Chromium no reproduce MPEG-TS en un `<video>`; fMP4 progresivo sí. Se copia
+/// el video/audio cuando el codec ya es compatible (H.264/AAC) y se transcodifica
+/// sólo lo que haga falta.
+fn ffmpeg_args(url: &str, headers: &Option<String>, codecs: &SourceCodecs) -> Vec<String> {
     let mut args = vec![
         "-hide_banner".to_string(),
         "-loglevel".to_string(),
         "error".to_string(),
+        "-fflags".to_string(),
+        "nobuffer".to_string(),
     ];
     if let Some(block) = headers {
         args.push("-headers".to_string());
@@ -166,12 +192,41 @@ fn ffmpeg_args(url: &str, headers: &Option<String>, hls: bool) -> Vec<String> {
     }
     args.push("-i".to_string());
     args.push(url.to_string());
-    if hls {
-        args.extend(["-c", "copy"].map(str::to_string));
+
+    if codecs.video.as_deref() == Some("h264") {
+        args.extend(["-c:v", "copy"].map(str::to_string));
     } else {
-        args.extend(["-c:v", "libx264", "-preset", "veryfast", "-c:a", "aac"].map(str::to_string));
+        args.extend(
+            [
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryfast",
+                "-tune",
+                "zerolatency",
+                "-pix_fmt",
+                "yuv420p",
+            ]
+            .map(str::to_string),
+        );
     }
-    args.extend(["-f", "mpegts", "pipe:1"].map(str::to_string));
+    if codecs.audio.as_deref() == Some("aac") {
+        args.extend(["-c:a", "copy"].map(str::to_string));
+    } else {
+        args.extend(["-c:a", "aac", "-b:a", "128k"].map(str::to_string));
+    }
+    args.extend(
+        [
+            "-f",
+            "mp4",
+            "-movflags",
+            "frag_keyframe+empty_moov+default_base_moof",
+            "-flush_packets",
+            "1",
+            "pipe:1",
+        ]
+        .map(str::to_string),
+    );
     args
 }
 
@@ -426,8 +481,8 @@ impl Channel for IptvChannel {
     async fn live_stream(&self) -> Option<LiveStream> {
         let entry = self.current.read().await.clone()?;
         let headers = self.headers().await;
-        let hls = detect_hls(&self.ffprobe, &entry.url, &headers).await;
-        let args = ffmpeg_args(&entry.url, &headers, hls);
+        let codecs = probe_codecs(&self.ffprobe, &entry.url, &headers).await;
+        let args = ffmpeg_args(&entry.url, &headers, &codecs);
         self.kill_child().await;
         let seq = self.stream_seq.load(Ordering::SeqCst);
         let mut command = Command::new(&self.ffmpeg);
@@ -443,7 +498,7 @@ impl Channel for IptvChannel {
                 *self.child.lock().await = Some(child);
                 self.watch_child(seq);
                 stdout.map(|stdout| LiveStream {
-                    content_type: "video/mp2t".to_string(),
+                    content_type: "video/mp4".to_string(),
                     stdout,
                 })
             }
@@ -557,7 +612,7 @@ https://stream/tres.ts
         channel.command("set_channel", args).await.unwrap();
 
         let live = channel.live_stream().await.expect("live stream");
-        assert_eq!(live.content_type, "video/mp2t");
+        assert_eq!(live.content_type, "video/mp4");
         let mut stdout = live.stdout;
         let mut buf = Vec::new();
         tokio::io::AsyncReadExt::read_to_end(&mut stdout, &mut buf)
@@ -617,12 +672,31 @@ https://stream/tres.ts
     }
 
     #[test]
-    fn ffmpeg_args_copy_hls_and_transcode_rest() {
-        let hls = ffmpeg_args("https://s/a.m3u8", &None, true);
-        assert!(hls.contains(&"copy".to_string()));
-        assert_eq!(hls.last().unwrap(), "pipe:1");
-        let ts = ffmpeg_args("https://s/a.ts", &Some("Referer: x\r\n".to_string()), false);
-        assert!(ts.contains(&"libx264".to_string()));
-        assert!(ts.contains(&"Referer: x\r\n".to_string()));
+    fn ffmpeg_args_copy_compatible_codecs_into_fragmented_mp4() {
+        let codecs = SourceCodecs {
+            video: Some("h264".to_string()),
+            audio: Some("aac".to_string()),
+        };
+        let copy = ffmpeg_args("https://s/a.m3u8", &None, &codecs);
+        assert!(copy.contains(&"copy".to_string()));
+        assert!(!copy.contains(&"libx264".to_string()));
+        assert!(copy.contains(&"frag_keyframe+empty_moov+default_base_moof".to_string()));
+        assert_eq!(copy.last().unwrap(), "pipe:1");
+    }
+
+    #[test]
+    fn ffmpeg_args_transcode_incompatible_codecs() {
+        let codecs = SourceCodecs {
+            video: Some("hevc".to_string()),
+            audio: Some("ac3".to_string()),
+        };
+        let args = ffmpeg_args(
+            "https://s/a.ts",
+            &Some("Referer: x\r\n".to_string()),
+            &codecs,
+        );
+        assert!(args.contains(&"libx264".to_string()));
+        assert!(args.contains(&"aac".to_string()));
+        assert!(args.contains(&"Referer: x\r\n".to_string()));
     }
 }
