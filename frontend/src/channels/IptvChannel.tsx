@@ -270,7 +270,7 @@ export default function IptvChannel() {
           )}
           {(cmdError || data?.error) && (
             <div style={errorStyle}>
-              <span>{cmdError || data?.error}</span>
+              <span>{friendlyError(cmdError || data?.error || "")}</span>
               <button
                 type="button"
                 onClick={() => setReloadKey((key) => key + 1)}
@@ -286,6 +286,14 @@ export default function IptvChannel() {
       <div style={hintStyle}>↑↓ GRUPO · ←→ CANAL · ENTER ELEGIR</div>
     </div>
   );
+}
+
+/** Traduce el error técnico del backend a algo accionable. */
+function friendlyError(error: string): string {
+  if (error.includes("no se pudo lanzar ffmpeg")) {
+    return "falta ffmpeg: brew install ffmpeg";
+  }
+  return error;
 }
 
 const containerStyle: React.CSSProperties = {

@@ -31,6 +31,18 @@ app.commandLine.appendSwitch("disable-vulkan");
 // que el arranque sigue funcionando sin DRM.
 
 const { spawn } = require("child_process");
+
+// Lanzada desde Finder/Dock, macOS entrega un PATH mínimo sin Homebrew: el
+// backend no encontraría ffmpeg/ffprobe/playerctl. Se completa con las rutas
+// habituales de herramientas.
+const TOOL_PATH_DIRS = [
+  "/opt/homebrew/bin",
+  "/usr/local/bin",
+  "/usr/bin",
+  "/bin",
+  "/usr/sbin",
+  "/sbin",
+];
 const { resolveBackend, freePort, waitForHealth } = require("./backend.cjs");
 const https = require("https");
 
@@ -154,6 +166,9 @@ async function startBundledBackend() {
       CATODO_PORT: String(port),
       CATODO_STATIC_DIR: path.join(backendRoot, "static"),
       CATODO_PLUGINS_REPO: path.join(backendRoot, "plugins-repo"),
+      PATH: [...new Set([...(process.env.PATH || "").split(":"), ...TOOL_PATH_DIRS])]
+        .filter(Boolean)
+        .join(":"),
     },
     stdio: ["ignore", logFd, logFd],
   });

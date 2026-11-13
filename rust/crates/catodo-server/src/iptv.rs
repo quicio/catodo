@@ -115,6 +115,33 @@ pub fn step_in_group<'a>(
     Some(list[next])
 }
 
+/// Resuelve un binario por PATH y, si no aparece, por las rutas habituales de
+/// Homebrew/MacPorts (la app abierta desde Finder no hereda el PATH del shell).
+fn resolve_binary(name: &str) -> String {
+    const FALLBACK_DIRS: &[&str] = &[
+        "/opt/homebrew/bin",
+        "/usr/local/bin",
+        "/usr/bin",
+        "/bin",
+        "/opt/local/bin",
+    ];
+    if let Some(paths) = std::env::var_os("PATH") {
+        for dir in std::env::split_paths(&paths) {
+            let candidate = dir.join(name);
+            if candidate.is_file() {
+                return candidate.to_string_lossy().to_string();
+            }
+        }
+    }
+    for dir in FALLBACK_DIRS {
+        let candidate = std::path::Path::new(dir).join(name);
+        if candidate.is_file() {
+            return candidate.to_string_lossy().to_string();
+        }
+    }
+    name.to_string()
+}
+
 fn header_block(headers: &Map<String, Value>) -> Option<String> {
     let lines: Vec<String> = headers
         .iter()
@@ -253,8 +280,8 @@ impl IptvChannel {
             child: Arc::new(Mutex::new(None)),
             stream_seq: Arc::new(AtomicU64::new(0)),
             last_error: Arc::new(RwLock::new(None)),
-            ffmpeg: "ffmpeg".to_string(),
-            ffprobe: "ffprobe".to_string(),
+            ffmpeg: resolve_binary("ffmpeg"),
+            ffprobe: resolve_binary("ffprobe"),
         }
     }
 
