@@ -2,7 +2,7 @@
 
 ## 1. Runtime ECS
 
-- [x] 1.1 Instalar `electron` desde `github:castlabs/electron-releases#v45.2.1+wvcus` y subir electron-builder a `^26.18.0`.
+- [x] 1.1 Instalar `electron` desde el tarball `v45.2.1+wvcus` (no `github:` shorthand, que deja `git+ssh` en el lock) y subir electron-builder a `^26.18.0`; verificar `npm ci` sin SSH.
 - [x] 1.2 Agregar `postinstall` (`node node_modules/electron/install.js`) porque el paquete de ECS no trae descarga propia; verificar que `npm ci` deje `node_modules/electron/dist`.
 - [x] 1.3 Esperar `components.whenReady()` en `frontend/electron/main.cjs` antes de `createWindow()`, con fallback si `components` no existe.
 

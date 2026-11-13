@@ -74,4 +74,4 @@ impedir el arranque del kiosk.
 
 **Reason**: El script que construía la URL del zip de castLabs fue eliminado; el binario lo resuelve el paquete de ECS.
 
-**Migration**: Actualizar el pin de versión en `frontend/package.json` (`github:castlabs/electron-releases#vX.Y.Z+wvcus`).
+**Migration**: Actualizar la URL del tarball en `frontend/package.json` (`https://github.com/castlabs/electron-releases/archive/refs/tags/vX.Y.Z+wvcus.tar.gz`).

@@ -12,8 +12,9 @@ soporte del CDM, así que la instalación falla con
 - El shell corre sobre **Electron for Content Security (ECS) 45.x** en dev y en
   los artefactos; el CDM de Widevine se instala en runtime vía
   `components.whenReady()` antes de crear la ventana.
-- `electron` se instala desde `github:castlabs/electron-releases#v45.2.1+wvcus`
-  con un `postinstall` que baja el binario, y electron-builder empaqueta ese dist
+- `electron` se instala desde el tarball de GitHub
+  `castlabs/electron-releases/archive/refs/tags/v45.2.1+wvcus.tar.gz` con un
+  `postinstall` que baja el binario (el tarball evita el `git+ssh` del lockfile), y electron-builder empaqueta ese dist
   (`build.electronDist`).
 - Desaparecen `scripts/install_castlab.sh`, el flag `install.sh --castlab` y el
   path `frontend/electron-castlab/`: un solo runtime para dev y producción.

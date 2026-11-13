@@ -29,9 +29,10 @@ Al intentar empaquetar DRM aparecieron dos hechos:
 ## Decisión
 
 - El shell corre sobre **Electron for Content Security (ECS)** en dev y en los
-  artefactos: `electron` se instala como devDependency desde
-  `github:castlabs/electron-releases#v45.2.1+wvcus` (ECS no está publicado en el
-  registry de npm).
+  artefactos: `electron` se instala como devDependency desde el tarball de GitHub
+  `https://github.com/castlabs/electron-releases/archive/refs/tags/v45.2.1+wvcus.tar.gz`
+  (ECS no está publicado en el registry de npm; el tarball evita que el lockfile
+  quede en `git+ssh`, que rompería `npm ci` en CI sin claves SSH).
 - `frontend/package.json` agrega `postinstall: node node_modules/electron/install.js`
   porque el paquete de ECS no trae script de descarga propio, y
   `build.electronDist: node_modules/electron/dist` para que electron-builder
