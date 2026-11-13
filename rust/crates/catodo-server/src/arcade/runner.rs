@@ -35,6 +35,7 @@ pub struct Frame {
 pub struct SessionShared {
     frame: Mutex<Option<Frame>>,
     buttons: AtomicU16,
+    pixel_format: AtomicU32,
     running: AtomicBool,
     fps: Mutex<f64>,
     sample_rate: AtomicU32,
@@ -50,6 +51,7 @@ impl Default for SessionShared {
         Self {
             frame: Mutex::new(None),
             buttons: AtomicU16::new(0),
+            pixel_format: AtomicU32::new(2),
             running: AtomicBool::new(true),
             fps: Mutex::new(60.0),
             sample_rate: AtomicU32::new(48000),
@@ -208,12 +210,7 @@ unsafe extern "C" fn video_cb(
         return;
     }
     with_ctx(|ctx| {
-        let format = ctx
-            .frame
-            .lock()
-            .ok()
-            .and_then(|frame| frame.as_ref().map(|frame| frame.format))
-            .unwrap_or(PixelFormat::Rgb565);
+        let format = PixelFormat::from_raw(ctx.pixel_format.load(Ordering::Relaxed));
         let len = pitch * height as usize;
         let bytes = std::slice::from_raw_parts(data as *const u8, len).to_vec();
         if let Ok(mut slot) = ctx.frame.lock() {

@@ -15,10 +15,10 @@
 
 ## 2. Streaming
 
-- [ ] 2.1 `av.rs`: ffmpeg con dos entradas (rawvideo + s16le) → fMP4 (`frag_keyframe+empty_moov`, `zerolatency`).
-- [ ] 2.2 `GET /api/channels/arcade/stream` en `api.rs` con `Body::from_stream` (mismo patrón que IPTV) y corte al cambiar de juego.
-- [ ] 2.3 Comandos `launch`, `press`, `release`, `reset`, `save_state`, `load_state`, `stop` en el canal.
-- [ ] 2.4 Estado del canal: `mode`, `system`, `core`, `fps`, `resolution`, `save_slots`, `error`.
+- [x] 2.1 `av.rs`: ffmpeg rawvideo → fMP4 (`frag_keyframe+empty_moov`, `zerolatency`). **Pendiente audio** (segunda entrada s16le).
+- [x] 2.2 `GET /api/channels/arcade/stream` en `api.rs` con `Body::from_stream` (mismo patrón que IPTV) y corte al cambiar de juego.
+- [x] 2.3 Comandos `launch`, `press`, `release`, `reset`, `save_state`, `load_state`, `stop` en el canal.
+- [x] 2.4 Estado del canal: `mode`, `system`, `core`, `fps`, `resolution`, `save_slots`, `error`.
 
 ## 3. Config y compatibilidad
 
@@ -27,15 +27,15 @@
 
 ## 4. Frontend
 
-- [ ] 4.1 `ArcadeLauncher.tsx`: al elegir un juego, abrir el player embebido en vez de esperar un proceso externo.
+- [x] 4.1 `ArcadeLauncher.tsx`: al elegir un juego, abrir el player embebido en vez de esperar un proceso externo.
 - [ ] 4.2 Player con canvas WebGL reusando `frontend/src/webgl/` y shaders `nearest` / `crt` / `xbr`; fallback a `<video>` con `image-rendering: pixelated`.
-- [ ] 4.3 Mapeo de teclado (flechas, Z/X, A/S, Enter/Esc, `Shift` para savestate) y Gamepad API.
+- [ ] 4.3 Mapeo de teclado hecho (flechas, Z/X, A/S, Enter, Shift); falta Gamepad API.
 - [ ] 4.4 UI de savestates y estado de descarga del core.
 
 ## 5. Tests y verificación
 
 - [ ] 5.1 Test de carga real por sistema con un ROM público (NES validado con `nestest.nes`; falta SNES/GB).
-- [ ] 5.2 Test del endpoint `/stream`: content-type, bytes > 0 y corte al cambiar de juego.
+- [x] 5.2 Test del endpoint `/stream`: content-type, bytes > 0 y corte al cambiar de juego.
 - [x] 5.3 Test de `save_state`/`load_state` (serialize → unserialize).
 - [ ] 5.4 E2E manual: NES y SNES jugables a 720p y 1080p con shader `crt` y `nearest`.
 - [ ] 5.5 Medir fps y CPU con 720p/1080p y documentar el resultado.

@@ -4,6 +4,7 @@
 //! mantiene el lanzamiento de un binario externo (compatibilidad). Si no, el
 //! juego corre dentro del backend con un core libretro y se sirve como stream.
 
+pub mod av;
 pub mod core;
 pub mod cores;
 pub mod runner;
@@ -19,10 +20,11 @@ use serde_json::{json, Map, Value};
 use tokio::process::Command;
 use tokio::sync::{Mutex, RwLock};
 
-use crate::channels::Channel;
+use crate::channels::{Channel, LiveStream};
 use crate::config::RuntimeConfig;
 use crate::events::EventBroker;
 
+use av::Encoder;
 use runner::Session;
 
 const ROM_EXTS: &[&str] = &[
@@ -40,6 +42,7 @@ pub struct ArcadeChannel {
     scanned_at: Mutex<Option<Instant>>,
     pid: Arc<Mutex<Option<u32>>>,
     session: Mutex<Option<Session>>,
+    encoder: Mutex<Option<Encoder>>,
     mode: Arc<RwLock<Option<&'static str>>>,
 }
 
@@ -54,6 +57,7 @@ impl ArcadeChannel {
             scanned_at: Mutex::new(None),
             pid: Arc::new(Mutex::new(None)),
             session: Mutex::new(None),
+            encoder: Mutex::new(None),
             mode: Arc::new(RwLock::new(None)),
         })
     }
@@ -296,6 +300,9 @@ impl ArcadeChannel {
                 .status()
                 .await;
         }
+        if let Some(mut encoder) = self.encoder.lock().await.take() {
+            encoder.stop();
+        }
         if let Some(mut session) = self.session.lock().await.take() {
             session.stop();
         }
@@ -347,6 +354,32 @@ impl Channel for ArcadeChannel {
             "resolution": [width, height],
             "error": error,
         }))
+    }
+
+    async fn live_stream(&self) -> Option<LiveStream> {
+        let shared = self.session_shared().await?;
+        let mut guard = self.encoder.lock().await;
+        // Si ya hay un encoder con su stdout tomado, el cliente anterior sigue
+        // leyendo: se reinicia para el nuevo consumidor.
+        if guard.as_ref().is_some_and(|encoder| encoder.stdout_taken()) {
+            if let Some(mut encoder) = guard.take() {
+                encoder.stop();
+            }
+        }
+        if guard.is_none() {
+            match Encoder::start(shared).await {
+                Ok(encoder) => *guard = Some(encoder),
+                Err(error) => {
+                    tracing::warn!(%error, "arcade: no se pudo iniciar el encode");
+                    return None;
+                }
+            }
+        }
+        let stdout = guard.as_mut()?.take_stdout()?;
+        Some(LiveStream {
+            content_type: "video/mp4".to_string(),
+            stdout,
+        })
     }
 
     async fn boxart(&self, rel: &str) -> Option<PathBuf> {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, type AppState } from "../api/client";
 
 interface ArcadeGame {
@@ -18,6 +18,11 @@ interface ArcadeData {
   systems: ArcadeSystem[];
   current?: ArcadeGame | null;
   playing?: boolean;
+  mode?: "embedded" | "external" | null;
+  core?: string | null;
+  fps?: number;
+  resolution?: [number, number];
+  error?: string | null;
 }
 
 interface CartType {
@@ -67,20 +72,24 @@ export default function ArcadeLauncher({ state }: { state: AppState }) {
   const [focused, setFocused] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
 
+  const load = useCallback(() => {
+    fetch(`/api/channels/${CHANNEL}/state`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: ArcadeData | null) => {
+        if (d) setData(d);
+      })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
-    let alive = true;
-    const load = () =>
-      fetch(`/api/channels/${CHANNEL}/state`)
-        .then((r) => (r.ok ? r.json() : null))
-        .then((d: ArcadeData | null) => {
-          if (alive && d) setData(d);
-        })
-        .catch(() => {});
     load();
-    return () => {
-      alive = false;
-    };
-  }, [state.arcade?.boxart_revision]);
+  }, [load, state.arcade?.boxart_revision]);
+
+  // Mientras hay una sesión embebida el estado cambia (fps, resolución, fin).
+  useEffect(() => {
+    const id = setInterval(load, 2500);
+    return () => clearInterval(id);
+  }, [load]);
 
   const systems = useMemo(() => data?.systems ?? [], [data]);
   const activeSystem = useMemo(
@@ -92,7 +101,7 @@ export default function ArcadeLauncher({ state }: { state: AppState }) {
   const columns = Math.max(1, Math.floor((window.innerWidth || 1920) / CARD_W));
 
   const launch = (rel: string) => {
-    api.command(CHANNEL, "launch", { game: rel }).catch(() => {});
+    api.command(CHANNEL, "launch", { game: rel }).then(load).catch(() => {});
   };
 
   const selectSystem = (name: string) => {
@@ -142,6 +151,10 @@ export default function ArcadeLauncher({ state }: { state: AppState }) {
   const playing = state.arcade?.playing ?? false;
   const currentGame = state.arcade?.game as ArcadeGame | null | undefined;
   const error = state.arcade?.error;
+
+  if (data?.mode === "embedded" && data.playing) {
+    return <EmbeddedPlayer data={data} onStop={() => api.command(CHANNEL, "stop").then(load)} />;
+  }
 
   return (
     <div
@@ -416,6 +429,181 @@ function Cartridge({
       >
         {game.name}
       </div>
+    </button>
+  );
+}
+
+const KEYMAP: Record<string, string> = {
+  ArrowUp: "up",
+  ArrowDown: "down",
+  ArrowLeft: "left",
+  ArrowRight: "right",
+  z: "b",
+  Z: "b",
+  x: "a",
+  X: "a",
+  a: "x",
+  A: "x",
+  s: "y",
+  S: "y",
+  Enter: "start",
+  Shift: "select",
+};
+
+/** Player embebido: stream fMP4 del core + input + controles de sesión. */
+function EmbeddedPlayer({ data, onStop }: { data: ArcadeData; onStop: () => void }) {
+  const game = data.current as ArcadeGame | null;
+  const [error, setError] = useState<string | null>(null);
+  const held = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const send = (command: "press" | "release", button: string) =>
+      api.command(CHANNEL, command, { button }).catch(() => {});
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        send("release", "start");
+        onStop();
+        return;
+      }
+      const button = KEYMAP[event.key];
+      if (!button) return;
+      event.preventDefault();
+      if (held.current.has(button)) return;
+      held.current.add(button);
+      send("press", button);
+    };
+    const onKeyUp = (event: KeyboardEvent) => {
+      const button = KEYMAP[event.key];
+      if (!button) return;
+      event.preventDefault();
+      held.current.delete(button);
+      send("release", button);
+    };
+    // Al perder foco se sueltan los botones para no quedar "pegados".
+    const onBlur = () => {
+      held.current.forEach((button) => send("release", button));
+      held.current.clear();
+    };
+
+    document.addEventListener("keydown", onKeyDown, true);
+    document.addEventListener("keyup", onKeyUp, true);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown, true);
+      document.removeEventListener("keyup", onKeyUp, true);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, [onStop]);
+
+  const [width, height] = data.resolution ?? [0, 0];
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        display: "flex",
+        flexDirection: "column",
+        background: "#000",
+        color: "var(--text)",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 16,
+          padding: "10px 20px",
+          fontFamily: "var(--font-mono)",
+          fontSize: 12,
+          letterSpacing: 2,
+          color: "var(--text-dim)",
+          flexShrink: 0,
+        }}
+      >
+        <span style={{ color: "var(--ch-arcade)" }}>{game?.name ?? "ARCADE"}</span>
+        <span>{data.core ?? ""}</span>
+        <span>
+          {width > 0 ? `${width}×${height}` : ""} {data.fps ? `${data.fps.toFixed(1)} fps` : ""}
+        </span>
+        <span style={{ marginLeft: "auto" }}>ESC SALIR · FLECHAS + Z/X</span>
+      </div>
+
+      <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
+        <video
+          src={`/api/channels/${CHANNEL}/stream`}
+          autoPlay
+          playsInline
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "contain",
+            background: "#000",
+            imageRendering: "pixelated",
+          }}
+          onError={() => setError("no se pudo abrir el stream del juego")}
+        />
+        {error && (
+          <div
+            style={{
+              position: "absolute",
+              left: 16,
+              bottom: 16,
+              padding: "6px 10px",
+              borderRadius: "var(--radius-sm)",
+              background: "color-mix(in srgb, var(--danger) 25%, transparent)",
+              border: "1px solid var(--danger)",
+              fontSize: 12,
+            }}
+          >
+            {error}
+          </div>
+        )}
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          padding: "10px 20px",
+          flexShrink: 0,
+          background: "rgba(0,0,0,0.6)",
+        }}
+      >
+        <PlayerButton label="VOLVER" onClick={onStop} />
+        <PlayerButton label="RESET" onClick={() => api.command(CHANNEL, "reset").catch(() => {})} />
+        <PlayerButton
+          label="GUARDAR"
+          onClick={() => api.command(CHANNEL, "save_state", { slot: 1 }).catch(() => {})}
+        />
+        <PlayerButton
+          label="CARGAR"
+          onClick={() => api.command(CHANNEL, "load_state", { slot: 1 }).catch(() => {})}
+        />
+      </div>
+    </div>
+  );
+}
+
+function PlayerButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        padding: "6px 14px",
+        background: "transparent",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--radius-sm)",
+        color: "var(--text-dim)",
+        cursor: "pointer",
+        fontFamily: "var(--font-mono)",
+        fontSize: 11,
+        letterSpacing: 1.5,
+      }}
+    >
+      {label}
     </button>
   );
 }
