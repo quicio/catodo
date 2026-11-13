@@ -549,23 +549,33 @@ app.on("before-quit", (event) => {
   stopBundledBackend().finally(() => app.quit());
 });
 
-app.whenReady().then(async () => {
-  // Sin esto, ECS nunca instala el CDM y `com.widevine.alpha` no existe.
-  if (components && typeof components.whenReady === "function") {
-    try {
-      await components.whenReady();
-      const status = typeof components.status === "function" ? components.status() : null;
-      fs.appendFileSync(
-        "/tmp/catodo-dev.log",
-        "\n[WIDEVINE] components ready: " + JSON.stringify(status) + "\n",
-      );
-    } catch (err) {
-      fs.appendFileSync(
-        "/tmp/catodo-dev.log",
-        "\n[WIDEVINE] components failed: " + (err && err.stack || err) + "\n",
-      );
-    }
+// Sin esto, ECS nunca instala el CDM y `com.widevine.alpha` no existe.
+// El primer arranque baja el CDM (puede tardar), así que se lanza en paralelo y
+// la ventana espera como máximo 3 s: mostrar el kiosko importa más que bloquear
+// con pantalla negra hasta que termine la descarga.
+const widevineReady = (async () => {
+  if (!components || typeof components.whenReady !== "function") return null;
+  try {
+    const status = await components.whenReady();
+    fs.appendFileSync(
+      "/tmp/catodo-dev.log",
+      "\n[WIDEVINE] components ready: " + JSON.stringify(status) + "\n",
+    );
+    return status;
+  } catch (err) {
+    fs.appendFileSync(
+      "/tmp/catodo-dev.log",
+      "\n[WIDEVINE] components failed: " + (err && err.stack || err) + "\n",
+    );
+    return null;
   }
+})();
+
+app.whenReady().then(async () => {
+  await Promise.race([
+    widevineReady,
+    new Promise((resolve) => setTimeout(resolve, 3000)),
+  ]);
   createWindow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
