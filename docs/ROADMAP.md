@@ -25,11 +25,11 @@ milestones y el criterio de salida de cada uno.
 
 | Prioridad | Tema | Detalle |
 |---|---|---|
-| 1 | DRM/Widevine empaquetado | El `.app` y el AppImage usan Electron stock: TV (Movistar) y HBO Max sólo reproducen en dev con castLabs |
-| 2 | Validación Linux | `install.sh --check`, idempotencia con systemd y AppImage en una máquina limpia |
-| 3 | Canal IPTV | Único feature net-new; el change está escrito para Python y debe replantearse para `catodo-server` |
-| 4 | Releases sin pasos manuales | El release de release-please no encadena `release.yml` (`GITHUB_TOKEN`); resolver con PAT o `workflow_run` |
-| 5 | Notarización Apple / auto-update | Requiere Developer ID; hoy se compensa con el `xattr` del cask |
+| 1 | Validación Linux | `install.sh --check`, idempotencia con systemd y AppImage (con Widevine) en una máquina limpia |
+| 2 | Canal IPTV | Único feature net-new; el change está escrito para Python y debe replantearse para `catodo-server` |
+| 3 | Releases sin pasos manuales | El release de release-please no encadena `release.yml` (`GITHUB_TOKEN`); resolver con PAT o `workflow_run` |
+| 4 | Notarización Apple / auto-update | Requiere Developer ID; hoy se compensa con el `xattr` del cask |
+| 5 | VMP de producción (EVS) | La firma de ECS es de desarrollo; sólo hace falta si un proveedor la rechaza |
 
 ## Changes abiertos
 
@@ -37,6 +37,7 @@ milestones y el criterio de salida de cada uno.
 |---|---|---|
 | `m1-release-and-rust-foundation` | 56/65 | validaciones externas en Linux y cierre (`9.7`) |
 | `public-domain-tunnel` | 61/64 | pruebas manuales con Cloudflare real, PWA installable y VM limpia |
+| `packaged-widevine` | 11/14 | reproducir un canal DRM real con cuenta y validar el AppImage en Linux |
 | `iptv-channel` | 0/15 | todo; reescribir el plan para el backend Rust |
 | `add-system-tray-client` | tareas 100% | el tray no se empaqueta ni se distribuye: decidir integrarlo al pipeline o descartar el change |
 
@@ -46,12 +47,11 @@ Changes archivados el 2026-11-12 (specs sincronizadas): `spotify-on-macos`,
 
 ## Orden de ataque
 
-1. **DRM empaquetado**: es la diferencia entre demo y producto (2 de 8 canales no
-   funcionan en la app instalada).
-2. **Validación Linux**: `install.sh`, systemd y AppImage en limpio.
-3. **IPTV** en Rust: parser M3U, proxy `ffmpeg` y vista con zapping.
-4. **Releases automáticos** (PAT o `workflow_run`) y notarización cuando haya
+1. **Validación Linux**: `install.sh`, systemd y AppImage (con Widevine) en limpio.
+2. **IPTV** en Rust: parser M3U, proxy `ffmpeg` y vista con zapping.
+3. **Releases automáticos** (PAT o `workflow_run`) y notarización cuando haya
    Apple Developer ID.
+4. **Cerrar `packaged-widevine`**: reproducir un canal DRM real con cuenta.
 5. **Decisión del tray client**: integrar y empaquetar, o archivar el change como
    descartado.
 

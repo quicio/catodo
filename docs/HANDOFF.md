@@ -42,7 +42,11 @@ Implementado en el working tree:
   Electron lo lanza como sidecar y lo apaga al salir.
 - `run-dev.sh` y `run-prod.sh` usan Rust por defecto; Python queda como fallback
   (`CATODO_DEV_BACKEND=python`).
-- Zip `Catodo-0.1.0-mac-arm64.zip` (~102 MB), source tarball (~4.5 MB).
+- Zip `Catodo-0.1.1-mac-arm64.zip` (~120 MB; +18 MB por ECS/Widevine), source
+  tarball (~3.6 MB).
+- Shell sobre Electron for Content Security (ECS) 45.2.1+wvcus: el CDM de
+  Widevine se instala en runtime (`components.whenReady()`) y funciona en dev, en
+  `Catodo.app` y en el AppImage (ADR-0007, reemplaza ADR-0003).
 - Cask estático `catodo` publicado en el tap existente
   [`quicio/homebrew-tap`](https://github.com/quicio/homebrew-tap):
   `brew install --cask quicio/tap/catodo` (macOS arm64, sin notarizar).
@@ -179,6 +183,8 @@ navegador o Electron. Documentar cualquier atajo nuevo acá.
 | `pygobject` en CI | pasó a extra `mpris` del backend Python; `uv sync` ya no lo compila en Ubuntu 22.04 | el fallback Linux usa `uv sync --extra mpris` |
 | Linux release autocontenido | `install.sh` + deps del sistema | llega en M4 con el backend Rust |
 | app macOS sin notarizar | cask incluye caveat de Gatekeeper | notarización en M2/M5 |
+| Widevine empaquetado | ECS 45 con CDM en runtime; verificado en `Catodo.app` (`com.widevine.alpha` + CDM 4.10.3112.0) | falta reproducir Movistar/HBO Max con cuenta real y probar el AppImage en Linux |
+| firma VMP | ECS trae VMP de desarrollo | si un proveedor la rechaza o se necesitan licencias persistentes, firmar con EVS |
 
 ## Qué NO hacer
 

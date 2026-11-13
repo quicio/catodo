@@ -1,11 +1,14 @@
 ---
 id: adr-0003
-status: aceptada
+status: reemplazada por ADR-0007
 version: 1.0.0
 updated: 2026-11-10
 ---
 
 # ADR-0003 — Widevine sólo con Electron castLabs en desarrollo
+
+> Reemplazada por [ADR-0007](0007-widevine-empaquetado.md): Widevine se empaqueta
+> con ECS 45 en dev y en los artefactos.
 
 ## Contexto
 

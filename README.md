@@ -27,7 +27,7 @@ frontend/   Electron app (Chromium) — dev en :8765, release con sidecar
 - **Frontend**: React + Vite, built into static HTML/JS, served by the backend.
 - **Shell**: Electron opens a frameless, fullscreen, kiosk window. En dev apunta al backend en `:8765`; la app macOS empaquetada incluye el backend en `Contents/Resources/backend/`, lo lanza como sidecar en un puerto libre y lo apaga al salir. In-app `<webview>` tags handle YouTube and TV.
 
-**DRM note**: The TV channel (Movistar) requires Widevine. Install Electron castLabs with `bash scripts/install_castlab.sh` (or `bash install.sh --castlab`); `run-dev.sh` uses it automatically. The packaged AppImage uses stock Electron which does **not** include Widevine — use the dev launcher or run the castLabs binary directly for TV playback.
+**DRM note**: The TV channel (Movistar) requires Widevine. Cátodo corre sobre Electron for Content Security (castLabs), que instala el CDM de Widevine en runtime, así que dev, la app macOS y el AppImage reproducen contenido DRM. El CDM se descarga al primer arranque; sin red en ese momento los canales DRM no reproducen.
 
 ## Backend Rust
 
@@ -148,11 +148,10 @@ Cátodo corre de forma nativa en macOS Apple Silicon con la misma experiencia qu
 git clone <repo> ~/catodo && cd ~/catodo
 bash install.sh --check       # verifica requisitos (sin modificar el sistema)
 bash install.sh               # instala venv, build, plugin venv (sin sudo)
-bash scripts/install_castlab.sh   # opcional, para DRM en dev
 ./run-dev.sh                  # vite + backend + Electron
 ```
 
-`./run-dev.sh` arranca backend (puerto `:8765`), Vite (`:1420`) y Electron apuntando a Vite. Si no instalaste `castLabs`, el dev usa stock Electron — los canales no-DRM (YouTube, Crunchyroll, Anime, Arcade) funcionan; los canales DRM (Movistar TV, HBO Max) no reproducen.
+`./run-dev.sh` arranca backend (puerto `:8765`), Vite (`:1420`) y Electron apuntando a Vite. El Electron de `node_modules` es el build de castLabs (ECS) con Widevine; `npm ci` descarga el binario y el CDM se instala al primer arranque.
 
 ### Empaquetado
 
@@ -160,12 +159,12 @@ bash scripts/install_castlab.sh   # opcional, para DRM en dev
 bash build.sh    # produce release/Catodo-*.zip con Catodo.app + backend embebido
 ```
 
-El `.app` resultante es stock Electron sin Widevine (los canales DRM requieren `castLabs` corriendo en dev). El build lo firma ad-hoc; sin notarización, la primera apertura todavía puede mostrar el warning de Gatekeeper.
+El `.app` resultante incluye el build de castLabs (ECS) con Widevine, igual que el AppImage. El build lo firma ad-hoc; sin notarización, la primera apertura todavía puede mostrar el warning de Gatekeeper.
 
 ### Limitaciones conocidas
 
 - **Spotify requiere Spotify.app instalado.** Ch1 funciona vía AppleScript contra `application "Spotify"`. Si no tenés Spotify desktop instalado, Ch1 se omite del registry sin error (mismo gating que el resto del OS). **Permisos TCC**: la primera vez que abras Spotify desde el kiosk o el remote, macOS pide permiso de **Automation** a Spotify para el shell que corre el backend (Terminal/iTerm/Ghostty/etc). Sin ese permiso, AppleScript falla silencioso — el kiosk sigue pero Spotify no responde. Aprobá desde **System Settings → Privacy & Security → Automation** → permitir el proceso del backend.
-- **Widevine/DRM sólo en dev.** El `.app` empaquetado no incluye castLabs. Para Movistar TV/HBO Max usá `./run-dev.sh` con castLabs instalado localmente.
+- **Widevine empaquetado, VMP de desarrollo.** El CDM se instala en runtime, pero la firma VMP que trae ECS es la de desarrollo: si un proveedor exige VMP de producción (o licencias persistentes) hace falta firmar con [EVS](https://github.com/castlabs/electron-releases/wiki/EVS). Movistar/HBO Max en modalidad streaming usan licencias temporales y funcionan con la firma de desarrollo.
 - **Autostart no automático en builds desde fuente.** La instalación por Homebrew usa la app única; para builds desde fuente, agregá `./run-prod.sh` a Login Items o usá Automator.
 - **Notarización Apple ausente.** El build firma ad-hoc; si Gatekeeper bloquea la primera apertura, usá click derecho → Abrir o `xattr -dr com.apple.quarantine /Applications/Catodo.app`.
 
@@ -216,19 +215,10 @@ El instalador resuelve las rutas desde la ubicación real del repositorio, así
 que funciona clonando el proyecto en cualquier directorio (no depende de
 `~/projects/catodo`).
 
-**Requisitos manuales fuera del instalador:** los canales DRM (Movistar TV,
-HBO Max) necesitan Widevine. Cátodo incluye un instalador que baja el binario
-oficial de Electron castLabs desde GitHub (funciona en cualquier distro):
-
-```bash
-bash scripts/install_castlab.sh                     # última versión estable
-bash scripts/install_castlab.sh --version v42.8.0+wvcus   # versión específica
-```
-
-O incluirlo en la instalación: `bash install.sh --castlab`. El binario queda
-en `frontend/electron-castlab/` (ignorado por git) y `run-dev.sh` lo detecta
-automáticamente. Sin él, el repo funciona igual pero los canales con DRM no
-reproducen.
+**Widevine:** los canales DRM (Movistar TV, HBO Max) necesitan Widevine. Cátodo
+empaqueta Electron for Content Security (castLabs), que instala el CDM en
+runtime; no hay que instalar nada aparte, ni en dev ni en los artefactos
+publicados.
 
 ## Hotkeys (inside the Cátodo window)
 

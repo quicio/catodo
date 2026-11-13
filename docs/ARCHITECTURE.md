@@ -92,8 +92,8 @@ persistente. **No se ejecuta código de terceros.**
 | dev | `:8765` | Vite `:1420` con HMR | `./run-dev.sh` recicla el backend si `themes.py` es más nuevo que el proceso |
 | prod | `:8767` | estáticos en `backend/static/` | `./run-prod.sh`, AppImage, `systemd/` |
 
-DRM: el canal TV necesita Widevine → Electron castLabs en dev
-(`scripts/install_castlab.sh`); el AppImage usa Electron stock y no lo tiene
+DRM: el canal TV necesita Widevine → todo el shell corre sobre Electron
+castLabs (ECS) y el CDM se instala en runtime vía la `components` API
 (ADR-0003).
 
 ## Puntos de extensión
