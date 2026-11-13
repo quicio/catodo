@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/quicio/catodo/compare/v0.2.0...v0.2.1) (2026-11-13)
+
+
+### Bug Fixes
+
+* **drm:** no bloquear la primera ventana mientras baja el CDM ([98b4eff](https://github.com/quicio/catodo/commit/98b4eff696b8aff6c954381ae2cca6f9645987bb))
+
 ## [0.2.0](https://github.com/quicio/catodo/compare/v0.1.1...v0.2.0) (2026-11-13)
 
 
