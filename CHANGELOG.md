@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.4](https://github.com/quicio/catodo/compare/v0.4.3...v0.4.4) (2026-11-13)
+
+
+### Bug Fixes
+
+* **iptv:** recodificar audio a AAC para que el fMP4 no salga vacío ([e04d748](https://github.com/quicio/catodo/commit/e04d74800ae736b796301369bc44f50f1c6c64d7))
+
 ## [0.4.3](https://github.com/quicio/catodo/compare/v0.4.2...v0.4.3) (2026-11-13)
 
 
