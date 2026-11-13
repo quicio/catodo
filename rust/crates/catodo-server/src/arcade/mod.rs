@@ -24,7 +24,7 @@ use crate::channels::{Channel, LiveStream};
 use crate::config::RuntimeConfig;
 use crate::events::EventBroker;
 
-use av::Encoder;
+use av::{AudioEncoder, Encoder};
 use runner::Session;
 
 const ROM_EXTS: &[&str] = &[
@@ -43,6 +43,7 @@ pub struct ArcadeChannel {
     pid: Arc<Mutex<Option<u32>>>,
     session: Mutex<Option<Session>>,
     encoder: Mutex<Option<Encoder>>,
+    audio_encoder: Mutex<Option<AudioEncoder>>,
     mode: Arc<RwLock<Option<&'static str>>>,
 }
 
@@ -58,6 +59,7 @@ impl ArcadeChannel {
             pid: Arc::new(Mutex::new(None)),
             session: Mutex::new(None),
             encoder: Mutex::new(None),
+            audio_encoder: Mutex::new(None),
             mode: Arc::new(RwLock::new(None)),
         })
     }
@@ -303,6 +305,9 @@ impl ArcadeChannel {
         if let Some(mut encoder) = self.encoder.lock().await.take() {
             encoder.stop();
         }
+        if let Some(mut encoder) = self.audio_encoder.lock().await.take() {
+            encoder.stop();
+        }
         if let Some(mut session) = self.session.lock().await.take() {
             session.stop();
         }
@@ -337,9 +342,14 @@ impl Channel for ArcadeChannel {
             .map(|shared| shared.resolution())
             .unwrap_or((0, 0));
         let mode = *self.mode.read().await;
-        let (fps, core_name, error) = match shared.as_ref() {
-            Some(shared) => (shared.fps(), shared.core_name(), shared.error()),
-            None => (0.0, None, None),
+        let (fps, core_name, error, audio_samples) = match shared.as_ref() {
+            Some(shared) => (
+                shared.fps(),
+                shared.core_name(),
+                shared.error(),
+                shared.audio_samples(),
+            ),
+            None => (0.0, None, None, 0),
         };
         Ok(json!({
             "id": "arcade",
@@ -351,6 +361,7 @@ impl Channel for ArcadeChannel {
             "mode": mode,
             "core": core_name,
             "fps": fps,
+            "audio_samples": audio_samples,
             "resolution": [width, height],
             "error": error,
         }))
@@ -378,6 +389,30 @@ impl Channel for ArcadeChannel {
         let stdout = guard.as_mut()?.take_stdout()?;
         Some(LiveStream {
             content_type: "video/mp4".to_string(),
+            stdout,
+        })
+    }
+
+    async fn audio_stream(&self) -> Option<LiveStream> {
+        let shared = self.session_shared().await?;
+        let mut guard = self.audio_encoder.lock().await;
+        if guard.as_ref().is_some_and(|encoder| encoder.stdout_taken()) {
+            if let Some(mut encoder) = guard.take() {
+                encoder.stop();
+            }
+        }
+        if guard.is_none() {
+            match AudioEncoder::start(shared) {
+                Ok(encoder) => *guard = Some(encoder),
+                Err(error) => {
+                    tracing::warn!(%error, "arcade: no se pudo iniciar el audio");
+                    return None;
+                }
+            }
+        }
+        let stdout = guard.as_mut()?.take_stdout()?;
+        Some(LiveStream {
+            content_type: "audio/mp4".to_string(),
             stdout,
         })
     }

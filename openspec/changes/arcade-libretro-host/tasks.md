@@ -15,7 +15,7 @@
 
 ## 2. Streaming
 
-- [x] 2.1 `av.rs`: ffmpeg rawvideo → fMP4 (`frag_keyframe+empty_moov`, `zerolatency`). **Pendiente audio**: con un FIFO como segundo input ffmpeg queda trabado antes de emitir; ver task 2.5.
+- [x] 2.1 `av.rs`: dos pipelines — video rawvideo → fMP4 y audio s16le → AAC fMP4 (streams separados, ver 7.x).
 - [x] 2.2 `GET /api/channels/arcade/stream` en `api.rs` con `Body::from_stream` (mismo patrón que IPTV) y corte al cambiar de juego.
 - [x] 2.3 Comandos `launch`, `press`, `release`, `reset`, `save_state`, `load_state`, `stop` en el canal.
 - [x] 2.4 Estado del canal: `mode`, `system`, `core`, `fps`, `resolution`, `save_slots`, `error`.
@@ -46,8 +46,9 @@
 - [ ] 6.1 README: Arcade embebido, cores on-demand, upscaling y licencias.
 - [ ] 6.2 HANDOFF y ROADMAP actualizados; ADR-0008 referenciado.
 
-## 7. Audio (pendiente)
+## 7. Audio
 
-- [ ] 7.1 El PCM ya se captura en `SessionShared` (ring buffer con tope de ~1 s).
-- [ ] 7.2 El intento con FIFO como segundo input de ffmpeg no arranca (ffmpeg abre ambos extremos pero no emite): evaluar PCM por WebSocket + WebAudio en el renderer, o `ffmpeg-next`/libav embebido.
-- [ ] 7.3 Sincronizar audio con el video y verificar latencia.
+- [x] 7.1 PCM capturado en `SessionShared` (ring buffer con tope de ~1 s).
+- [x] 7.2 Pipeline propio de audio: `ffmpeg -f s16le → AAC fMP4` servido en `/api/channels/{id}/audio` (`-frag_duration 200000` porque sin video no hay keyframes).
+- [x] 7.3 Reproducción en el kiosko con **MediaSource** (`ArcadeAudio.tsx`): un `<audio src>` directo queda en readyState 0 con streams en vivo.
+- [ ] 7.4 Sincronía fina video/audio (hoy son dos streams independientes; el offset es de milisegundos pero no se corrige).

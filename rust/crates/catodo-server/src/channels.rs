@@ -46,6 +46,11 @@ pub trait Channel: Send + Sync {
         None
     }
 
+    /// Audio en vivo (AAC fMP4), para canales que separan video y audio.
+    async fn audio_stream(&self) -> Option<LiveStream> {
+        None
+    }
+
     async fn boxart(&self, _rel: &str) -> Option<PathBuf> {
         None
     }

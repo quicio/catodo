@@ -83,6 +83,10 @@ impl SessionShared {
         self.fps.lock().map(|value| *value).unwrap_or(60.0)
     }
 
+    pub fn audio_samples(&self) -> u64 {
+        self.audio_samples.load(Ordering::Relaxed)
+    }
+
     pub fn sample_rate(&self) -> u32 {
         self.sample_rate.load(Ordering::Relaxed)
     }
@@ -236,17 +240,40 @@ unsafe extern "C" fn video_cb(
     });
 }
 
-unsafe extern "C" fn audio_cb(_left: i16, _right: i16) {
+/// Tope del buffer: ~1 s de audio estéreo.
+fn audio_capacity(shared: &SessionShared) -> usize {
+    (shared.sample_rate() as usize).max(8000) * 2
+}
+
+fn push_audio(shared: &SessionShared, samples: &[i16]) {
+    let Ok(mut queue) = shared.audio.lock() else {
+        return;
+    };
+    let cap = audio_capacity(shared);
+    for sample in samples {
+        if queue.len() >= cap {
+            queue.pop_front();
+        }
+        queue.push_back(*sample);
+    }
+}
+
+unsafe extern "C" fn audio_cb(left: i16, right: i16) {
     with_ctx(|ctx| {
         ctx.audio_samples.fetch_add(1, Ordering::Relaxed);
+        push_audio(ctx, &[left, right]);
     });
 }
 
-unsafe extern "C" fn audio_batch_cb(_data: *const i16, frames: usize) -> usize {
-    with_ctx(|ctx| {
-        ctx.audio_samples
-            .fetch_add(frames as u64, Ordering::Relaxed);
-    });
+unsafe extern "C" fn audio_batch_cb(data: *const i16, frames: usize) -> usize {
+    if !data.is_null() && frames > 0 {
+        let samples = std::slice::from_raw_parts(data, frames * 2);
+        with_ctx(|ctx| {
+            ctx.audio_samples
+                .fetch_add(frames as u64, Ordering::Relaxed);
+            push_audio(ctx, samples);
+        });
+    }
     frames
 }
 

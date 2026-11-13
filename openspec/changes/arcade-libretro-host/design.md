@@ -50,10 +50,12 @@ Un thread por sesión:
 - Video: `retro_video_refresh` copia el frame a un buffer; `av.rs` lo manda como
   `rawvideo` (xrgb8888 o rgb565) a `ffmpeg -f rawvideo ... -c:v libx264 -preset
   ultrafast -tune zerolatency -f mp4 -movflags frag_keyframe+empty_moov`.
-- Audio: `retro_audio_sample_batch` acumula PCM s16 en un ring buffer (~1 s).
-  El mux con ffmpeg como segunda entrada (FIFO) quedó pendiente: ffmpeg abre
-  ambos extremos pero no emite frames. Se evaluará PCM por WebSocket + WebAudio
-  o `ffmpeg-next` embebido (ver tareas 7.x).
+- Audio: `retro_audio_sample_batch` acumula PCM s16 en un ring buffer (~1 s) y
+  un **ffmpeg aparte** lo encodea a AAC fMP4 (`/api/channels/{id}/audio`,
+  `-frag_duration 200000`). El kiosko lo reproduce con **MediaSource**: un
+  `<audio src>` directo queda en `readyState 0` con streams en vivo. El mux de
+  audio y video en un solo ffmpeg (segundo input por FIFO) no arranca y se
+  descartó.
 - Salida: `GET /api/channels/arcade/stream` con `Body::from_stream`, igual que
   IPTV (mismo patrón ya probado).
 

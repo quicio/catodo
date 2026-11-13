@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, type AppState } from "../api/client";
 import ArcadeCanvas, { type ArcadeShader } from "./ArcadeCanvas";
+import ArcadeAudio from "./ArcadeAudio";
 
 interface ArcadeGame {
   name: string;
@@ -550,6 +551,7 @@ function EmbeddedPlayer({ data, onStop }: { data: ArcadeData; onStop: () => void
         </span>
       </div>
 
+      <ArcadeAudio src={`/api/channels/${CHANNEL}/audio`} />
       <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
         <ArcadeCanvas
           src={`/api/channels/${CHANNEL}/stream`}

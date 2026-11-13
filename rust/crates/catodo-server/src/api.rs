@@ -53,6 +53,7 @@ pub fn router(state: ServerState) -> Router {
         .route("/api/channels/{channel_id}/episodes", get(channel_episodes))
         .route("/api/channels/{channel_id}/history", get(channel_history))
         .route("/api/channels/{channel_id}/stream", get(channel_stream))
+        .route("/api/channels/{channel_id}/audio", get(channel_audio))
         .route("/api/channels/{channel_id}/boxart", get(channel_boxart))
         .route("/api/volume", post(volume))
         .route("/api/config", get(get_config).post(set_config))
@@ -267,6 +268,24 @@ async fn channel_stream(
         )
             .into_response(),
     }
+}
+
+async fn channel_audio(
+    State(state): State<ServerState>,
+    Path(channel_id): Path<String>,
+) -> Response {
+    let Some(channel) = state.manager.get(&channel_id).await else {
+        return not_found(format!("unknown channel: {channel_id}")).into_response();
+    };
+    let Some(live) = channel.audio_stream().await else {
+        return not_found("channel has no audio").into_response();
+    };
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, live.content_type)
+        .header(header::CACHE_CONTROL, "no-store")
+        .body(Body::from_stream(ReaderStream::new(live.stdout)))
+        .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
 }
 
 async fn serve_file(path: &FilePath, headers: &HeaderMap) -> anyhow::Result<Response> {
