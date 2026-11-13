@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.2](https://github.com/quicio/catodo/compare/v0.4.1...v0.4.2) (2026-11-13)
+
+
+### Bug Fixes
+
+* **iptv:** explicar canales caídos y radios en vez de negro ([f0fe14b](https://github.com/quicio/catodo/commit/f0fe14bb182b8c9fbaf9a757573b02a6b60ec97c))
+
 ## [0.4.1](https://github.com/quicio/catodo/compare/v0.4.0...v0.4.1) (2026-11-13)
 
 
