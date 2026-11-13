@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.5](https://github.com/quicio/catodo/compare/v0.4.4...v0.4.5) (2026-11-13)
+
+
+### Bug Fixes
+
+* **iptv:** no mostrar 'sin datos' si el canal ya reproduce ([3d21df2](https://github.com/quicio/catodo/commit/3d21df2ab2bdc71e371484437d176b26091fce4e))
+
 ## [0.4.4](https://github.com/quicio/catodo/compare/v0.4.3...v0.4.4) (2026-11-13)
 
 
