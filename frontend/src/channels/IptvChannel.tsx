@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Icon } from "../icons";
 
 const CHANNEL = "iptv";
 const STREAM_URL = `/api/channels/${CHANNEL}/stream`;
@@ -35,6 +36,9 @@ export default function IptvChannel() {
   const [groupIdx, setGroupIdx] = useState(0);
   const [cmdError, setCmdError] = useState<string | null>(null);
   const [buffering, setBuffering] = useState(false);
+  const [audioOnly, setAudioOnly] = useState(false);
+  const [stalled, setStalled] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const groupIdxRef = useRef(0);
 
   const load = useCallback(async () => {
@@ -61,8 +65,18 @@ export default function IptvChannel() {
   // Al cambiar de canal el backend tarda en abrir el HLS y arrancar ffmpeg.
   const currentId = data?.current?.id ?? null;
   useEffect(() => {
+    setAudioOnly(false);
+    setStalled(false);
+    setCmdError(null);
     if (currentId) setBuffering(true);
-  }, [currentId]);
+  }, [currentId, reloadKey]);
+
+  // Si en 12 s no llegó ningún frame, el canal está caído o colgado.
+  useEffect(() => {
+    if (!currentId) return;
+    const timer = setTimeout(() => setStalled(true), 12000);
+    return () => clearTimeout(timer);
+  }, [currentId, reloadKey]);
 
   const groups = data?.groups ?? [];
   const group = groups[Math.min(groupIdx, Math.max(groups.length - 1, 0))];
@@ -205,14 +219,24 @@ export default function IptvChannel() {
         <div style={playerStyle}>
           {current ? (
             <video
-              key={current.id}
+              key={`${current.id}-${reloadKey}`}
               src={STREAM_URL}
               autoPlay
               playsInline
               controls={false}
               style={{ width: "100%", height: "100%", objectFit: "contain", background: "#000" }}
-              onLoadedData={() => setBuffering(false)}
-              onPlaying={() => setBuffering(false)}
+              onLoadedMetadata={(event) => {
+                // Radios y streams sin pista de video: negro no es un error.
+                if (event.currentTarget.videoWidth === 0) setAudioOnly(true);
+              }}
+              onLoadedData={() => {
+                setBuffering(false);
+                setStalled(false);
+              }}
+              onPlaying={() => {
+                setBuffering(false);
+                setStalled(false);
+              }}
               onWaiting={() => setBuffering(true)}
               onError={() => {
                 setBuffering(false);
@@ -222,11 +246,39 @@ export default function IptvChannel() {
           ) : (
             <div style={placeholderStyle}>Elegí un canal para empezar</div>
           )}
-          {buffering && !cmdError && !data?.error && (
+          {audioOnly && !cmdError && !data?.error && (
+            <div style={audioStyle}>
+              <Icon name="music" size={56} strokeWidth={1.5} color="var(--accent)" />
+              <div style={{ fontSize: 22, fontWeight: 600 }}>{current?.name}</div>
+              <div style={dimStyle}>radio · sólo audio</div>
+            </div>
+          )}
+          {buffering && !audioOnly && !stalled && !cmdError && !data?.error && (
             <div style={bufferingStyle}>conectando…</div>
           )}
+          {stalled && !audioOnly && !cmdError && !data?.error && (
+            <div style={stalledStyle}>
+              <span>sin datos del stream</span>
+              <button
+                type="button"
+                onClick={() => setReloadKey((key) => key + 1)}
+                style={retryStyle}
+              >
+                Reintentar
+              </button>
+            </div>
+          )}
           {(cmdError || data?.error) && (
-            <div style={errorStyle}>{cmdError || data?.error}</div>
+            <div style={errorStyle}>
+              <span>{cmdError || data?.error}</span>
+              <button
+                type="button"
+                onClick={() => setReloadKey((key) => key + 1)}
+                style={retryStyle}
+              >
+                Reintentar
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -332,6 +384,47 @@ const placeholderStyle: React.CSSProperties = {
   fontSize: 14,
 };
 
+const audioStyle: React.CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 8,
+  color: "var(--text)",
+  background: "radial-gradient(circle at 50% 40%, rgba(29,185,84,0.12), transparent 60%)",
+  pointerEvents: "none",
+};
+
+const stalledStyle: React.CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 12,
+  color: "var(--text-dim)",
+  fontFamily: "var(--font-mono)",
+  fontSize: 13,
+  letterSpacing: 1.5,
+  background: "rgba(0,0,0,0.6)",
+};
+
+const retryStyle: React.CSSProperties = {
+  pointerEvents: "auto",
+  padding: "6px 14px",
+  background: "transparent",
+  border: "1px solid var(--accent)",
+  borderRadius: "var(--radius-sm)",
+  color: "var(--accent)",
+  cursor: "pointer",
+  fontFamily: "var(--font-mono)",
+  fontSize: 12,
+  letterSpacing: 1,
+};
+
 const bufferingStyle: React.CSSProperties = {
   position: "absolute",
   inset: 0,
@@ -349,6 +442,9 @@ const errorStyle: React.CSSProperties = {
   position: "absolute",
   left: 12,
   bottom: 12,
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
   padding: "6px 10px",
   borderRadius: "var(--radius-sm)",
   background: "color-mix(in srgb, var(--danger) 25%, transparent)",
