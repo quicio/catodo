@@ -39,6 +39,7 @@ export default function IptvChannel() {
   const [audioOnly, setAudioOnly] = useState(false);
   const [stalled, setStalled] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [expanded, setExpanded] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const stallTimer = useRef<number | null>(null);
   const groupIdxRef = useRef(0);
@@ -152,6 +153,9 @@ export default function IptvChannel() {
       } else if (event.key === "ArrowLeft") {
         event.preventDefault();
         zap("prev");
+      } else if (event.key === "f" || event.key === "F") {
+        event.preventDefault();
+        setExpanded((value) => !value);
       } else if (event.key === "Enter" && !current) {
         const first = groups[groupIdxRef.current]?.channels[0];
         if (first) {
@@ -172,9 +176,18 @@ export default function IptvChannel() {
           {data ? `${data.count} canales` : "cargando…"}
           {current ? ` · ${current.name}` : ""}
         </span>
+        <button
+          type="button"
+          onClick={() => setExpanded((value) => !value)}
+          style={expandButtonStyle}
+          title={expanded ? "Volver a la lista (F)" : "Ampliar el canal (F)"}
+        >
+          {expanded ? "REDUCIR" : "AMPLIAR"}
+        </button>
       </div>
 
       <div style={{ display: "flex", gap: 24, flex: 1, minHeight: 0 }}>
+        {!expanded && (
         <div style={groupsStyle}>
           {groups.map((item, index) => {
             const active = index === groupIdx;
@@ -203,7 +216,9 @@ export default function IptvChannel() {
             </div>
           )}
         </div>
+        )}
 
+        {!expanded && (
         <div style={listStyle}>
           {group?.channels.map((entry) => {
             const active = current?.id === entry.id;
@@ -237,8 +252,9 @@ export default function IptvChannel() {
             );
           })}
         </div>
+        )}
 
-        <div style={playerStyle}>
+        <div style={playerStyle} onDoubleClick={() => setExpanded((value) => !value)}>
           {current ? (
             <video
               ref={videoRef}
@@ -267,7 +283,9 @@ export default function IptvChannel() {
               }}
             />
           ) : (
-            <div style={placeholderStyle}>Elegí un canal para empezar</div>
+            <div style={placeholderStyle}>
+              {expanded ? "F para volver a la lista" : "Elegí un canal para empezar"}
+            </div>
           )}
           {audioOnly && !cmdError && !data?.error && (
             <div style={audioStyle}>
@@ -306,7 +324,7 @@ export default function IptvChannel() {
         </div>
       </div>
 
-      <div style={hintStyle}>↑↓ GRUPO · ←→ CANAL · ENTER ELEGIR</div>
+      <div style={hintStyle}>↑↓ GRUPO · ←→ CANAL · ENTER ELEGIR · F AMPLIAR</div>
     </div>
   );
 }
@@ -341,6 +359,19 @@ const labelStyle: React.CSSProperties = {
   fontFamily: "var(--font-mono)",
   fontSize: 13,
   letterSpacing: 3,
+};
+
+const expandButtonStyle: React.CSSProperties = {
+  marginLeft: "auto",
+  padding: "5px 12px",
+  background: "transparent",
+  border: "1px solid var(--border)",
+  borderRadius: "var(--radius-sm)",
+  color: "var(--text-dim)",
+  cursor: "pointer",
+  fontFamily: "var(--font-mono)",
+  fontSize: 11,
+  letterSpacing: 1.5,
 };
 
 const dimStyle: React.CSSProperties = {
