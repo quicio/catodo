@@ -8,10 +8,10 @@
 
 ## 1. Módulo `arcade/` en Rust
 
-- [ ] 1.1 Crear `rust/crates/catodo-server/src/arcade/` (`mod.rs`, `core.rs`, `runner.rs`, `av.rs`, `cores.rs`) moviendo el escaneo actual a `mod.rs`.
-- [ ] 1.2 `core.rs`: tipos FFI, `retro_set_*`, `retro_init`, `retro_load_game`, `retro_get_system_av_info`, `retro_run`, `retro_serialize`/`unserialize`, con `libloading`.
-- [ ] 1.3 `cores.rs`: mapa sistema → core, descarga desde `buildbot.libretro.com/nightly/<os>/<arch>/latest/`, extracción y caché en `arcade_cores_dir`.
-- [ ] 1.4 `runner.rs`: thread a `timing.fps`, bitmask de botones, buffer de frame y cola de audio; cierre limpio (`retro_unload_game`, `retro_deinit`).
+- [x] 1.1 Crear `rust/crates/catodo-server/src/arcade/` (`mod.rs`, `core.rs`, `runner.rs`, `av.rs`, `cores.rs`) moviendo el escaneo actual a `mod.rs`.
+- [x] 1.2 `core.rs`: tipos FFI, `retro_set_*`, `retro_init`, `retro_load_game`, `retro_get_system_av_info`, `retro_run`, `retro_serialize`/`unserialize`, con `libloading`.
+- [x] 1.3 `cores.rs`: mapa sistema → core, descarga desde `buildbot.libretro.com/nightly/<os>/<arch>/latest/`, extracción y caché en `arcade_cores_dir`.
+- [x] 1.4 `runner.rs`: thread a `timing.fps`, bitmask de botones, buffer de frame y cola de audio; cierre limpio (`retro_unload_game`, `retro_deinit`).
 
 ## 2. Streaming
 
@@ -22,8 +22,8 @@
 
 ## 3. Config y compatibilidad
 
-- [ ] 3.1 Claves `arcade_output_height`, `arcade_upscaler`, `arcade_shader`, `arcade_internal_scale`, `arcade_cores_dir` en `config.rs`.
-- [ ] 3.2 Si `arcade_default_emulator` o `arcade_emulators` están seteados, `launch` usa el binario externo (comportamiento actual).
+- [x] 3.1 Claves `arcade_output_height`, `arcade_upscaler`, `arcade_shader`, `arcade_internal_scale`, `arcade_cores_dir` en `config.rs`.
+- [x] 3.2 Si `arcade_default_emulator` o `arcade_emulators` están seteados, `launch` usa el binario externo (comportamiento actual).
 
 ## 4. Frontend
 
@@ -34,9 +34,9 @@
 
 ## 5. Tests y verificación
 
-- [ ] 5.1 Test de carga real por sistema con un ROM público (NES con `nestest.nes`; SNES/GB con homebrew equivalente).
+- [ ] 5.1 Test de carga real por sistema con un ROM público (NES validado con `nestest.nes`; falta SNES/GB).
 - [ ] 5.2 Test del endpoint `/stream`: content-type, bytes > 0 y corte al cambiar de juego.
-- [ ] 5.3 Test de `save_state`/`load_state` (serialize → unserialize).
+- [x] 5.3 Test de `save_state`/`load_state` (serialize → unserialize).
 - [ ] 5.4 E2E manual: NES y SNES jugables a 720p y 1080p con shader `crt` y `nearest`.
 - [ ] 5.5 Medir fps y CPU con 720p/1080p y documentar el resultado.
 - [ ] 5.6 `./scripts/check.sh` verde y `openspec validate arcade-libretro-host` OK.

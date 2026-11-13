@@ -1,4 +1,12 @@
-//! Arcade launcher channel: scans ROMs and launches an external emulator.
+//! Arcade launcher channel: escanea ROMs y emula con un core libretro embebido.
+//!
+//! Si el usuario configuró `arcade_default_emulator`/`arcade_emulators`, se
+//! mantiene el lanzamiento de un binario externo (compatibilidad). Si no, el
+//! juego corre dentro del backend con un core libretro y se sirve como stream.
+
+pub mod core;
+pub mod cores;
+pub mod runner;
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -15,6 +23,8 @@ use crate::channels::Channel;
 use crate::config::RuntimeConfig;
 use crate::events::EventBroker;
 
+use runner::Session;
+
 const ROM_EXTS: &[&str] = &[
     "zip", "nes", "smc", "sfc", "gb", "gba", "md", "n64", "rom", "bin", "iso", "cue", "chd", "pbp",
 ];
@@ -29,6 +39,8 @@ pub struct ArcadeChannel {
     playing: Arc<AtomicBool>,
     scanned_at: Mutex<Option<Instant>>,
     pid: Arc<Mutex<Option<u32>>>,
+    session: Mutex<Option<Session>>,
+    mode: Arc<RwLock<Option<&'static str>>>,
 }
 
 impl ArcadeChannel {
@@ -41,6 +53,8 @@ impl ArcadeChannel {
             playing: Arc::new(AtomicBool::new(false)),
             scanned_at: Mutex::new(None),
             pid: Arc::new(Mutex::new(None)),
+            session: Mutex::new(None),
+            mode: Arc::new(RwLock::new(None)),
         })
     }
 
@@ -77,6 +91,26 @@ impl ArcadeChannel {
         None
     }
 
+    /// Comando externo configurado por el usuario, si existe.
+    async fn external_template(&self, system: &str) -> Option<String> {
+        let per_system = self
+            .config
+            .get("arcade_emulators")
+            .await
+            .as_object()
+            .and_then(|map| map.get(system))
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        per_system
+    }
+
+    async fn default_external_template(&self) -> Option<String> {
+        self.config
+            .get_string("arcade_default_emulator")
+            .await
+            .filter(|value| !value.is_empty())
+    }
+
     async fn launch(&self, rel: &str) -> anyhow::Result<()> {
         self.refresh().await;
         let Some(game) = self.find_game(rel).await else {
@@ -92,24 +126,26 @@ impl ArcadeChannel {
             .and_then(Value::as_str)
             .unwrap_or("")
             .to_string();
-        let mut template = self
-            .config
-            .get("arcade_emulators")
-            .await
-            .as_object()
-            .and_then(|map| map.get(&system))
-            .and_then(Value::as_str)
-            .map(str::to_string);
-        if template.is_none() {
-            template = self
-                .config
-                .get_string("arcade_default_emulator")
-                .await
-                .filter(|value| !value.is_empty());
+
+        let template = match self.external_template(&system).await {
+            Some(template) => Some(template),
+            None => self.default_external_template().await,
+        };
+
+        if let Some(template) = template {
+            return self.launch_external(&template, &rom, &system, game).await;
         }
-        let template =
-            template.ok_or_else(|| anyhow::anyhow!("no emulator configured for {system}"))?;
-        let expanded = template.replace("{rom}", &rom);
+        self.launch_embedded(&rom, &system, game).await
+    }
+
+    async fn launch_external(
+        &self,
+        template: &str,
+        rom: &str,
+        system: &str,
+        game: Value,
+    ) -> anyhow::Result<()> {
+        let expanded = template.replace("{rom}", rom);
         let argv =
             shlex::split(&expanded).ok_or_else(|| anyhow::anyhow!("invalid emulator command"))?;
         let Some((program, args)) = argv.split_first() else {
@@ -119,27 +155,81 @@ impl ArcadeChannel {
         let child = Command::new(program).args(args).spawn()?;
         let pid = child.id();
         *self.pid.lock().await = pid;
+        *self.mode.write().await = Some("external");
         *self.current.write().await = Some(game.clone());
         self.playing.store(true, Ordering::SeqCst);
         self.broker.publish(json!({
             "event": "game_launched",
             "channel_id": "arcade",
             "game": game,
+            "system": system,
+            "mode": "external",
         }));
 
         let broker = self.broker.clone();
         let playing = self.playing.clone();
         let current = self.current.clone();
         let pid_slot = self.pid.clone();
+        let mode = self.mode.clone();
         tokio::spawn(async move {
             let mut child = child;
             let _ = child.wait().await;
             playing.store(false, Ordering::SeqCst);
             *current.write().await = None;
             *pid_slot.lock().await = None;
+            *mode.write().await = None;
             broker.publish(json!({"event": "game_exited", "channel_id": "arcade"}));
         });
         Ok(())
+    }
+
+    async fn launch_embedded(&self, rom: &str, system: &str, game: Value) -> anyhow::Result<()> {
+        self.stop().await;
+        let (core_path, spec) = match cores::ensure_core(&self.config, system).await {
+            Ok(value) => value,
+            Err(error) => {
+                self.broker.publish(json!({
+                    "event": "arcade_core_missing",
+                    "channel_id": "arcade",
+                    "system": system,
+                    "error": error.to_string(),
+                }));
+                return Err(error);
+            }
+        };
+
+        let rom_path = PathBuf::from(rom);
+        let core_for_thread = core_path.clone();
+        let rom_for_thread = rom_path.clone();
+        let session =
+            tokio::task::spawn_blocking(move || Session::start(&core_for_thread, &rom_for_thread))
+                .await
+                .map_err(|error| anyhow::anyhow!("thread del core: {error}"))??;
+
+        let shared = session.shared();
+        let (width, height) = shared.resolution();
+        *self.session.lock().await = Some(session);
+        *self.mode.write().await = Some("embedded");
+        *self.current.write().await = Some(game.clone());
+        self.playing.store(true, Ordering::SeqCst);
+        self.broker.publish(json!({
+            "event": "game_launched",
+            "channel_id": "arcade",
+            "game": game,
+            "system": system,
+            "mode": "embedded",
+            "core": spec.core,
+            "resolution": [width, height],
+        }));
+        Ok(())
+    }
+
+    async fn session_shared(&self) -> Option<Arc<runner::SessionShared>> {
+        self.session
+            .lock()
+            .await
+            .as_ref()
+            .map(|session| session.shared())
     }
 
     async fn fetch_boxart(&self, rel: &str) -> anyhow::Result<()> {
@@ -206,6 +296,10 @@ impl ArcadeChannel {
                 .status()
                 .await;
         }
+        if let Some(mut session) = self.session.lock().await.take() {
+            session.stop();
+        }
+        *self.mode.write().await = None;
         self.playing.store(false, Ordering::SeqCst);
     }
 }
@@ -224,11 +318,22 @@ impl Channel for ArcadeChannel {
     }
 
     async fn close(&self) -> anyhow::Result<()> {
+        self.stop().await;
         Ok(())
     }
 
     async fn state(&self) -> anyhow::Result<Value> {
         self.refresh().await;
+        let shared = self.session_shared().await;
+        let (width, height) = shared
+            .as_ref()
+            .map(|shared| shared.resolution())
+            .unwrap_or((0, 0));
+        let mode = *self.mode.read().await;
+        let (fps, core_name, error) = match shared.as_ref() {
+            Some(shared) => (shared.fps(), shared.core_name(), shared.error()),
+            None => (0.0, None, None),
+        };
         Ok(json!({
             "id": "arcade",
             "name": "Arcade",
@@ -236,6 +341,11 @@ impl Channel for ArcadeChannel {
             "systems": self.systems.read().await.clone(),
             "current": self.current.read().await.clone(),
             "playing": self.playing.load(Ordering::SeqCst),
+            "mode": mode,
+            "core": core_name,
+            "fps": fps,
+            "resolution": [width, height],
+            "error": error,
         }))
     }
 
@@ -264,6 +374,35 @@ impl Channel for ArcadeChannel {
                 self.launch(rel).await?;
             }
             "stop" => self.stop().await,
+            "press" | "release" => {
+                let name = args.get("button").and_then(Value::as_str).unwrap_or("");
+                let Some(shared) = self.session_shared().await else {
+                    anyhow::bail!("no hay sesión embebida activa");
+                };
+                let ok = if command == "press" {
+                    shared.press(name)
+                } else {
+                    shared.release(name)
+                };
+                if !ok {
+                    anyhow::bail!("botón desconocido: {name}");
+                }
+            }
+            "reset" => {
+                if let Some(session) = self.session.lock().await.as_ref() {
+                    session.reset()?;
+                }
+            }
+            "save_state" | "load_state" => {
+                let slot = args.get("slot").and_then(Value::as_u64).unwrap_or(1) as u32;
+                if let Some(session) = self.session.lock().await.as_ref() {
+                    if command == "save_state" {
+                        session.save_state(slot)?;
+                    } else {
+                        session.load_state(slot)?;
+                    }
+                }
+            }
             "refresh" => {
                 *self.scanned_at.lock().await = None;
                 self.refresh().await;

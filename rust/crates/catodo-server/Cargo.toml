@@ -28,6 +28,7 @@ qrcode.workspace = true
 shlex.workspace = true
 rumqttc.workspace = true
 uuid.workspace = true
+libloading = "0.8"
 
 [dev-dependencies]
 tower.workspace = true
