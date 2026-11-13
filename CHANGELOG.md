@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/quicio/catodo/compare/v0.4.5...v0.5.0) (2026-11-13)
+
+
+### Features
+
+* **iptv:** ampliar el canal a pantalla completa con F ([1188b46](https://github.com/quicio/catodo/commit/1188b46fb29ee585ece149fd2a5a975d2a72dd98))
+
 ## [0.4.5](https://github.com/quicio/catodo/compare/v0.4.4...v0.4.5) (2026-11-13)
 
 
