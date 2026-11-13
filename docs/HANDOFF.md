@@ -56,11 +56,13 @@ Implementado en el working tree:
 - `rust/` con `catodo-domain`, `catodo-platform`, `catodo-server`, tests de
   contrato y límites de capas.
 
-Los releases `v0.1.0` y `v0.1.1` (2026-11-11) están publicados con los artefactos macOS
-(versionado + alias estable `Catodo-mac-arm64.zip`), Linux (AppImage, deb, source
-tarball) y `SHA256SUMS`. `brew install --cask quicio/tap/catodo` se verificó en
-esta máquina (macOS arm64): instala, quita la cuarentena y la app arranca con el
-sidecar Rust.
+Los releases `v0.1.0`, `v0.1.1`, `v0.2.0`, `v0.2.1` y `v0.3.0` están publicados
+con los artefactos macOS (versionado + alias estable `Catodo-mac-arm64.zip`),
+Linux (AppImage, deb, source tarball) y `SHA256SUMS`. Desde `v0.2.0` los
+artefactos incluyen Electron ECS con Widevine (ADR-0007) y desde `v0.3.0` la app
+se puede cerrar con `⌘⇧Q` o un botón en Ajustes. `brew install --cask
+quicio/tap/catodo` se verificó en esta máquina (macOS arm64) hasta `0.3.0`:
+instala, quita la cuarentena y arranca con el sidecar Rust y Widevine disponible.
 
 Pendiente de validación externa (no bloquea el código): probar
 `install.sh`/AppImage en un Linux limpio. En CI, los runners macOS arm64 tienen
