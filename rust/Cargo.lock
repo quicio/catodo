@@ -148,7 +148,7 @@ checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
 
 [[package]]
 name = "catodo-domain"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -156,11 +156,11 @@ dependencies = [
 
 [[package]]
 name = "catodo-platform"
-version = "0.2.1"
+version = "0.3.0"
 
 [[package]]
 name = "catodo-server"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "async-trait",
