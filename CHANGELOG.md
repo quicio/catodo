@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0](https://github.com/quicio/catodo/compare/v0.3.0...v0.4.0) (2026-11-13)
+
+
+### Features
+
+* **iptv:** canal IPTV con proxy ffmpeg y zapping ([d6f3c8f](https://github.com/quicio/catodo/commit/d6f3c8f7380f1284f06736f96291db484ed440e9))
+* **iptv:** reportar errores de stream y cubrirlos con tests ([654793a](https://github.com/quicio/catodo/commit/654793ab6bef2b2bf5956a973547b1f6b4489352))
+
 ## [0.3.0](https://github.com/quicio/catodo/compare/v0.2.1...v0.3.0) (2026-11-13)
 
 
