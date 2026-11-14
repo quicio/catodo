@@ -133,9 +133,27 @@ impl ArcadeChannel {
             .unwrap_or("")
             .to_string();
 
-        let template = match self.external_template(&system).await {
+        // `arcade_mode` manda: auto (default) respeta el emulador configurado,
+        // embedded fuerza el core adentro de la ventana y external exige uno.
+        let mode = self
+            .config
+            .get_string("arcade_mode")
+            .await
+            .unwrap_or_else(|| "auto".to_string());
+        let configured = match self.external_template(&system).await {
             Some(template) => Some(template),
             None => self.default_external_template().await,
+        };
+        let template = match mode.as_str() {
+            "embedded" => None,
+            "external" => match configured {
+                Some(template) => Some(template),
+                None => anyhow::bail!(
+                    "modo external sin emulador configurado para «{system}»: \
+                     agregá una entrada en arcade_emulators"
+                ),
+            },
+            _ => configured,
         };
 
         if let Some(template) = template {
@@ -191,6 +209,17 @@ impl ArcadeChannel {
 
     async fn launch_embedded(&self, rom: &str, system: &str, game: Value) -> anyhow::Result<()> {
         self.stop().await;
+        // Aviso antes de descargar: el core pesa unos MB y la primera vez por
+        // sistema se nota. Sin esto el usuario sólo ve que "no pasa nada".
+        if let Some(core) = cores::missing_core(&self.config, system).await {
+            self.broker.publish(json!({
+                "event": "arcade_core_download",
+                "channel_id": "arcade",
+                "system": system,
+                "core": core,
+                "game": game.get("name").cloned().unwrap_or(Value::Null),
+            }));
+        }
         let (core_path, spec) = match cores::ensure_core(&self.config, system).await {
             Ok(value) => value,
             Err(error) => {

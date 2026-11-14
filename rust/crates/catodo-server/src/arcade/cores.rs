@@ -156,6 +156,20 @@ pub async fn cores_dir(config: &RuntimeConfig) -> PathBuf {
     PathBuf::from(base)
 }
 
+/// Core que hace falta descargar para `system`, si es que falta.
+///
+/// Permite avisarle al usuario *antes* de empezar: la descarga puede tardar y
+/// hasta ahora el único rastro era un error si fallaba.
+pub async fn missing_core(config: &RuntimeConfig, system: &str) -> Option<&'static str> {
+    let spec = core_for_system(system)?;
+    let target = cores_dir(config).await.join(core_filename(spec.core));
+    if target.is_file() {
+        None
+    } else {
+        Some(spec.core)
+    }
+}
+
 /// Devuelve la ruta del core para `system`, descargándolo si falta.
 pub async fn ensure_core(
     config: &RuntimeConfig,
