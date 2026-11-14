@@ -1,0 +1,79 @@
+{
+  "generated": "2026-11-14",
+  "pins": {
+    "apple/osx/arm64": {
+      "fceumm": {
+        "lib_sha256": "eee7462fc86d2ce373a313f2a60b52c5f56df33887dc6c9bb0a605f0ecc4cd41",
+        "url": "https://buildbot.libretro.com/nightly/apple/osx/arm64/latest/fceumm_libretro.dylib.zip",
+        "zip_sha256": "9fbc186e9f0eeaaab1afba507c7f4ec7a8b58453b02640e1b14fa6fad2f89c5c"
+      },
+      "gambatte": {
+        "lib_sha256": "1308505fff00780cf8a3b8977e66248d267d695d52941c16ff36a540d59bdba0",
+        "url": "https://buildbot.libretro.com/nightly/apple/osx/arm64/latest/gambatte_libretro.dylib.zip",
+        "zip_sha256": "8e4d7ed1ae749f6c4953364390d556dbb002e72c91635922baa51bbeded94aaa"
+      },
+      "genesis_plus_gx": {
+        "lib_sha256": "b58f2e2df4b1c708d8f60be54491182efd002033a4e7ee6f3c35e4a8f6249aa8",
+        "url": "https://buildbot.libretro.com/nightly/apple/osx/arm64/latest/genesis_plus_gx_libretro.dylib.zip",
+        "zip_sha256": "345adf6e4296ccbad04b4b5ec7e57f4264f4f32d92aa903addbfa03b5c103101"
+      },
+      "mgba": {
+        "lib_sha256": "54ae92e80b012013f6d777fb3158b9f925be22c97896049b8549614d7514f505",
+        "url": "https://buildbot.libretro.com/nightly/apple/osx/arm64/latest/mgba_libretro.dylib.zip",
+        "zip_sha256": "cdc8ccc777dfce390fa63150677a6c5f532e5607070ded8b19ea58dbda024574"
+      },
+      "mupen64plus_next": {
+        "lib_sha256": "17f38964f0537451dadeed7e8d602f0c1ffc23acd8e58d994621690acac17755",
+        "url": "https://buildbot.libretro.com/nightly/apple/osx/arm64/latest/mupen64plus_next_libretro.dylib.zip",
+        "zip_sha256": "5e93542fd3207c7746378b59a5e0ee72f42d5f8adce57865e92c51b5deada164"
+      },
+      "pcsx_rearmed": {
+        "lib_sha256": "374cc023425f42c7586d4980d858c5752f63610a85189154fa78a04de854f708",
+        "url": "https://buildbot.libretro.com/nightly/apple/osx/arm64/latest/pcsx_rearmed_libretro.dylib.zip",
+        "zip_sha256": "1841374c7df20fb760e43c72431240598ba41a8ab5a046c0c5130a877075bb0a"
+      },
+      "snes9x": {
+        "lib_sha256": "8ed333ac04544cc6ab67ceb445d095f7600bb17586d4887d99117fbd1ef776f6",
+        "url": "https://buildbot.libretro.com/nightly/apple/osx/arm64/latest/snes9x_libretro.dylib.zip",
+        "zip_sha256": "f71798c89941d780dd95466dd6d44481eb6ce1e7bbf081a9893c0bc0131ea2da"
+      }
+    },
+    "linux/x86_64": {
+      "fceumm": {
+        "lib_sha256": "6a30a7b1c7991800db1ec312263fde47e93d74d9850344864bb92a7c12549dee",
+        "url": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/fceumm_libretro.so.zip",
+        "zip_sha256": "72adb0b2c3ddafcdc4500615ecf6ec299d9eef7c69fbbc916dc982477233eddd"
+      },
+      "gambatte": {
+        "lib_sha256": "e7d5e5c301ca7ec7ff92f9ef9a4d704b315e80f23607551daf598dac335b27be",
+        "url": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/gambatte_libretro.so.zip",
+        "zip_sha256": "a2d6fe857d1c1187087b4c30293e66acd8e45620fa2e1eda062b9e81c235f69a"
+      },
+      "genesis_plus_gx": {
+        "lib_sha256": "ac060194c55aa6b596a9cc1b8fdacad8fb13349f52a1a7f4d51b8a321bad0551",
+        "url": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/genesis_plus_gx_libretro.so.zip",
+        "zip_sha256": "912be2d7a2077b7581988519e889837eee9a0fbaf89b344bbe18ff522c4a9d5c"
+      },
+      "mgba": {
+        "lib_sha256": "c840f305825d07c9bec7a6ec18841073c4b539fd234f73623474f97c507f1cdc",
+        "url": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/mgba_libretro.so.zip",
+        "zip_sha256": "a7ab4087a8e4d293cbcfdbb37959d2e670475d4a8b32bb73eafc35e7d5fb0120"
+      },
+      "mupen64plus_next": {
+        "lib_sha256": "26f2b4ec722558d77bc9e1582e62ab80c84190bb20dfadc48a148e6210c8775e",
+        "url": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/mupen64plus_next_libretro.so.zip",
+        "zip_sha256": "584e05e5280ec9f26c443ccdde0650a7f74da5ff1ee02f650d986207c9327aa0"
+      },
+      "pcsx_rearmed": {
+        "lib_sha256": "6071f1563c1e8d4b84804436a55b11e65a064fbe9c72e2f9264297d8f52fe297",
+        "url": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/pcsx_rearmed_libretro.so.zip",
+        "zip_sha256": "7c8e86490d7467219306dfd04f16a13fbceff6e8b2406249ee4f6e59847c09bc"
+      },
+      "snes9x": {
+        "lib_sha256": "9b2b6ea9d88f96c156590443ddd05ee56aaf4e495329a889c979921942717a31",
+        "url": "https://buildbot.libretro.com/nightly/linux/x86_64/latest/snes9x_libretro.so.zip",
+        "zip_sha256": "7491e4bdf1e70fc5217ec516abb0e14412e6b70b6aebdccc9f4930d0dafdb6bd"
+      }
+    }
+  }
+}

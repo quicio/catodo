@@ -1,13 +1,46 @@
 //! Resolución y descarga on-demand de cores libretro.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 use std::time::Duration;
 
-use anyhow::{anyhow, Context};
+use anyhow::{anyhow, bail, Context};
+use serde::Deserialize;
+use sha2::{Digest, Sha256};
 
 use crate::config::RuntimeConfig;
 
-const BUILDBOT: &str = "https://buildbot.libretro.com/nightly";
+#[derive(Debug, Deserialize)]
+struct CorePin {
+    url: String,
+    zip_sha256: String,
+    lib_sha256: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct LockFile {
+    #[allow(dead_code)]
+    generated: Option<String>,
+    pins: HashMap<String, HashMap<String, CorePin>>,
+}
+
+fn lock() -> &'static LockFile {
+    static LOCK: OnceLock<LockFile> = OnceLock::new();
+    LOCK.get_or_init(|| {
+        serde_json::from_str(include_str!("cores.lock.json"))
+            .expect("cores.lock.json debe ser JSON válido")
+    })
+}
+
+fn pin<'a>(platform: &str, core: &str) -> Option<&'a CorePin> {
+    lock().pins.get(platform)?.get(core)
+}
+
+async fn sha256_file(path: &Path) -> anyhow::Result<String> {
+    let bytes = tokio::fs::read(path).await?;
+    Ok(format!("{:x}", Sha256::digest(&bytes)))
+}
 
 /// Core que corresponde a un sistema (por nombre de carpeta del usuario).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -134,16 +167,27 @@ pub async fn ensure_core(
     let dir = cores_dir(config).await;
     tokio::fs::create_dir_all(&dir).await.ok();
     let target = dir.join(core_filename(spec.core));
+    let platform = platform_segment()?;
+    let pin = pin(platform, spec.core).ok_or_else(|| {
+        anyhow!(
+            "el core {} no está pineado para {platform}; corré scripts/update-cores.sh {platform}",
+            spec.core
+        )
+    })?;
+
     if target.is_file() {
-        return Ok((target, spec));
+        let actual = sha256_file(&target).await?;
+        if actual.eq_ignore_ascii_case(&pin.lib_sha256) {
+            return Ok((target, spec));
+        }
+        tracing::warn!(
+            core = spec.core,
+            "arcade: core cacheado con hash distinto; se vuelve a descargar"
+        );
+        let _ = tokio::fs::remove_file(&target).await;
     }
 
-    let platform = platform_segment()?;
-    let url = format!(
-        "{BUILDBOT}/{platform}/latest/{core}_libretro.{ext}.zip",
-        core = spec.core,
-        ext = library_extension()
-    );
+    let url = pin.url.clone();
     tracing::info!(%url, "arcade: descargando core");
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(60))
@@ -155,6 +199,15 @@ pub async fn ensure_core(
         .with_context(|| format!("no se pudo descargar el core {url}"))?
         .error_for_status()?;
     let bytes = response.bytes().await?;
+    let digest = format!("{:x}", Sha256::digest(&bytes));
+    if !digest.eq_ignore_ascii_case(&pin.zip_sha256) {
+        bail!(
+            "checksum inválido para el core {} ({platform}): esperado {}, recibido {}",
+            spec.core,
+            pin.zip_sha256,
+            digest
+        );
+    }
 
     let zip_path = dir.join(format!("{}.zip", spec.core));
     tokio::fs::write(&zip_path, &bytes).await?;
@@ -176,6 +229,16 @@ pub async fn ensure_core(
             spec.core,
             target.display()
         ));
+    }
+    let actual = sha256_file(&target).await?;
+    if !actual.eq_ignore_ascii_case(&pin.lib_sha256) {
+        let _ = tokio::fs::remove_file(&target).await;
+        bail!(
+            "checksum inválido para la librería {} ({platform}): esperado {}, recibido {}",
+            spec.core,
+            pin.lib_sha256,
+            actual
+        );
     }
     Ok((target, spec))
 }
@@ -205,6 +268,15 @@ mod tests {
         );
         assert_eq!(core_for_system("PSX").unwrap().core, "pcsx_rearmed");
         assert!(core_for_system("Dreamcast").is_none());
+    }
+
+    #[test]
+    fn current_platform_has_a_pinned_snes9x() {
+        let platform = platform_segment().expect("plataforma soportada");
+        let pin = pin(platform, "snes9x").expect("pin de snes9x");
+        assert_eq!(pin.zip_sha256.len(), 64);
+        assert_eq!(pin.lib_sha256.len(), 64);
+        assert!(pin.url.ends_with(".zip"));
     }
 
     #[test]

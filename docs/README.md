@@ -58,6 +58,10 @@ abrir un change (no editar la spec directamente sin pasar por change).
 | [0004](adr/0004-openspec-como-fuente-de-verdad.md) | openspec es la fuente de verdad de specs | aceptada |
 | [0005](adr/0005-release-packaging.md) | Release con `VERSION` único, release-please, app macOS única y cask estático | aceptada |
 | [0006](adr/0006-rust-workspace-coexistence.md) | Workspace Rust `domain`/`platform`/`server` y Rust como camino principal | aceptada |
+| [0007](adr/0007-widevine-empaquetado.md) | Widevine empaquetado en ECS | aceptada |
+| [0008](adr/0008-libretro-embebido.md) | Host libretro embebido | aceptada |
+| [0009](adr/0009-video-crudo-y-audio-pcm.md) | Video crudo + PCM por WebSocket | aceptada |
+| [0010](adr/0010-checksums-de-cores.md) | Checksums y pin de cores | aceptada |
 
 ## Flujo
 
