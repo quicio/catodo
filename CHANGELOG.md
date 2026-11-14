@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.10.1](https://github.com/quicio/catodo/compare/v0.10.0...v0.10.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* **security:** administración local-only y auth fail-closed ([090949c](https://github.com/quicio/catodo/commit/090949c014960a5187b452224ac6d781bb2fdfc6))
+
+
+### Performance Improvements
+
+* desactivar incremental en dev para evitar 5,6 GB ([0991141](https://github.com/quicio/catodo/commit/0991141343ffe415cfc05444576c54974418a2cb))
+
 ## [0.10.0](https://github.com/quicio/catodo/compare/v0.9.0...v0.10.0) (2026-11-14)
 
 
