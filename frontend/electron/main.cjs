@@ -374,6 +374,20 @@ function createWindow() {
   win.webContents.setUserAgent(CHROME_UA);
   patchNavigator(win.webContents);
 
+  // El kiosko no debe navegar a file://, javascript: ni esquemas raros.
+  win.webContents.on("will-navigate", (event, url) => {
+    if (!/^(https?|data|about):/i.test(url)) event.preventDefault();
+  });
+
+  // Los canales web son webviews: sin Node, aislados, sandboxed y sólo http(s).
+  win.webContents.on("will-attach-webview", (event, webPreferences, params) => {
+    delete webPreferences.preload;
+    webPreferences.nodeIntegration = false;
+    webPreferences.contextIsolation = true;
+    webPreferences.sandbox = true;
+    if (!/^https?:/i.test(params.src || "")) event.preventDefault();
+  });
+
   loadBackend(win);
 
   win.webContents.on("did-fail-load", (_e, code, desc, url) => {
@@ -451,6 +465,23 @@ function createWindow() {
       activeWebview = activeWebview || contents;
       contents.on("destroyed", () => {
         if (activeWebview === contents) activeWebview = null;
+      });
+      contents.setWindowOpenHandler(({ url }) => {
+        if (!/^https?:/i.test(url)) return { action: "deny" };
+        return {
+          action: "allow",
+          overrideBrowserWindowOptions: {
+            webPreferences: {
+              nodeIntegration: false,
+              contextIsolation: true,
+              sandbox: true,
+              webviewTag: false,
+            },
+          },
+        };
+      });
+      contents.on("will-navigate", (event, url) => {
+        if (!/^https?:/i.test(url)) event.preventDefault();
       });
       forwardKeys(contents);
       // Marcar la última interacción (mouse/teclado/touch) dentro del guest para
@@ -575,7 +606,16 @@ ipcMain.on("insert-text", (_event, text) => {
   }
 });
 
-ipcMain.handle("open-login", async (_e, url) => {
+ipcMain.handle("open-login", async (_e, rawUrl) => {
+  let target;
+  try {
+    target = new URL(String(rawUrl));
+  } catch {
+    return false;
+  }
+  if (!/^https?:$/.test(target.protocol)) {
+    return false;
+  }
   const auth = new BrowserWindow({
     width: 900,
     height: 700,
@@ -584,13 +624,20 @@ ipcMain.handle("open-login", async (_e, url) => {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: false,
+      sandbox: true,
     },
   });
   auth.setMenu(null);
   auth.webContents.setUserAgent(CHROME_UA);
   patchNavigator(auth.webContents);
-  await auth.loadURL(url);
+  auth.webContents.setWindowOpenHandler(({ url }) => {
+    if (!/^https?:/i.test(url)) return { action: "deny" };
+    return { action: "allow" };
+  });
+  auth.webContents.on("will-navigate", (event, url) => {
+    if (!/^https?:/i.test(url)) event.preventDefault();
+  });
+  await auth.loadURL(target.toString());
   return true;
 });
 

@@ -90,7 +90,12 @@ impl MediaChannel {
         if fresh {
             return;
         }
-        let episodes = scan(&self.library.path, &self.library.kind);
+        // El scan recorre el disco: no debe bloquear el runtime async.
+        let base = self.library.path.clone();
+        let kind = self.library.kind.clone();
+        let episodes = tokio::task::spawn_blocking(move || scan(&base, &kind))
+            .await
+            .unwrap_or_default();
         let mut current = self.current.write().await;
         if current.is_none() && !episodes.is_empty() {
             *current = Some(0);
