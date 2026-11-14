@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { GAMEPAD_ACTIVITY_EVENT } from "../gamepad/useGamepadNav";
 
 /**
  * Audio PCM del Arcade por WebSocket + AudioWorklet.
@@ -104,11 +105,16 @@ export default function ArcadeAudio({ src }: { src: string }) {
             );
             try {
               await context.audioWorklet.addModule(moduleUrl);
-              node = new AudioWorkletNode(context, "arcade-pcm");
+              node = new AudioWorkletNode(context, "arcade-pcm", {
+                numberOfInputs: 0,
+                numberOfOutputs: 1,
+                outputChannelCount: [2],
+              });
               node.connect(context.destination);
               ready = true;
-            } catch {
+            } catch (error) {
               ready = false;
+              console.error("arcade audio worklet:", error);
             }
           }
           return;
@@ -127,6 +133,9 @@ export default function ArcadeAudio({ src }: { src: string }) {
     const resume = () => context?.resume().catch(() => {});
     window.addEventListener("keydown", resume);
     window.addEventListener("mousedown", resume);
+    window.addEventListener("pointerdown", resume);
+    window.addEventListener("touchstart", resume);
+    window.addEventListener(GAMEPAD_ACTIVITY_EVENT, resume);
     connect();
 
     return () => {
@@ -134,6 +143,9 @@ export default function ArcadeAudio({ src }: { src: string }) {
       if (retry !== null) window.clearTimeout(retry);
       window.removeEventListener("keydown", resume);
       window.removeEventListener("mousedown", resume);
+      window.removeEventListener("pointerdown", resume);
+      window.removeEventListener("touchstart", resume);
+      window.removeEventListener(GAMEPAD_ACTIVITY_EVENT, resume);
       socket?.close();
       node?.disconnect();
       context?.close();
