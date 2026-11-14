@@ -1,76 +1,132 @@
 import { useEffect } from "react";
 
 /**
- * Audio PCM del Arcade por WebSocket + WebAudio.
+ * Audio PCM del Arcade por WebSocket + AudioWorklet.
  *
- * El backend manda `s16le` estéreo intercalado cada ~10 ms y un mensaje de
- * texto inicial `{"rate":…}`. Se programan buffers chicos con un colchón de
- * ~30 ms para mantener el audio pegado al video crudo.
+ * El worklet mantiene su propio buffer y consume muestras en el hilo de audio,
+ * inmune al jitter del hilo principal (que está subiendo frames de video a
+ * WebGL). Arranca con ~80 ms de prebuffer y luego va al ritmo del reloj de audio.
  */
+const WORKLET = `
+class ArcadePcm extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.chunks = [];
+    this.offset = 0;
+    this.total = 0;
+    this.started = false;
+    this.port.onmessage = (event) => {
+      const data = event.data;
+      if (!data || !data.length) return;
+      this.chunks.push(data);
+      this.total += data.length;
+      // Tope ~1 s: si el hilo principal se atrasó, se descarta lo más viejo.
+      while (this.total > 64000) {
+        const old = this.chunks.shift();
+        if (!old) break;
+        this.total -= old.length;
+      }
+    };
+  }
+
+  process(_inputs, outputs) {
+    const left = outputs[0][0];
+    const right = outputs[0][1];
+    if (!this.started) {
+      if (this.total < 5120) {
+        left.fill(0);
+        right.fill(0);
+        return true;
+      }
+      this.started = true;
+    }
+    let i = 0;
+    while (i < left.length) {
+      if (!this.chunks.length) {
+        left[i] = 0;
+        right[i] = 0;
+        i += 1;
+        continue;
+      }
+      const chunk = this.chunks[0];
+      const frames = chunk.length >> 1;
+      const take = Math.min(frames - this.offset, left.length - i);
+      for (let k = 0; k < take; k += 1) {
+        const source = (this.offset + k) * 2;
+        left[i + k] = chunk[source] / 32768;
+        right[i + k] = chunk[source + 1] / 32768;
+      }
+      i += take;
+      this.offset += take;
+      if (this.offset >= frames) {
+        this.total -= chunk.length;
+        this.chunks.shift();
+        this.offset = 0;
+      }
+    }
+    return true;
+  }
+}
+registerProcessor("arcade-pcm", ArcadePcm);
+`;
+
 export default function ArcadeAudio({ src }: { src: string }) {
   useEffect(() => {
     let cancelled = false;
     let socket: WebSocket | null = null;
     let retry: number | null = null;
     let context: AudioContext | null = null;
-    let sampleRate = 48000;
-    let nextTime = 0;
-
-    const resume = () => {
-      context?.resume().catch(() => {});
-    };
-    window.addEventListener("keydown", resume);
-    window.addEventListener("mousedown", resume);
-
-    try {
-      context = new AudioContext();
-    } catch {
-      return undefined;
-    }
-    context.resume().catch(() => {});
+    let node: AudioWorkletNode | null = null;
+    let moduleUrl: string | null = null;
+    let ready = false;
 
     const connect = () => {
       socket = new WebSocket(src);
       socket.binaryType = "arraybuffer";
-      socket.onmessage = (event) => {
-        if (!context) return;
+      socket.onmessage = async (event) => {
+        if (cancelled) return;
         if (typeof event.data === "string") {
+          let rate = 48000;
           try {
-            const info = JSON.parse(event.data) as { rate?: number };
-            if (info.rate && info.rate > 0) sampleRate = info.rate;
+            rate = (JSON.parse(event.data) as { rate?: number }).rate || rate;
           } catch {
             /* mensaje inesperado */
           }
+          if (!context) {
+            try {
+              context = new AudioContext({ sampleRate: rate });
+            } catch {
+              context = new AudioContext();
+            }
+            await context.resume().catch(() => {});
+            moduleUrl = URL.createObjectURL(
+              new Blob([WORKLET], { type: "application/javascript" }),
+            );
+            try {
+              await context.audioWorklet.addModule(moduleUrl);
+              node = new AudioWorkletNode(context, "arcade-pcm");
+              node.connect(context.destination);
+              ready = true;
+            } catch {
+              ready = false;
+            }
+          }
           return;
         }
+        if (!ready || !node) return;
         if (!(event.data instanceof ArrayBuffer)) return;
-        if (context.state === "suspended") context.resume().catch(() => {});
-        const pcm = new Int16Array(event.data);
-        const frames = Math.floor(pcm.length / 2);
-        if (frames === 0) return;
-
-        const buffer = context.createBuffer(2, frames, sampleRate);
-        const left = buffer.getChannelData(0);
-        const right = buffer.getChannelData(1);
-        for (let i = 0; i < frames; i += 1) {
-          left[i] = pcm[i * 2] / 32768;
-          right[i] = pcm[i * 2 + 1] / 32768;
-        }
-
-        const node = context.createBufferSource();
-        node.buffer = buffer;
-        node.connect(context.destination);
-        const now = context.currentTime;
-        // Si nos pasamos del colchón, volvemos al borde en vivo.
-        if (nextTime < now + 0.01 || nextTime > now + 0.35) nextTime = now + 0.03;
-        node.start(nextTime);
-        nextTime += buffer.duration;
+        if (context && context.state === "suspended") context.resume().catch(() => {});
+        node.port.postMessage(new Int16Array(event.data));
       };
       socket.onclose = () => {
         if (cancelled) return;
         retry = window.setTimeout(connect, 800);
       };
     };
+
+    const resume = () => context?.resume().catch(() => {});
+    window.addEventListener("keydown", resume);
+    window.addEventListener("mousedown", resume);
     connect();
 
     return () => {
@@ -79,7 +135,9 @@ export default function ArcadeAudio({ src }: { src: string }) {
       window.removeEventListener("keydown", resume);
       window.removeEventListener("mousedown", resume);
       socket?.close();
+      node?.disconnect();
       context?.close();
+      if (moduleUrl) URL.revokeObjectURL(moduleUrl);
     };
   }, [src]);
 

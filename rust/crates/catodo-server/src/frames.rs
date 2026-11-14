@@ -71,7 +71,7 @@ async fn stream_audio(mut socket: WebSocket, source: Arc<dyn AudioSource>) {
     if socket.send(Message::Text(hello.into())).await.is_err() {
         return;
     }
-    let mut ticker = tokio::time::interval(Duration::from_millis(10));
+    let mut ticker = tokio::time::interval(Duration::from_millis(20));
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     let mut samples: Vec<i16> = Vec::new();
     loop {
