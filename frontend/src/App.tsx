@@ -10,6 +10,7 @@ import CrtShell from "./components/CrtShell";
 import IdleScreensaver from "./components/IdleScreensaver";
 import { RemotePWAInstaller } from "./components/RemotePWAInstaller";
 import { CastProvider } from "./cast/CastContext";
+import { GAMEPAD_ACTIVITY_EVENT, useGamepadNav } from "./gamepad/useGamepadNav";
 import {
   ThemeContext,
   UiScaleContext,
@@ -33,6 +34,8 @@ export default function App() {
   const [themeState, setThemeState] = useState<ThemeState | null>(null);
   const [homeLayoutId, setHomeLayoutId] = useState<string>("default");
   const [uiScale, setUiScale] = useState<number>(1);
+  const [gamepadNotice, setGamepadNotice] = useState<string | null>(null);
+  const padName = useGamepadNav();
 
   const uiScaleRef = useRef(uiScale);
   uiScaleRef.current = uiScale;
@@ -190,6 +193,18 @@ export default function App() {
     return () => clearTimeout(id);
   }, [voiceFeedback]);
 
+  // Aviso breve al detectar/conectar un mando (Chromium lo expone recién
+  // cuando se usa por primera vez).
+  useEffect(() => {
+    if (!padName) {
+      setGamepadNotice(null);
+      return;
+    }
+    setGamepadNotice(`🎮 ${padName}`);
+    const id = window.setTimeout(() => setGamepadNotice(null), 3500);
+    return () => clearTimeout(id);
+  }, [padName]);
+
   useEffect(() => {
     let timer: number | null = null;
     const HIDE_AFTER_MS = 8000;
@@ -203,12 +218,14 @@ export default function App() {
     window.addEventListener("mousedown", wake);
     window.addEventListener("keydown", wake);
     window.addEventListener("touchstart", wake);
+    window.addEventListener(GAMEPAD_ACTIVITY_EVENT, wake);
     return () => {
       if (timer !== null) clearTimeout(timer);
       window.removeEventListener("mousemove", wake);
       window.removeEventListener("mousedown", wake);
       window.removeEventListener("keydown", wake);
       window.removeEventListener("touchstart", wake);
+      window.removeEventListener(GAMEPAD_ACTIVITY_EVENT, wake);
     };
   }, []);
 
@@ -240,7 +257,7 @@ export default function App() {
       if (idleRef.current !== "active") setIdleState("active");
       ping();
     };
-    const events = ["mousemove", "mousedown", "keydown", "touchstart"] as const;
+    const events = ["mousemove", "mousedown", "keydown", "touchstart", GAMEPAD_ACTIVITY_EVENT] as const;
     events.forEach((e) => window.addEventListener(e, wake));
     const pollPlaying = () => {
       const video = document.querySelector("video");
@@ -516,6 +533,29 @@ export default function App() {
         }}
       >
         🎤 {voiceFeedback.recognized ? voiceFeedback.text : `No entendí: "${voiceFeedback.text}"`}
+      </div>
+    )}
+    {gamepadNotice && (
+      <div
+        style={{
+          position: "fixed",
+          top: voiceFeedback ? 86 : 28,
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 9999,
+          padding: "8px 16px",
+          borderRadius: 999,
+          background: "color-mix(in srgb, var(--accent-soft) 85%, transparent)",
+          color: "var(--bg)",
+          fontFamily: "var(--font-mono)",
+          fontSize: 13,
+          fontWeight: 700,
+          letterSpacing: 1,
+          boxShadow: "0 8px 30px rgba(0,0,0,0.5)",
+          pointerEvents: "none",
+        }}
+      >
+        {gamepadNotice} conectado
       </div>
     )}
     </ThemeContext.Provider>

@@ -29,7 +29,7 @@
 
 - [x] 4.1 `ArcadeLauncher.tsx`: al elegir un juego, abrir el player embebido en vez de esperar un proceso externo.
 - [x] 4.2 Player con canvas WebGL (`ArcadeCanvas.tsx`): shaders `nearest` / `crt` / `smooth`, salida 720p/1080p desde config; fallback a `<video>`. Falta `xbr` real.
-- [ ] 4.3 Mapeo de teclado hecho (flechas, Z/X, A/S, Enter, Shift); falta Gamepad API.
+- [x] 4.3 Mapeo de teclado y gamepad (D-pad, stick, ABXY por posición, gatillos, start/select) en el player.
 - [ ] 4.4 UI de savestates y estado de descarga del core.
 
 ## 5. Tests y verificación

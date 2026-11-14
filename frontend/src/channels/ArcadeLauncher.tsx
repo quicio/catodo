@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, type AppState } from "../api/client";
+import { setGamepadNavSuspended } from "../gamepad/useGamepadNav";
 import ArcadeCanvas, { type ArcadeShader } from "./ArcadeCanvas";
 import ArcadeAudio from "./ArcadeAudio";
 
@@ -319,6 +320,7 @@ function ConsoleTile({
     <button
       onClick={onPick}
       onMouseEnter={onFocus}
+      onFocus={onFocus}
       style={{
         display: "flex",
         flexDirection: "column",
@@ -385,6 +387,7 @@ function Cartridge({
     <button
       onClick={onLaunch}
       onMouseEnter={onFocus}
+      onFocus={onFocus}
       className={`cartridge cart-${type.kind}${focused ? " is-focused" : ""}`}
       style={{
         display: "flex",
@@ -436,16 +439,20 @@ function Cartridge({
 }
 
 const PAD_BUTTONS: Record<number, string> = {
-  0: "a",
-  1: "b",
-  2: "x",
-  3: "y",
+  // Mapeo por posición (igual que RetroArch): el botón físico de abajo (A en
+  // Xbox) es el B del RetroPad, el de la derecha (B) es A, y X/Y se cruzan.
+  0: "b",
+  1: "a",
+  2: "y",
+  3: "x",
   4: "l",
   5: "r",
   6: "l2",
   7: "r2",
   8: "select",
   9: "start",
+  10: "l3",
+  11: "r3",
   12: "up",
   13: "down",
   14: "left",
@@ -502,6 +509,13 @@ function EmbeddedPlayer({ data, onStop }: { data: ArcadeData; onStop: () => void
     shader: "crt",
   });
   const [padName, setPadName] = useState<string | null>(null);
+
+  // Mientras el player está abierto el mando pertenece al juego: se suspende
+  // la navegación global (A/B/flechas) para no disparar la UI encima.
+  useEffect(() => {
+    setGamepadNavSuspended(true);
+    return () => setGamepadNavSuspended(false);
+  }, []);
 
   // Preferencias de video del arcade (salida y shader).
   useEffect(() => {

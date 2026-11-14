@@ -42,6 +42,37 @@ The Electron app SHALL bind keyboard shortcuts `1`–`6` for switching channels.
 - **WHEN** the user presses `2` while the app is focused (including inside a webview)
 - **THEN** the system opens channel 2 (YouTube) and the UI reflects the change.
 
+### Requirement: Gamepad navigation
+
+The kiosk SHALL let the user control the UI with a connected gamepad (Xbox,
+DualShock or compatible) without a keyboard or mouse: the D-pad and left stick
+SHALL move focus between visible focusable controls, A SHALL activate the
+focused control, B/Start/Select SHALL behave like Escape (back/Home), and the
+analog triggers SHALL adjust global volume. The focused control SHALL be visible
+on screen. While the embedded arcade player is open, the gamepad SHALL belong to
+the game and this global navigation SHALL be suspended.
+
+#### Scenario: Navigate Home with the controller
+
+- **WHEN** the user presses a direction on the D-pad or left stick with a gamepad connected
+- **THEN** focus moves to the nearest visible control in that direction and a visible focus ring appears
+- **AND** A activates the focused control (opening a channel, choosing a game, etc.)
+
+#### Scenario: Back with the controller
+
+- **WHEN** the user presses B (or Start/Select) while a channel is open
+- **THEN** the kiosk returns to Home, same as pressing Escape
+
+#### Scenario: Gameplay owns the controller
+
+- **WHEN** an embedded arcade game is running
+- **THEN** gamepad buttons are sent to the emulated core and do not navigate the kiosk
+
+#### Scenario: Controller detection feedback
+
+- **WHEN** Chromium starts reporting a connected gamepad
+- **THEN** the UI briefly shows the detected controller name
+
 ### Requirement: Fullscreen toggle
 
 The app SHALL respond to `F11` to toggle fullscreen/windowed mode.

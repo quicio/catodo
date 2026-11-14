@@ -56,6 +56,14 @@ core, incluyendo teclado y gamepad desde el kiosko.
 - **WHEN** llega `press` con un botón
 - **THEN** el core lo ve presionado en el siguiente frame y `release` lo suelta
 
+#### Scenario: Mapeo del gamepad
+
+- **WHEN** el usuario usa un mando en el player embebido
+- **THEN** los botones se mapean por posición al RetroPad (el A físico de Xbox
+  abajo → B, el B de la derecha → A, X/Y se cruzan), el D-pad y el stick
+  izquierdo mueven las direcciones, los gatillos L2/R2 y Start/Select llegan al
+  core, y el HUD muestra el nombre del mando detectado
+
 #### Scenario: Reset
 
 - **WHEN** llega `reset`
