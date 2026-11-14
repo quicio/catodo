@@ -1,0 +1,75 @@
+name: release-auto
+
+# Dispara la publicación de artefactos cuando release-please crea un Release.
+#
+# Hace falta porque release-please corre con GITHUB_TOKEN y GitHub no dispara
+# workflows desde ese token: el `on: release: published` de release.yml nunca se
+# entera. Acá se escucha la *finalización* del workflow (evento `workflow_run`,
+# que sí se emite) y se llama release.yml como workflow reutilizable, sin
+# depender de un dispatch por API ni de un PAT.
+#
+# Si el release ya tiene assets, no hace nada: evita recompilar cuando
+# release-please solo abrió/actualizó el PR de release y no publicó nada.
+
+on:
+  workflow_run:
+    workflows: [release-please]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Reconstruir los assets del último release aunque ya existan"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: release-auto
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    name: Ver si hay algo que publicar
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.check.outputs.tag }}
+      pending: ${{ steps.check.outputs.pending }}
+    steps:
+      - name: Leer el último release y sus assets
+        id: check
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          FORCE: ${{ inputs.force || 'false' }}
+        run: |
+          set -euo pipefail
+          tag=$(gh api "repos/$REPO/releases/latest" --jq .tag_name 2>/dev/null || true)
+          if [ -z "$tag" ]; then
+            echo "todavía no hay releases; nada que hacer"
+            printf 'pending=false\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          assets=$(gh api "repos/$REPO/releases/tags/$tag" --jq '.assets | length')
+          echo "último release: $tag ($assets assets)"
+          printf 'tag=%s\n' "$tag" >> "$GITHUB_OUTPUT"
+          if [ "$assets" -gt 0 ] && [ "$FORCE" != "true" ]; then
+            echo "ya tiene artefactos publicados; se omite"
+            printf 'pending=false\n' >> "$GITHUB_OUTPUT"
+          else
+            printf 'pending=true\n' >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    name: Publicar artefactos de ${{ needs.resolve.outputs.tag }}
+    needs: resolve
+    if: needs.resolve.outputs.pending == 'true'
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.resolve.outputs.tag }}

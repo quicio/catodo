@@ -1,11 +1,20 @@
 name: release
 
 on:
+  # Cuando el Release lo crea un humano desde la UI.
   release:
     types: [published]
-  # Publicar/rebuildear un tag a mano. Necesario cuando el release lo crea
-  # release-please con GITHUB_TOKEN: GitHub no dispara workflows desde ese token.
+  # Publicar/rebuildear un tag a mano.
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag a publicar (ej. v0.1.1)"
+        required: true
+        type: string
+  # release-auto.yml lo llama como workflow reutilizable cuando release-please
+  # crea el Release: ese evento NO dispara `release: published` porque lo genera
+  # GITHUB_TOKEN, y llamar un workflow evita depender de un dispatch por API.
+  workflow_call:
     inputs:
       tag:
         description: "Tag a publicar (ej. v0.1.1)"
