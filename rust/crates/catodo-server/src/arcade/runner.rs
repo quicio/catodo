@@ -113,6 +113,14 @@ impl SessionShared {
         }
     }
 
+    /// Descarta el audio acumulado antes de arrancar el encoder: evita que el
+    /// stream de audio empiece con hasta ~1 s de muestras viejas.
+    pub fn clear_audio(&self) {
+        if let Ok(mut queue) = self.audio.lock() {
+            queue.clear();
+        }
+    }
+
     pub fn core_name(&self) -> Option<String> {
         self.core_name.lock().ok().and_then(|value| value.clone())
     }

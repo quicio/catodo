@@ -5,16 +5,86 @@ export type ArcadeShader = "nearest" | "crt" | "smooth";
 /**
  * Dibuja el stream del arcade en un canvas WebGL y aplica el upscaler.
  *
- * El `<video>` sigue existiendo (oculto) porque es quien decodifica el fMP4 y
- * aporta los frames/audio; el canvas es el que escala a 720p/1080p con shader.
+ * El `<video>` sigue existiendo (oculto) porque es quien decodifica el fMP4,
+ * pero se alimenta por MSE con un `fetch` explícito. El loader nativo del
+ * `<video>` se estancaba con el stream chunked en vivo (dejaba de pedir datos
+ * por ~15 s y el timeline saltaba al inicio); con MSE el bombeo lo controla
+ * este componente y el canvas dibuja el frame actual.
  */
+
+/** Busca el box `avcC` del init segment y arma el codec string para MSE. */
+function findAvcC(bytes: Uint8Array): string | null {
+  for (let i = 0; i + 7 < bytes.length; i += 1) {
+    if (
+      bytes[i] === 0x61 && // a
+      bytes[i + 1] === 0x76 && // v
+      bytes[i + 2] === 0x63 && // c
+      bytes[i + 3] === 0x43 // C
+    ) {
+      const profile = bytes[i + 5];
+      const compatibility = bytes[i + 6];
+      const level = bytes[i + 7];
+      const hex = (value: number) => value.toString(16).padStart(2, "0");
+      return `avc1.${hex(profile)}${hex(compatibility)}${hex(level)}`;
+    }
+  }
+  return null;
+}
+
+function concatChunks(chunks: Uint8Array[], total: number): Uint8Array {
+  const joined = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    joined.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return joined;
+}
+
+function appendBuffer(buffer: SourceBuffer, chunk: Uint8Array): Promise<boolean> {
+  return new Promise((resolve) => {
+    const tryAppend = () => {
+      // Si el buffer está ocupado, esperar el updateend y recién ahí agregar.
+      // Descartar el chunk produce huecos en el timeline (freezes/saltos).
+      if (buffer.updating) {
+        buffer.addEventListener("updateend", tryAppend, { once: true });
+        return;
+      }
+      try {
+        buffer.appendBuffer(chunk as unknown as BufferSource);
+      } catch {
+        resolve(false);
+        return;
+      }
+      buffer.addEventListener("updateend", () => resolve(true), { once: true });
+    };
+    tryAppend();
+  });
+}
+
+/** Acota el buffer para sesiones largas, sin tocar `currentTime`. */
+function trimBuffer(buffer: SourceBuffer) {
+  if (buffer.buffered.length === 0) return;
+  const start = buffer.buffered.start(0);
+  const end = buffer.buffered.end(buffer.buffered.length - 1);
+  if (end - start > 20) {
+    try {
+      buffer.remove(start, end - 10);
+    } catch {
+      /* remove falla si el buffer está updating */
+    }
+  }
+}
+
 export default function ArcadeCanvas({
   src,
+  audioSrc,
   shader,
   outputHeight,
   aspectRatio,
 }: {
   src: string;
+  audioSrc?: string;
   shader: ArcadeShader;
   outputHeight: number;
   aspectRatio?: number;
@@ -22,7 +92,124 @@ export default function ArcadeCanvas({
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [failed, setFailed] = useState(false);
+  const [mediaFailed, setMediaFailed] = useState(false);
   const [error, setError] = useState(false);
+
+  // Alimentación por MSE: un solo fetch, sin que el media loader se estanque.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (typeof MediaSource === "undefined") {
+      setMediaFailed(true);
+      return;
+    }
+
+    const media = new MediaSource();
+    const objectUrl = URL.createObjectURL(media);
+    video.src = objectUrl;
+    let cancelled = false;
+    let controller: AbortController | null = null;
+    let videoReady = false;
+    let audioReady = !audioSrc;
+
+    const tryPlay = () => {
+      if (!cancelled && videoReady && audioReady) video.play().catch(() => {});
+    };
+
+    // Audio en el mismo MediaSource que el video: el navegador sincroniza
+    // ambos tracks con una sola línea de tiempo.
+    const pumpAudio = async (buffer: SourceBuffer, signal: AbortSignal) => {
+      try {
+        const response = await fetch(audioSrc!, { signal });
+        if (!response.ok || !response.body) return;
+        const reader = response.body.getReader();
+        let first = true;
+        while (!cancelled) {
+          const { done, value } = await reader.read();
+          if (done || !value) break;
+          if (!(await appendBuffer(buffer, value))) break;
+          trimBuffer(buffer);
+          if (first) {
+            first = false;
+            audioReady = true;
+            tryPlay();
+          }
+        }
+      } catch {
+        // Sin audio el video sigue siendo válido; no se considera fatal.
+        audioReady = true;
+        tryPlay();
+      }
+    };
+
+    const onSourceOpen = async () => {
+      if (cancelled) return;
+      controller = new AbortController();
+
+      if (audioSrc) {
+        try {
+          const audioBuffer = media.addSourceBuffer('audio/mp4; codecs="mp4a.40.2"');
+          void pumpAudio(audioBuffer, controller.signal);
+        } catch {
+          audioReady = true;
+        }
+      }
+
+      try {
+        const response = await fetch(src, { signal: controller.signal });
+        if (!response.ok || !response.body) throw new Error(String(response.status));
+        const reader = response.body.getReader();
+        let pending: Uint8Array[] = [];
+        let pendingBytes = 0;
+        let buffer: SourceBuffer | null = null;
+
+        while (!cancelled) {
+          const { done, value } = await reader.read();
+          if (done || !value) break;
+
+          if (!buffer) {
+            pending.push(value);
+            pendingBytes += value.length;
+            const joined = concatChunks(pending, pendingBytes);
+            const codec = findAvcC(joined);
+            if (!codec) {
+              if (pendingBytes > 2_000_000) throw new Error("no se encontró avcC");
+              continue;
+            }
+            const type = `video/mp4; codecs="${codec}"`;
+            if (!MediaSource.isTypeSupported(type)) {
+              throw new Error(`codec no soportado: ${type}`);
+            }
+            buffer = media.addSourceBuffer(type);
+            pending = [];
+            pendingBytes = 0;
+            if (!(await appendBuffer(buffer, joined))) {
+              throw new Error("falló el append inicial");
+            }
+            videoReady = true;
+            tryPlay();
+            continue;
+          }
+
+          if (!(await appendBuffer(buffer, value))) break;
+          trimBuffer(buffer);
+        }
+      } catch {
+        if (!cancelled) setMediaFailed(true);
+      }
+    };
+
+    media.addEventListener("sourceopen", onSourceOpen);
+
+    return () => {
+      cancelled = true;
+      controller?.abort();
+      media.removeEventListener("sourceopen", onSourceOpen);
+      URL.revokeObjectURL(objectUrl);
+      video.removeAttribute("src");
+      video.load();
+    };
+  }, [src, audioSrc]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -170,21 +357,31 @@ export default function ArcadeCanvas({
     };
   }, [shader, outputHeight, aspectRatio]);
 
-  if (failed) {
+  if (failed || mediaFailed) {
     return (
-      <video
-        src={src}
-        autoPlay
-        playsInline
-        style={{
-          width: "100%",
-          height: "100%",
-          objectFit: "contain",
-          background: "#000",
-          imageRendering: "pixelated",
-        }}
-        onError={() => setError(true)}
-      />
+      <>
+        <video
+          src={src}
+          autoPlay
+          playsInline
+          muted
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "contain",
+            background: "#000",
+            imageRendering: "pixelated",
+          }}
+          onError={() => setError(true)}
+        />
+        {audioSrc && (
+          <audio
+            src={audioSrc}
+            autoPlay
+            style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }}
+          />
+        )}
+      </>
     );
   }
 
@@ -192,10 +389,20 @@ export default function ArcadeCanvas({
     <div style={{ position: "absolute", inset: 0, background: "#000" }}>
       <video
         ref={videoRef}
-        src={src}
         autoPlay
         playsInline
-        style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }}
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          objectFit: "contain",
+          // Full-size y apenas visible: si el elemento está oculto/1x1 Chromium
+          // throttlea el decoder y el juego se congela cada tanto.
+          opacity: 0.01,
+          pointerEvents: "none",
+          zIndex: 2,
+        }}
         onError={() => setError(true)}
       />
       <canvas
@@ -209,6 +416,7 @@ export default function ArcadeCanvas({
           maxWidth: "100%",
           maxHeight: "100%",
           imageRendering: "pixelated",
+          zIndex: 1,
         }}
       />
       {error && (

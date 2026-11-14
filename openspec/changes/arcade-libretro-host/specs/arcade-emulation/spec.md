@@ -51,6 +51,13 @@ H.264 y audio AAC en el mismo mux, reusando el patrón de streaming del canal IP
 - **WHEN** el core reporta filas más largas que el ancho visible (pitch con padding) o cambia entre modo hi-res y normal (ej. 512x224 → 256x224)
 - **THEN** el host compacta cada fila y reescala al tamaño base declarado por el core, y el stream mantiene un tamaño estable sin corromper la imagen
 
+#### Scenario: Reproducción estable en vivo
+
+- **WHEN** el player reproduce el stream durante una sesión larga
+- **THEN** video y audio van por el mismo `MediaSource` (MSE), los chunks se
+  agregan sin descartarse cuando el `SourceBuffer` está ocupado, el buffer se
+  acota detrás del playhead y la reproducción no se reinicia ni se desincroniza
+
 #### Scenario: Aspecto de pantalla
 
 - **WHEN** el core declara una relación de aspecto de pantalla (ej. 4:3)

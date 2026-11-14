@@ -209,6 +209,9 @@ impl AudioEncoder {
 
         let stop = Arc::new(AtomicBool::new(false));
         let thread_stop = stop.clone();
+        // Arranca desde el audio actual, no desde la cola acumulada mientras
+        // se lanzaba ffmpeg.
+        shared.clear_audio();
         let task = tokio::spawn(async move {
             write_audio(&mut stdin, shared, sample_rate, thread_stop).await;
         });
