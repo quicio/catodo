@@ -217,6 +217,14 @@ html, body, #root {
   pointer-events: none;
 }
 
+/* El player embebido del arcade tiene sus propios controles: la barra global
+   de canales los taparía. */
+.arcade-player-open .channel-bar {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .channel-bar-label {
   font-family: var(--font-mono);
   font-size: 12px;

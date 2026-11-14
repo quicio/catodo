@@ -46,6 +46,16 @@ H.264 y audio AAC en el mismo mux, reusando el patrón de streaming del canal IP
 - **WHEN** se lanza otro juego
 - **THEN** la sesión anterior se detiene y se libera su core y su ffmpeg antes de iniciar la nueva
 
+#### Scenario: Resolución cambiante y pitch con padding
+
+- **WHEN** el core reporta filas más largas que el ancho visible (pitch con padding) o cambia entre modo hi-res y normal (ej. 512x224 → 256x224)
+- **THEN** el host compacta cada fila y reescala al tamaño base declarado por el core, y el stream mantiene un tamaño estable sin corromper la imagen
+
+#### Scenario: Aspecto de pantalla
+
+- **WHEN** el core declara una relación de aspecto de pantalla (ej. 4:3)
+- **THEN** el player respeta esa relación y letterboxea dentro del área disponible en vez de estirar la imagen a todo el ancho
+
 ### Requirement: Input del juego
 
 El canal SHALL aceptar comandos de input y traducirlos al estado de botones del

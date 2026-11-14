@@ -342,14 +342,15 @@ impl Channel for ArcadeChannel {
             .map(|shared| shared.resolution())
             .unwrap_or((0, 0));
         let mode = *self.mode.read().await;
-        let (fps, core_name, error, audio_samples) = match shared.as_ref() {
+        let (fps, aspect, core_name, error, audio_samples) = match shared.as_ref() {
             Some(shared) => (
                 shared.fps(),
+                shared.aspect_ratio(),
                 shared.core_name(),
                 shared.error(),
                 shared.audio_samples(),
             ),
-            None => (0.0, None, None, 0),
+            None => (0.0, 0.0, None, None, 0),
         };
         Ok(json!({
             "id": "arcade",
@@ -361,6 +362,7 @@ impl Channel for ArcadeChannel {
             "mode": mode,
             "core": core_name,
             "fps": fps,
+            "aspect": aspect,
             "audio_samples": audio_samples,
             "resolution": [width, height],
             "error": error,

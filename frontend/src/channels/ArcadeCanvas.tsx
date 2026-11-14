@@ -12,10 +12,12 @@ export default function ArcadeCanvas({
   src,
   shader,
   outputHeight,
+  aspectRatio,
 }: {
   src: string;
   shader: ArcadeShader;
   outputHeight: number;
+  aspectRatio?: number;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -133,7 +135,13 @@ export default function ArcadeCanvas({
       if (video.readyState < 2 || video.videoWidth === 0) return;
 
       const targetHeight = Math.max(240, outputHeight);
-      const targetWidth = Math.round((targetHeight * video.videoWidth) / video.videoHeight);
+      // El core declara la relación de aspecto de pantalla (SNES: 4:3). Si no
+      // viene, se usa el aspecto de píxel del stream.
+      const aspect =
+        aspectRatio && aspectRatio > 0
+          ? aspectRatio
+          : video.videoWidth / video.videoHeight;
+      const targetWidth = Math.round(targetHeight * aspect);
       if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
         canvas.width = targetWidth;
         canvas.height = targetHeight;
@@ -160,7 +168,7 @@ export default function ArcadeCanvas({
       gl.deleteBuffer(buffer);
       gl.deleteProgram(program);
     };
-  }, [shader, outputHeight]);
+  }, [shader, outputHeight, aspectRatio]);
 
   if (failed) {
     return (
@@ -195,9 +203,12 @@ export default function ArcadeCanvas({
         style={{
           position: "absolute",
           inset: 0,
-          width: "100%",
-          height: "100%",
-          objectFit: "contain",
+          margin: "auto",
+          width: "auto",
+          height: "auto",
+          maxWidth: "100%",
+          maxHeight: "100%",
+          imageRendering: "pixelated",
         }}
       />
       {error && (

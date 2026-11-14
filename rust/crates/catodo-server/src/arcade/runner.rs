@@ -39,6 +39,7 @@ pub struct SessionShared {
     pixel_format: AtomicU32,
     running: AtomicBool,
     fps: Mutex<f64>,
+    aspect: Mutex<f32>,
     sample_rate: AtomicU32,
     width: AtomicU32,
     height: AtomicU32,
@@ -56,6 +57,7 @@ impl Default for SessionShared {
             pixel_format: AtomicU32::new(2),
             running: AtomicBool::new(true),
             fps: Mutex::new(60.0),
+            aspect: Mutex::new(0.0),
             sample_rate: AtomicU32::new(48000),
             width: AtomicU32::new(0),
             height: AtomicU32::new(0),
@@ -81,6 +83,11 @@ impl SessionShared {
 
     pub fn fps(&self) -> f64 {
         self.fps.lock().map(|value| *value).unwrap_or(60.0)
+    }
+
+    /// Relación de aspecto de pantalla declarada por el core (ej. 4:3).
+    pub fn aspect_ratio(&self) -> f32 {
+        self.aspect.lock().map(|value| *value).unwrap_or(0.0)
     }
 
     pub fn audio_samples(&self) -> u64 {
@@ -235,8 +242,6 @@ unsafe extern "C" fn video_cb(
                 data: bytes,
             });
         }
-        ctx.width.store(width, Ordering::Relaxed);
-        ctx.height.store(height, Ordering::Relaxed);
     });
 }
 
@@ -431,12 +436,23 @@ fn run_core(
     }
 
     let av: RetroSystemAvInfo = core.av_info();
+    tracing::info!(
+        base_width = av.geometry.base_width,
+        base_height = av.geometry.base_height,
+        max_width = av.geometry.max_width,
+        max_height = av.geometry.max_height,
+        aspect_ratio = av.geometry.aspect_ratio,
+        "arcade: system av info"
+    );
     if let Ok(mut fps) = shared.fps.lock() {
         *fps = if av.timing.fps > 1.0 {
             av.timing.fps
         } else {
             60.0
         };
+    }
+    if let Ok(mut aspect) = shared.aspect.lock() {
+        *aspect = av.geometry.aspect_ratio;
     }
     shared
         .sample_rate
@@ -447,7 +463,6 @@ fn run_core(
     shared
         .height
         .store(av.geometry.base_height, Ordering::Relaxed);
-
     let _ = ready.send(Ok(()));
 
     let frame_time = Duration::from_secs_f64(1.0 / shared.fps());

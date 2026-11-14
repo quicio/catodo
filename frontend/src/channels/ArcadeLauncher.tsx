@@ -24,6 +24,7 @@ interface ArcadeData {
   mode?: "embedded" | "external" | null;
   core?: string | null;
   fps?: number;
+  aspect?: number;
   resolution?: [number, number];
   error?: string | null;
 }
@@ -511,10 +512,15 @@ function EmbeddedPlayer({ data, onStop }: { data: ArcadeData; onStop: () => void
   const [padName, setPadName] = useState<string | null>(null);
 
   // Mientras el player está abierto el mando pertenece al juego: se suspende
-  // la navegación global (A/B/flechas) para no disparar la UI encima.
+  // la navegación global (A/B/flechas) para no disparar la UI encima. La barra
+  // de canales también se oculta: pisaría los controles del player.
   useEffect(() => {
     setGamepadNavSuspended(true);
-    return () => setGamepadNavSuspended(false);
+    document.body.classList.add("arcade-player-open");
+    return () => {
+      setGamepadNavSuspended(false);
+      document.body.classList.remove("arcade-player-open");
+    };
   }, []);
 
   // Preferencias de video del arcade (salida y shader).
@@ -659,6 +665,7 @@ function EmbeddedPlayer({ data, onStop }: { data: ArcadeData; onStop: () => void
           src={`/api/channels/${CHANNEL}/stream`}
           shader={video.shader}
           outputHeight={video.height}
+          aspectRatio={data.aspect}
         />
       </div>
 
