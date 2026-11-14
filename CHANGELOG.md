@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.11.0](https://github.com/quicio/catodo/compare/v0.10.1...v0.11.0) (2026-11-14)
+
+
+### Features
+
+* **remote:** revocar dispositivos y ocultar administración local-only ([ec3fecc](https://github.com/quicio/catodo/commit/ec3fecc33e525fdd5ab8a3806db8876db18bf6fe))
+
+
+### Bug Fixes
+
+* **security:** endurecer Electron, scan async y auditar dependencias ([406e3e0](https://github.com/quicio/catodo/commit/406e3e0f60ac17c31600c903ba2ba955041caaea))
+
 ## [0.10.1](https://github.com/quicio/catodo/compare/v0.10.0...v0.10.1) (2026-11-14)
 
 
