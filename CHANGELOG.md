@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.8.0](https://github.com/quicio/catodo/compare/v0.7.0...v0.8.0) (2026-11-14)
+
+
+### Features
+
+* **arcade:** video de baja latencia por frames crudos WebSocket ([e50068a](https://github.com/quicio/catodo/commit/e50068af082bf2d2a67f7e3f97d6fcc85222b522))
+
+
+### Bug Fixes
+
+* **arcade:** audio PCM en AudioWorklet con prebuffer ([36fbcdb](https://github.com/quicio/catodo/commit/36fbcdb76f5762f776e38a8caa6bbf28e88bff1c))
+* **arcade:** audio PCM por WebSocket y WebAudio sincronizado ([a3b48d7](https://github.com/quicio/catodo/commit/a3b48d7dcf06b9d99542beca52cd41e5a881b7ca))
+* **arcade:** MSE para video y audio, sin freezes ni desincronización ([7d25b07](https://github.com/quicio/catodo/commit/7d25b07511f9aff1a3ff745cf3ff1abdd551379d))
+* **arcade:** worklet estéreo y audio desbloqueado desde el mando ([fab2dcc](https://github.com/quicio/catodo/commit/fab2dcc1f093897fdd8fe3c0cbef8ab242f73ec5))
+
+
+### Performance Improvements
+
+* **arcade:** 60 fps estables y video RGB565 para audio fluido ([965768c](https://github.com/quicio/catodo/commit/965768c3e1899eaf50e38ca9405bc647e6a7051c))
+
 ## [0.7.0](https://github.com/quicio/catodo/compare/v0.6.0...v0.7.0) (2026-11-14)
 
 
