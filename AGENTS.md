@@ -39,6 +39,11 @@ cd frontend && npm run electron:build:linux
 - **Release pipeline**: `.github/workflows/release.yml` construye los artefactos
   por plataforma; el cask estático de `quicio/homebrew-tap` apunta a `latest/download`
   y no se actualiza por release.
+- **Publicación automática**: `release-auto.yml` escucha la finalización de
+  `release-please` y llama a `release.yml` como workflow reutilizable, porque el
+  Release lo crea `GITHUB_TOKEN` y eso no emite `release: published`. Si el release
+  ya tiene assets, no hace nada; `gh workflow run release-auto.yml -f force=true`
+  reconstruye los de un release existente.
 - Para un release manual de prueba, usar un tag `vX.Y.Z-rc.N` en una rama.
 
 
