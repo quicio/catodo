@@ -241,6 +241,35 @@ Requests to `/api/*` from outside loopback SHALL require a valid device token vi
 - **WHEN** the Electron kiosk calls the local API from 127.0.0.1 without a token
 - **THEN** the request is allowed.
 
+### Requirement: Local-only administration
+
+Sensitive configuration keys (filesystem paths, arcade emulator commands, tunnel/MQTT credentials, pairing state, channel URLs), library mutations and tunnel start/stop SHALL only be accepted from loopback. An authenticated external request that targets them SHALL receive 403. Safe preferences (theme, layout, UI scale, idle timers) SHALL remain writable by paired devices.
+
+#### Scenario: Remote tries to change an emulator
+
+- **WHEN** an authenticated external client posts `arcade_default_emulator` to `/api/config`
+- **THEN** the response is 403 and the config is unchanged.
+
+#### Scenario: Remote tries to add a library
+
+- **WHEN** an authenticated external client posts to `/api/libraries`
+- **THEN** the response is 403.
+
+#### Scenario: Remote changes a safe preference
+
+- **WHEN** an authenticated external client posts `ui_scale` to `/api/config`
+- **THEN** the response is 200 and the value is persisted.
+
+#### Scenario: Missing client address
+
+- **WHEN** a request reaches the API without `ConnectInfo`
+- **THEN** it is treated as external and requires a token.
+
+#### Scenario: Invalid plugin id
+
+- **WHEN** `/api/plugins/install` receives an id outside `[a-z0-9-]+`
+- **THEN** the response is 400 and no filesystem path is touched.
+
 ### Requirement: Scoped CORS on LAN
 
 When binding beyond loopback, CORS allowed origins SHALL be limited to the configured host(s) instead of `*`.

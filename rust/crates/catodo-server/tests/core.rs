@@ -44,21 +44,37 @@ async fn body_json(response: axum::response::Response) -> Value {
 
 async fn get(router: axum::Router, uri: &str) -> axum::response::Response {
     router
-        .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
+        .oneshot(with_client(
+            Request::builder().uri(uri).body(Body::empty()).unwrap(),
+            "127.0.0.1:5000",
+        ))
         .await
         .unwrap()
 }
 
 async fn post_json(router: axum::Router, uri: &str, body: &str) -> axum::response::Response {
+    post_json_addr(router, uri, body, "127.0.0.1:5000", None).await
+}
+
+async fn post_json_addr(
+    router: axum::Router,
+    uri: &str,
+    body: &str,
+    addr: &str,
+    token: Option<&str>,
+) -> axum::response::Response {
+    let mut builder = Request::builder()
+        .method("POST")
+        .uri(uri)
+        .header("content-type", "application/json");
+    if let Some(token) = token {
+        builder = builder.header("x-catodo-token", token);
+    }
     router
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri(uri)
-                .header("content-type", "application/json")
-                .body(Body::from(body.to_string()))
-                .unwrap(),
-        )
+        .oneshot(with_client(
+            builder.body(Body::from(body.to_string())).unwrap(),
+            addr,
+        ))
         .await
         .unwrap()
 }
@@ -78,6 +94,22 @@ async fn get_addr(router: axum::Router, uri: &str, addr: &str) -> axum::response
         ))
         .await
         .unwrap()
+}
+
+async fn pair_token(app: &axum::Router) -> String {
+    let info = body_json(get_addr(app.clone(), "/api/pair/info", "127.0.0.1:5000").await).await;
+    let code = info["code"].as_str().expect("pairing code").to_string();
+    let response = post_json(
+        app.clone(),
+        "/api/pair/redeem",
+        &format!(r#"{{"code":"{code}","name":"test-remote"}}"#),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    body_json(response).await["token"]
+        .as_str()
+        .expect("device token")
+        .to_string()
 }
 
 #[tokio::test]
@@ -237,4 +269,100 @@ async fn pairing_code_is_single_use_and_external_api_requires_token() {
         .await
         .unwrap();
     assert_eq!(authenticated.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn missing_connect_info_is_treated_as_external() {
+    let (app, _) = app().await;
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/state")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn external_cannot_change_dangerous_config() {
+    let (app, _) = app().await;
+    let token = pair_token(&app).await;
+
+    for body in [
+        r#"{"arcade_default_emulator":"sh -c 'id'"}"#,
+        r#"{"arcade_emulators":{"nes":"/bin/sh -c id"}}"#,
+        r#"{"anime_dir":"/"}"#,
+        r#"{"libraries":[{"id":"evil","path":"/","kind":"series"}]}"#,
+        r#"{"paired_devices":[]}"#,
+    ] {
+        let response = post_json_addr(
+            app.clone(),
+            "/api/config",
+            body,
+            "192.168.1.20:5000",
+            Some(&token),
+        )
+        .await;
+        assert_eq!(
+            response.status(),
+            StatusCode::FORBIDDEN,
+            "debió rechazar {body}"
+        );
+    }
+
+    let allowed = post_json_addr(
+        app.clone(),
+        "/api/config",
+        r#"{"ui_scale":1.1}"#,
+        "192.168.1.20:5000",
+        Some(&token),
+    )
+    .await;
+    assert_eq!(allowed.status(), StatusCode::OK);
+
+    let local = post_json_addr(
+        app,
+        "/api/config",
+        r#"{"arcade_default_emulator":"retroarch {rom}"}"#,
+        "127.0.0.1:5000",
+        None,
+    )
+    .await;
+    assert_eq!(local.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn external_cannot_mutate_libraries() {
+    let (app, _) = app().await;
+    let token = pair_token(&app).await;
+
+    let denied = post_json_addr(
+        app.clone(),
+        "/api/libraries",
+        r#"{"id":"evil","path":"/","kind":"series"}"#,
+        "192.168.1.20:5000",
+        Some(&token),
+    )
+    .await;
+    assert_eq!(denied.status(), StatusCode::FORBIDDEN);
+
+    let local = post_json_addr(
+        app,
+        "/api/libraries",
+        r#"{"id":"local-media","path":"/tmp","kind":"series"}"#,
+        "127.0.0.1:5000",
+        None,
+    )
+    .await;
+    assert_eq!(local.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn plugin_install_rejects_path_traversal_id() {
+    let (app, _) = app().await;
+    let response = post_json(app, "/api/plugins/install", r#"{"id":"../evil"}"#).await;
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }

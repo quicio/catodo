@@ -5,7 +5,7 @@ use std::process::Stdio;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use axum::extract::State;
+use axum::extract::{Extension, State};
 use axum::http::StatusCode;
 use axum::Json;
 use serde::{Deserialize, Serialize};
@@ -14,6 +14,7 @@ use tokio::process::Command;
 use tokio::sync::Mutex;
 
 use crate::config::RuntimeConfig;
+use crate::pair::RequestOrigin;
 use crate::store::Store;
 use crate::ServerState;
 
@@ -392,10 +393,26 @@ pub async fn health(State(state): State<ServerState>) -> Json<Value> {
 
 pub async fn start(
     State(state): State<ServerState>,
+    Extension(origin): Extension<RequestOrigin>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    if origin.is_external() {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({"detail": "tunnel control is local-only"})),
+        ));
+    }
     state.tunnel.start().await.map(Json)
 }
 
-pub async fn stop(State(state): State<ServerState>) -> Json<Value> {
-    Json(state.tunnel.stop().await)
+pub async fn stop(
+    State(state): State<ServerState>,
+    Extension(origin): Extension<RequestOrigin>,
+) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    if origin.is_external() {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({"detail": "tunnel control is local-only"})),
+        ));
+    }
+    Ok(Json(state.tunnel.stop().await))
 }

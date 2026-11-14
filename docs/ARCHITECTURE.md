@@ -113,6 +113,20 @@ DRM: el canal TV necesita Widevine → todo el shell corre sobre Electron
 castLabs (ECS) y el CDM se instala en runtime vía la `components` API
 (ADR-0003, ADR-0007).
 
+## Seguridad y límites de confianza
+
+- **Loopback (kiosko)**: sin token; acceso completo a configuración y
+  administración.
+- **LAN/túnel (remote)**: token de dispositivo emitido por pairing de un solo
+  uso. Puede reproducir, navegar canales, cambiar volumen/tema/layout/idle y
+  comandos de canales.
+- **Local-only (ADR-0012)**: rutas de bibliotecas, comandos de emuladores de
+  arcade, `plugin_repo`, túnel, MQTT, URLs de canales y estado de pairing. Un
+  request externo autenticado recibe 403.
+- Si una request no trae `ConnectInfo`, se clasifica como externa
+  (fail-closed).
+- Los plugins se validan como slug `[a-z0-9-]+` antes de resolver paths.
+
 ## Puntos de extensión
 
 1. **Canal nativo**: implementar `Channel` en `channels.rs` o en su módulo de

@@ -4,7 +4,7 @@ use std::net::{SocketAddr, UdpSocket};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use axum::extract::{ConnectInfo, Query, State};
+use axum::extract::{Extension, Query, State};
 use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
@@ -61,7 +61,25 @@ fn secure_eq(left: &str, right: &str) -> bool {
         == 0
 }
 
+/// Origen de la request, insertado por el middleware de auth.
+///
+/// Lo consumen los handlers que distinguen entre kiosko local y remote
+/// (configuración sensible, bibliotecas, túnel).
+#[derive(Clone, Copy, Debug, Default)]
+pub struct RequestOrigin {
+    pub external: bool,
+}
+
+impl RequestOrigin {
+    pub fn is_external(self) -> bool {
+        self.external
+    }
+}
+
 /// `true` si la request viene de la LAN o del túnel, no del kiosko local.
+///
+/// Sin `ConnectInfo` no se puede probar que sea loopback, así que se trata como
+/// externa (fail-closed).
 pub fn is_external(addr: Option<SocketAddr>, headers: &HeaderMap) -> bool {
     let forwarded = headers.contains_key("cf-connecting-ip")
         || headers.contains_key("x-forwarded-for")
@@ -71,8 +89,7 @@ pub fn is_external(addr: Option<SocketAddr>, headers: &HeaderMap) -> bool {
     }
     match addr {
         Some(address) => !address.ip().is_loopback(),
-        // Sin ConnectInfo (tests o server mal montado) se asume local.
-        None => false,
+        None => true,
     }
 }
 
@@ -199,10 +216,9 @@ fn port() -> u16 {
 
 pub async fn info(
     State(state): State<ServerState>,
-    ConnectInfo(address): ConnectInfo<SocketAddr>,
-    headers: HeaderMap,
+    Extension(origin): Extension<RequestOrigin>,
 ) -> Json<Value> {
-    let external = is_external(Some(address), &headers);
+    let external = origin.is_external();
     let host = lan_ip();
     let port = port();
     let code = current_code(&state).await;
@@ -296,6 +312,11 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert("cf-connecting-ip", "1.2.3.4".parse().unwrap());
         assert!(is_external(Some(local), &headers));
+    }
+
+    #[test]
+    fn missing_address_is_external() {
+        assert!(is_external(None, &HeaderMap::new()));
     }
 
     #[test]

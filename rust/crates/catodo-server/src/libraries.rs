@@ -1,11 +1,12 @@
 //! Media library management endpoints.
 
-use axum::extract::{Path, State};
+use axum::extract::{Extension, Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use serde_json::{json, Value};
 
 use crate::media::channel_from_config_entry;
+use crate::pair::RequestOrigin;
 use crate::ServerState;
 
 fn configured_libraries(state: &ServerState) -> Vec<Value> {
@@ -53,8 +54,15 @@ pub async fn list(State(state): State<ServerState>) -> Json<Value> {
 
 pub async fn add(
     State(state): State<ServerState>,
+    Extension(origin): Extension<RequestOrigin>,
     Json(body): Json<Value>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    if origin.is_external() {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({"detail": "libraries are local-only"})),
+        ));
+    }
     let id = body.get("id").and_then(Value::as_str).unwrap_or("");
     let path = body.get("path").and_then(Value::as_str).unwrap_or("");
     let kind = body.get("kind").and_then(Value::as_str).unwrap_or("series");
@@ -116,8 +124,15 @@ pub async fn add(
 
 pub async fn remove(
     State(state): State<ServerState>,
+    Extension(origin): Extension<RequestOrigin>,
     Path(library_id): Path<String>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    if origin.is_external() {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({"detail": "libraries are local-only"})),
+        ));
+    }
     if library_id == "anime" {
         return Err((
             StatusCode::BAD_REQUEST,

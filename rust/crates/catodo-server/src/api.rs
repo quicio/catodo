@@ -4,7 +4,7 @@ use std::net::SocketAddr;
 use std::path::Path as FilePath;
 
 use axum::body::Body;
-use axum::extract::{ConnectInfo, Path, Query, RawQuery, Request, State};
+use axum::extract::{ConnectInfo, Extension, Path, Query, RawQuery, Request, State};
 use axum::http::{header, HeaderMap, StatusCode};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
@@ -412,10 +412,26 @@ async fn get_config(State(state): State<ServerState>) -> Json<Value> {
     Json(Value::Object(state.config.all().await))
 }
 
-async fn set_config(State(state): State<ServerState>, Json(payload): Json<Value>) -> ApiResult {
+async fn set_config(
+    State(state): State<ServerState>,
+    Extension(origin): Extension<pair::RequestOrigin>,
+    Json(payload): Json<Value>,
+) -> ApiResult {
     let object = payload
         .as_object()
         .ok_or_else(|| bad_request("invalid JSON body"))?;
+
+    if origin.is_external() {
+        if let Some(key) = object
+            .keys()
+            .find(|key| crate::config::is_local_only_key(key.as_str()))
+        {
+            return Err((
+                StatusCode::FORBIDDEN,
+                Json(json!({"detail": format!("config key '{key}' is local-only")})),
+            ));
+        }
+    }
 
     if let Some(value) = object.get("public_domain").and_then(Value::as_str) {
         if !value.is_empty() && !crate::config::RuntimeConfig::validate_public_domain(value) {
@@ -474,35 +490,38 @@ async fn disable_plugin(
 
 async fn auth_middleware(
     State(state): State<ServerState>,
-    request: Request,
+    mut request: Request,
     next: Next,
 ) -> Response {
+    let address = request
+        .extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|info| info.0);
+    let external = pair::is_external(address, request.headers());
+    request
+        .extensions_mut()
+        .insert(pair::RequestOrigin { external });
+
     let path = request.uri().path().to_string();
-    if path.starts_with("/api/") && !pair::is_public_path(&path) {
-        let address = request
-            .extensions()
-            .get::<ConnectInfo<SocketAddr>>()
-            .map(|info| info.0);
-        if pair::is_external(address, request.headers()) {
-            let header_token = request
-                .headers()
-                .get("x-catodo-token")
-                .and_then(|value| value.to_str().ok())
-                .map(str::to_string);
-            let query_token = request.uri().query().and_then(|query| {
-                query.split('&').find_map(|part| {
-                    let (key, value) = part.split_once('=')?;
-                    (key == "token").then(|| value.to_string())
-                })
-            });
-            let provided = header_token.or(query_token).unwrap_or_default();
-            if !pair::validate_token(&state, &provided).await {
-                return (
-                    StatusCode::UNAUTHORIZED,
-                    Json(json!({ "detail": "unauthorized" })),
-                )
-                    .into_response();
-            }
+    if external && path.starts_with("/api/") && !pair::is_public_path(&path) {
+        let header_token = request
+            .headers()
+            .get("x-catodo-token")
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_string);
+        let query_token = request.uri().query().and_then(|query| {
+            query.split('&').find_map(|part| {
+                let (key, value) = part.split_once('=')?;
+                (key == "token").then(|| value.to_string())
+            })
+        });
+        let provided = header_token.or(query_token).unwrap_or_default();
+        if !pair::validate_token(&state, &provided).await {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "detail": "unauthorized" })),
+            )
+                .into_response();
         }
     }
     next.run(request).await

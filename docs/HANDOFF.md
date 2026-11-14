@@ -21,7 +21,7 @@ En esta máquina (macOS arm64) se desarrolla el target Linux (`systemd/`,
 
 | métrica | valor | comando |
 |---|---|---|
-| tests Rust | **40 pasan, 0 fallan** | `cd rust && cargo test --workspace` |
+| tests Rust | **48 pasan, 0 fallan** | `cd rust && cargo test --workspace` |
 | quality gate completo | **verde** | `./scripts/check.sh` |
 | typecheck frontend | limpio | `npm run typecheck` |
 | workspace Rust | 3 crates, 35 archivos `.rs`, 9.462 líneas | `find rust/crates -name '*.rs' \| xargs cat \| wc -l` |
@@ -46,6 +46,10 @@ En esta máquina (macOS arm64) se desarrolla el target Linux (`systemd/`,
   `scripts/package-rust-backend.sh`.
 - Remote seguro: pairing de un solo uso, token de dispositivo, auth para
   LAN/túnel y kiosko loopback exento.
+- Configuración sensible **local-only** (ADR-0012): emuladores de arcade, rutas,
+  bibliotecas, túnel, MQTT y tokens no se pueden cambiar desde el remote. La
+  falta de `ConnectInfo` se trata como request externa (fail-closed). Los ids de
+  plugin se validan como slug antes de tocar el filesystem.
 - Cores libretro pineados por SHA-256 (ADR-0010) para `apple/osx/arm64` y
   `linux/x86_64`.
 - Video crudo RGB565 + audio PCM por WebSocket, con H.264 como fallback
@@ -131,6 +135,9 @@ reciclado compara el start time del proceso contra el mtime de
    frontend en dev corre aparte con HMR.
 7. **Los cores libretro se validan por hash** antes de cargarse; si no hay pin o
    no coincide, se falla cerrado.
+8. **La administración es local-only**: el remote emparejado reproduce, cambia
+   tema/layout/volumen y navega canales, pero no toca rutas, emuladores,
+   bibliotecas, túnel, MQTT ni tokens (ADR-0012).
 
 ## Cómo verificar sin ojos humanos
 

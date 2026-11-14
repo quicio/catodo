@@ -32,6 +32,10 @@ El sistema SHALL cargar plugins desde `~/.local/share/catodo/plugins/<id>/` y SH
 - **WHEN** se instala un plugin
 - **THEN** se copia a `plugins/<id>/` y se habilita por defecto
 
+#### Scenario: Id inválido
+- **WHEN** `POST /api/plugins/install` recibe un id que no cumple `[a-z0-9-]+`
+- **THEN** responde 400 y no toca el filesystem
+
 ### Requirement: Gestión por API
 El sistema SHALL ofrecer endpoints para gestionar plugins: listar, obtener, instalar, habilitar y deshabilitar.
 

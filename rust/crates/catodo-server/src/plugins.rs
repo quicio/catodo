@@ -16,6 +16,15 @@ fn plugins_dir(state: &ServerState) -> PathBuf {
     state.config.store().data_dir().join("plugins")
 }
 
+/// Un id de plugin es un slug: evita `..`, `/` y separadores de path.
+pub fn valid_plugin_id(plugin_id: &str) -> bool {
+    !plugin_id.is_empty()
+        && plugin_id.len() <= 64
+        && plugin_id.chars().all(|character| {
+            character.is_ascii_lowercase() || character.is_ascii_digit() || character == '-'
+        })
+}
+
 fn state_map(state: &ServerState) -> Map<String, Value> {
     state
         .config
@@ -35,6 +44,9 @@ async fn save_state(state: &ServerState, value: Map<String, Value>) -> anyhow::R
 }
 
 fn manifest_for(state: &ServerState, plugin_id: &str) -> Option<PathBuf> {
+    if !valid_plugin_id(plugin_id) {
+        return None;
+    }
     let installed = plugins_dir(state).join(plugin_id).join("manifest.json");
     if installed.is_file() {
         return Some(installed);
@@ -117,6 +129,10 @@ pub async fn seed_bundled(state: &ServerState) {
         let Some(id) = entry.get("id").and_then(Value::as_str) else {
             continue;
         };
+        if !valid_plugin_id(id) {
+            tracing::warn!(plugin_id = id, "plugins: id inválido en index.json");
+            continue;
+        }
         let source = repo.join(id);
         let target = plugins_dir(state).join(id);
         if !target.join("manifest.json").is_file() && copy_dir(&source, &target).is_ok() {
@@ -166,6 +182,12 @@ pub async fn install(
             Json(json!({"detail": "missing 'id'"})),
         ));
     };
+    if !valid_plugin_id(plugin_id) {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({"detail": "invalid plugin id"})),
+        ));
+    }
     let source = catodo_platform::plugins_repo().join(plugin_id);
     if !source.join("manifest.json").is_file() {
         return Err((
@@ -222,4 +244,21 @@ pub async fn set_enabled(
     }
     state.broker.publish(json!({"event": "plugins_changed"}));
     Ok(Json(json!({"ok": true, "id": plugin_id})))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::valid_plugin_id;
+
+    #[test]
+    fn plugin_ids_are_slugs() {
+        assert!(valid_plugin_id("youtube"));
+        assert!(valid_plugin_id("hbo-max"));
+        assert!(valid_plugin_id("tv2"));
+        assert!(!valid_plugin_id(""));
+        assert!(!valid_plugin_id("../evil"));
+        assert!(!valid_plugin_id("a/b"));
+        assert!(!valid_plugin_id("Upper"));
+        assert!(!valid_plugin_id("with space"));
+    }
 }

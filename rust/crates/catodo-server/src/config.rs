@@ -75,6 +75,46 @@ pub const KEYS: &[&str] = &[
     "paired_devices",
 ];
 
+/// Claves que sólo puede escribir el kiosko en loopback.
+///
+/// Cambiarlas desde el remote permitiría ejecutar comandos (emuladores),
+/// exponer archivos locales (rutas de bibliotecas), redirigir el túnel o
+/// inyectar/eliminar tokens de emparejamiento.
+pub const LOCAL_ONLY_KEYS: &[&str] = &[
+    "anime_dir",
+    "arcade_dir",
+    "arcade_emulators",
+    "arcade_default_emulator",
+    "arcade_cores_dir",
+    "channel_audio_sinks",
+    "mqtt_host",
+    "mqtt_port",
+    "mqtt_user",
+    "mqtt_pass",
+    "mqtt_topic_prefix",
+    "tv_url",
+    "iptv_playlist",
+    "iptv_headers",
+    "youtube_url",
+    "crunchyroll_url",
+    "spotify_embed_url",
+    "host",
+    "port",
+    "plugin_repo",
+    "libraries",
+    "public_domain",
+    "tunnel_enabled",
+    "tunnel_provider",
+    "tunnel_token_path",
+    "tunnel_require_token",
+    "pair_token",
+    "paired_devices",
+];
+
+pub fn is_local_only_key(key: &str) -> bool {
+    LOCAL_ONLY_KEYS.contains(&key)
+}
+
 fn env_or(name: &str, default: &str) -> String {
     std::env::var(name).unwrap_or_else(|_| default.to_string())
 }
@@ -334,5 +374,33 @@ impl RuntimeConfig {
 
     pub fn validate_tunnel_provider(value: &str) -> bool {
         matches!(value, "cloudflare" | "tailscale")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn local_only_keys_are_known_config_keys() {
+        for key in LOCAL_ONLY_KEYS {
+            assert!(KEYS.contains(key), "{key} no está en KEYS");
+        }
+    }
+
+    #[test]
+    fn dangerous_keys_are_local_only() {
+        for key in [
+            "arcade_emulators",
+            "arcade_default_emulator",
+            "libraries",
+            "anime_dir",
+            "tunnel_provider",
+            "paired_devices",
+        ] {
+            assert!(is_local_only_key(key), "{key} debería ser local-only");
+        }
+        assert!(!is_local_only_key("theme"));
+        assert!(!is_local_only_key("home_layout_id"));
     }
 }

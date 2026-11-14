@@ -343,6 +343,11 @@ abajo) o la **LAN** como fallback. Como fallback extra, el remote tiene un campo
 | `GET /api/pair/info`      | URLs (LAN + pública) + código de emparejamiento              |
 | `GET /api/pair/qr`        | QR (SVG) con la URL primaria (`?which=lan` para forzar LAN)  |
 
+> **Administración local-only**: el remote emparejado controla reproducción,
+> canales, volumen, tema, layout e idle. No puede cambiar rutas de bibliotecas,
+> comandos de emuladores, repo de plugins, túnel, MQTT ni tokens: esas opciones
+> se configuran en la TV (loopback) y un request externo recibe 403 (ADR-0012).
+
 ## Dominio público y túnel (HTTPS válido desde internet)
 
 Por defecto el remote y `/cast` solo funcionan en tu WiFi (LAN). Para exponer

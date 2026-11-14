@@ -63,6 +63,7 @@ abrir un change (no editar la spec directamente sin pasar por change).
 | [0009](adr/0009-video-crudo-y-audio-pcm.md) | Video crudo + PCM por WebSocket | aceptada |
 | [0010](adr/0010-checksums-de-cores.md) | Checksums y pin de cores | aceptada |
 | [0011](adr/0011-retiro-del-backend-python.md) | Retiro del backend Python; runtime, gate y packaging Rust + Node | aceptada |
+| [0012](adr/0012-configuracion-local-only.md) | Configuración sensible local-only; remote sin administración | aceptada |
 
 ## Flujo
 

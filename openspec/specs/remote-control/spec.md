@@ -36,6 +36,25 @@ The remote SHALL pair using a short-lived, single-use code that is exchanged for
 - **WHEN** the Electron kiosk calls the local API from 127.0.0.1 without a token
 - **THEN** the request is allowed
 
+### Requirement: Limited administration
+
+A paired remote SHALL control playback, channels, volume, theme, layout, UI scale and idle timers, but SHALL NOT change local-only administration: filesystem paths, arcade emulator commands, libraries, tunnel/MQTT credentials, channel URLs or pairing state. Those requests SHALL return 403 even with a valid device token.
+
+#### Scenario: Remote tries to change an emulator
+
+- **WHEN** the remote posts `arcade_default_emulator` to `/api/config`
+- **THEN** the backend responds 403 and the TV keeps its previous configuration
+
+#### Scenario: Remote adds a library
+
+- **WHEN** the remote posts to `/api/libraries`
+- **THEN** the backend responds 403
+
+#### Scenario: Remote changes the theme
+
+- **WHEN** the remote posts `theme` to `/api/config`
+- **THEN** the backend accepts it and the TV updates
+
 ### Requirement: Channel control
 
 The remote SHALL list available channels, show the current one, and switch channels on tap (via the existing open endpoint).

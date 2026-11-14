@@ -1,10 +1,12 @@
 use axum::body::Body;
+use axum::extract::ConnectInfo;
 use axum::http::{Request, StatusCode};
 use catodo_server::config::RuntimeConfig;
 use catodo_server::events::EventBroker;
 use catodo_server::manager::ChannelManager;
 use catodo_server::{router, ServerState};
 use http_body_util::BodyExt;
+use std::net::SocketAddr;
 use std::sync::Arc;
 use tower::ServiceExt;
 
@@ -26,16 +28,23 @@ async fn body_string(response: axum::response::Response) -> String {
     String::from_utf8(bytes.to_vec()).unwrap()
 }
 
+fn local(mut request: Request<Body>) -> Request<Body> {
+    request
+        .extensions_mut()
+        .insert(ConnectInfo("127.0.0.1:5000".parse::<SocketAddr>().unwrap()));
+    request
+}
+
 #[tokio::test]
 async fn health_matches_contract_fixture() {
     let response = app()
         .await
-        .oneshot(
+        .oneshot(local(
             Request::builder()
                 .uri("/api/health")
                 .body(Body::empty())
                 .unwrap(),
-        )
+        ))
         .await
         .unwrap();
 
@@ -51,12 +60,12 @@ async fn health_matches_contract_fixture() {
 async fn version_matches_contract_fixture() {
     let response = app()
         .await
-        .oneshot(
+        .oneshot(local(
             Request::builder()
                 .uri("/api/version")
                 .body(Body::empty())
                 .unwrap(),
-        )
+        ))
         .await
         .unwrap();
 
@@ -72,12 +81,12 @@ async fn version_matches_contract_fixture() {
 async fn unknown_route_returns_json_404() {
     let response = app()
         .await
-        .oneshot(
+        .oneshot(local(
             Request::builder()
                 .uri("/api/nope")
                 .body(Body::empty())
                 .unwrap(),
-        )
+        ))
         .await
         .unwrap();
 
