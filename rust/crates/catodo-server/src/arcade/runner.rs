@@ -640,6 +640,27 @@ fn run_core(
 mod tests {
     use super::*;
 
+    #[test]
+    fn rgb565_compacts_pitch_and_converts_formats() {
+        // RGB565 2x2 con 4 bytes de padding por fila.
+        let rgb565 = vec![
+            0x00, 0xF8, 0xE0, 0x07, 0xAA, 0xAA, 0xAA, 0xAA, // rojo, verde
+            0x1F, 0x00, 0xFF, 0xFF, 0xBB, 0xBB, 0xBB, 0xBB, // azul, blanco
+        ];
+        let packed = rgb565_from_raw(&rgb565, 2, 2, 8, PixelFormat::Rgb565).unwrap();
+        assert_eq!(packed, vec![0x00, 0xF8, 0xE0, 0x07, 0x1F, 0x00, 0xFF, 0xFF]);
+
+        // XRGB8888 little-endian: B,G,R,X.
+        let xrgb = vec![0x00, 0x00, 0xFF, 0x00];
+        let packed = rgb565_from_raw(&xrgb, 1, 1, 4, PixelFormat::Xrgb8888).unwrap();
+        assert_eq!(packed, vec![0x00, 0xF8]);
+
+        // RGB1555: bit alto de alpha + 5/5/5.
+        let rgb1555 = vec![0x00, 0x7C];
+        let packed = rgb565_from_raw(&rgb1555, 1, 1, 2, PixelFormat::Rgb1555).unwrap();
+        assert_eq!(packed, vec![0x00, 0xF8]);
+    }
+
     fn env_paths() -> Option<(PathBuf, PathBuf)> {
         let core = std::env::var("CATODO_TEST_CORE").ok()?;
         let rom = std::env::var("CATODO_TEST_ROM").ok()?;

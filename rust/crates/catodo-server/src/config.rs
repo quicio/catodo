@@ -71,6 +71,7 @@ pub const KEYS: &[&str] = &[
     "tunnel_token_path",
     "tunnel_require_token",
     "pair_token",
+    "paired_devices",
 ];
 
 fn env_or(name: &str, default: &str) -> String {
@@ -133,6 +134,7 @@ pub fn default_value(key: &str) -> Option<Value> {
         "tunnel_token_path" => json!(""),
         "tunnel_require_token" => json!(true),
         "pair_token" => json!(""),
+        "paired_devices" => json!([]),
         _ => return None,
     };
     Some(value)

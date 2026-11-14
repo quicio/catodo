@@ -36,6 +36,7 @@ use crate::config::RuntimeConfig;
 use crate::events::EventBroker;
 use crate::idle::IdleManager;
 use crate::manager::ChannelManager;
+use crate::pair::PairingState;
 use crate::tunnel::TunnelManager;
 
 #[derive(Clone)]
@@ -48,6 +49,7 @@ pub struct ServerState {
     pub idle: Arc<IdleManager>,
     pub cast: Arc<CastManager>,
     pub tunnel: Arc<TunnelManager>,
+    pub pairing: PairingState,
 }
 
 impl ServerState {
@@ -70,6 +72,7 @@ impl ServerState {
             idle,
             cast,
             tunnel,
+            pairing: PairingState::default(),
         }
     }
 }

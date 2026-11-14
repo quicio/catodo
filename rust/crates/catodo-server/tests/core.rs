@@ -1,6 +1,9 @@
+use std::net::SocketAddr;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use axum::body::Body;
+use axum::extract::ConnectInfo;
 use axum::http::{Request, StatusCode};
 use catodo_server::channels::build_default_channels;
 use catodo_server::config::RuntimeConfig;
@@ -11,11 +14,14 @@ use http_body_util::BodyExt;
 use serde_json::Value;
 use tower::ServiceExt;
 
+static APP_COUNTER: AtomicU64 = AtomicU64::new(0);
+
 async fn app() -> (axum::Router, Arc<ChannelManager>) {
     let unique = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
-        .as_nanos();
+        .as_nanos()
+        ^ u128::from(APP_COUNTER.fetch_add(1, Ordering::SeqCst));
     let dir = std::env::temp_dir().join(format!("catodo-rs-core-{unique}"));
     let config = RuntimeConfig::new(dir.clone());
     let broker = EventBroker::new();
@@ -53,6 +59,23 @@ async fn post_json(router: axum::Router, uri: &str, body: &str) -> axum::respons
                 .body(Body::from(body.to_string()))
                 .unwrap(),
         )
+        .await
+        .unwrap()
+}
+
+fn with_client(mut request: Request<Body>, addr: &str) -> Request<Body> {
+    request
+        .extensions_mut()
+        .insert(ConnectInfo(addr.parse::<SocketAddr>().unwrap()));
+    request
+}
+
+async fn get_addr(router: axum::Router, uri: &str, addr: &str) -> axum::response::Response {
+    router
+        .oneshot(with_client(
+            Request::builder().uri(uri).body(Body::empty()).unwrap(),
+            addr,
+        ))
         .await
         .unwrap()
 }
@@ -160,4 +183,58 @@ async fn unknown_route_is_fastapi_shaped() {
         body_json(response).await,
         serde_json::json!({"detail": "Not Found"})
     );
+}
+
+#[tokio::test]
+async fn pairing_code_is_single_use_and_external_api_requires_token() {
+    let (app, _) = app().await;
+
+    let local_info =
+        body_json(get_addr(app.clone(), "/api/pair/info", "127.0.0.1:5000").await).await;
+    let code = local_info["code"]
+        .as_str()
+        .expect("local pair code")
+        .to_string();
+    assert_eq!(code.len(), 8);
+
+    let external_info =
+        body_json(get_addr(app.clone(), "/api/pair/info", "192.168.1.20:5000").await).await;
+    assert!(external_info["code"].is_null());
+    assert_eq!(external_info["pairing_required"], true);
+
+    let unauthenticated = get_addr(app.clone(), "/api/state", "192.168.1.20:5000").await;
+    assert_eq!(unauthenticated.status(), StatusCode::UNAUTHORIZED);
+
+    let redeemed = post_json(
+        app.clone(),
+        "/api/pair/redeem",
+        &format!(r#"{{"code":"{code}","name":"test-phone"}}"#),
+    )
+    .await;
+    assert_eq!(redeemed.status(), StatusCode::OK);
+    let token = body_json(redeemed).await["token"]
+        .as_str()
+        .expect("device token")
+        .to_string();
+
+    let replayed = post_json(
+        app.clone(),
+        "/api/pair/redeem",
+        &format!(r#"{{"code":"{code}"}}"#),
+    )
+    .await;
+    assert_eq!(replayed.status(), StatusCode::UNAUTHORIZED);
+
+    let authenticated = app
+        .oneshot(with_client(
+            Request::builder()
+                .uri("/api/state")
+                .header("x-catodo-token", token)
+                .body(Body::empty())
+                .unwrap(),
+            "192.168.1.20:5000",
+        ))
+        .await
+        .unwrap();
+    assert_eq!(authenticated.status(), StatusCode::OK);
 }

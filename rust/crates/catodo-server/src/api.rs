@@ -1,9 +1,10 @@
 //! HTTP API for the Cátodo Rust backend.
 
+use std::net::SocketAddr;
 use std::path::Path as FilePath;
 
 use axum::body::Body;
-use axum::extract::{Path, Query, RawQuery, Request, State};
+use axum::extract::{ConnectInfo, Path, Query, RawQuery, Request, State};
 use axum::http::{header, HeaderMap, StatusCode};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
@@ -60,6 +61,7 @@ pub fn router(state: ServerState) -> Router {
         .route("/api/lyrics", get(lyrics::lyrics))
         .route("/api/pair/info", get(pair::info))
         .route("/api/pair/qr", get(pair::qr))
+        .route("/api/pair/redeem", post(pair::redeem_handler))
         .route("/api/modes", get(modes::list).post(modes::create))
         .route(
             "/api/modes/{preset_id}",
@@ -108,6 +110,10 @@ pub fn router(state: ServerState) -> Router {
         )
         .route("/api/{*rest}", any(api_not_found))
         .layer(TraceLayer::new_for_http())
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
+        ))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             touch_idle,
@@ -464,6 +470,42 @@ async fn disable_plugin(
     Path(plugin_id): Path<String>,
 ) -> ApiResult {
     plugins::set_enabled(state, plugin_id, false).await
+}
+
+async fn auth_middleware(
+    State(state): State<ServerState>,
+    request: Request,
+    next: Next,
+) -> Response {
+    let path = request.uri().path().to_string();
+    if path.starts_with("/api/") && !pair::is_public_path(&path) {
+        let address = request
+            .extensions()
+            .get::<ConnectInfo<SocketAddr>>()
+            .map(|info| info.0);
+        if pair::is_external(address, request.headers()) {
+            let header_token = request
+                .headers()
+                .get("x-catodo-token")
+                .and_then(|value| value.to_str().ok())
+                .map(str::to_string);
+            let query_token = request.uri().query().and_then(|query| {
+                query.split('&').find_map(|part| {
+                    let (key, value) = part.split_once('=')?;
+                    (key == "token").then(|| value.to_string())
+                })
+            });
+            let provided = header_token.or(query_token).unwrap_or_default();
+            if !pair::validate_token(&state, &provided).await {
+                return (
+                    StatusCode::UNAUTHORIZED,
+                    Json(json!({ "detail": "unauthorized" })),
+                )
+                    .into_response();
+            }
+        }
+    }
+    next.run(request).await
 }
 
 async fn touch_idle(State(state): State<ServerState>, request: Request, next: Next) -> Response {

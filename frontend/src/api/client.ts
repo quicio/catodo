@@ -83,6 +83,7 @@ export interface ModePreset {
 
 export const api = {
   health: () => request<{ status: string }>("/api/health"),
+  version: () => request<{ version: string }>("/api/version"),
   channels: () => request<ChannelInfo[]>("/api/channels"),
   state: () => request<AppState>("/api/state"),
   config: () => request<RuntimeConfig>("/api/config"),

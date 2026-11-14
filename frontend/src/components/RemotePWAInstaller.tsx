@@ -37,19 +37,38 @@ export function RemotePWAInstaller() {
       .register("/remote/sw.js", { scope: "/remote/" })
       .catch((e) => console.warn("SW register failed", e));
 
-    // Pairing-token bootstrap: prefer URL ?code=…, fall back to localStorage.
+    // Pairing bootstrap: el ?code del QR es de un solo uso; se canjea por un
+    // token de dispositivo y se guarda ese token, nunca el código.
     const params = new URLSearchParams(window.location.search);
     const fromUrl = params.get("code");
+    const finish = () => {
+      injectTokenInterceptor();
+    };
     if (fromUrl) {
-      try {
-        localStorage.setItem(TOKEN_KEY, fromUrl);
-      } catch {
-        /* ignore */
-      }
+      fetch("/api/pair/redeem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: fromUrl,
+          name: (navigator.userAgent || "remote").slice(0, 40),
+        }),
+      })
+        .then((response) => (response.ok ? response.json() : null))
+        .then((data: { token?: string } | null) => {
+          if (data?.token) {
+            try {
+              localStorage.setItem(TOKEN_KEY, data.token);
+            } catch {
+              /* ignore */
+            }
+          }
+          history.replaceState({}, "", window.location.pathname + window.location.hash);
+          window.location.reload();
+        })
+        .catch(finish);
+    } else {
+      finish();
     }
-
-    // Inject the stored token into every API call by monkey-patching fetch.
-    injectTokenInterceptor();
 
     const onPrompt = (e: Event) => {
       e.preventDefault();

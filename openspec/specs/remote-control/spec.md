@@ -12,6 +12,30 @@ The backend SHALL serve a self-contained remote-control page at `/remote` (stati
 - **WHEN** a device on the network opens `http://<host>:8765/remote`
 - **THEN** a usable remote UI loads without installing anything.
 
+### Requirement: Single-use pairing
+
+The remote SHALL pair using a short-lived, single-use code that is exchanged for a device token. The code SHALL become invalid after one successful redemption or when it expires. Requests from outside loopback to `/api/*` and the WebSockets SHALL require a valid device token (or the `CATODO_TOKEN` master token), except `/api/health`, `/api/pair/info` and `/api/pair/redeem`. `/api/pair/info` SHALL NOT expose the pairing code or any token to non-loopback clients. The kiosk on loopback SHALL remain token-free.
+
+#### Scenario: Pair a phone
+
+- **WHEN** the user scans the QR or types the code shown on the TV
+- **THEN** the remote exchanges it once for a device token and uses that token for API and WebSocket calls
+
+#### Scenario: Code replay
+
+- **WHEN** the same pairing code is redeemed a second time
+- **THEN** the backend rejects it with 401 and does not issue another token
+
+#### Scenario: Unauthenticated LAN request
+
+- **WHEN** a client outside loopback calls `/api/state` or a WebSocket without a valid token
+- **THEN** the backend responds 401 and does not execute the request
+
+#### Scenario: Kiosk on loopback
+
+- **WHEN** the Electron kiosk calls the local API from 127.0.0.1 without a token
+- **THEN** the request is allowed
+
 ### Requirement: Channel control
 
 The remote SHALL list available channels, show the current one, and switch channels on tap (via the existing open endpoint).

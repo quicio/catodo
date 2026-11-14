@@ -1,11 +1,43 @@
-// Pairing: si llegamos con ?code= (QR), guardar y limpiar la URL
+// Pairing: el ?code del QR es un código de un solo uso. Se canjea por un
+// token de dispositivo; ese token (no el código) queda en localStorage.
+const TOKEN_KEY = "catodo_token";
+const JUST_LINKED_KEY = "catodo.justLinked";
 const codeParam = new URLSearchParams(location.search).get("code");
-const justLinked = !!codeParam;
-if (codeParam) {
-  localStorage.setItem("catodo_token", codeParam);
-  history.replaceState({}, "", location.pathname + location.hash);
+const justLinked = localStorage.getItem(JUST_LINKED_KEY) === "1";
+if (justLinked) localStorage.removeItem(JUST_LINKED_KEY);
+let token = localStorage.getItem(TOKEN_KEY) || "";
+
+async function redeemPairingCode(code) {
+  try {
+    const response = await fetch("/api/pair/redeem", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code: (code || "").trim(),
+        name: (navigator.userAgent || "remote").slice(0, 40),
+      }),
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    return typeof data.token === "string" ? data.token : null;
+  } catch {
+    return null;
+  }
 }
-const token = localStorage.getItem("catodo_token") || "";
+
+if (codeParam) {
+  redeemPairingCode(codeParam).then((newToken) => {
+    if (newToken) {
+      localStorage.setItem(TOKEN_KEY, newToken);
+      localStorage.setItem(JUST_LINKED_KEY, "1");
+      history.replaceState({}, "", location.pathname + location.hash);
+      location.reload();
+    } else {
+      showStatus("Código inválido o vencido; pedí uno nuevo en la TV", "err");
+      switchTab("settings");
+    }
+  });
+}
 
 function authHeaders(extra) {
   const h = { ...(extra || {}) };
@@ -124,8 +156,17 @@ async function api(method, path, body) {
   try {
     const r = await fetch(path, opts);
     if (r.status === 401) {
-      const t = prompt("Código de acceso Cátodo:");
-      if (t) { localStorage.setItem("catodo_token", t); location.reload(); }
+      const code = prompt("Código de emparejamiento de Cátodo (TV):");
+      if (code) {
+        redeemPairingCode(code).then((newToken) => {
+          if (newToken) {
+            localStorage.setItem(TOKEN_KEY, newToken);
+            location.reload();
+          } else {
+            showStatus("Código inválido o vencido", "err");
+          }
+        });
+      }
       return null;
     }
     if (!r.ok) return null;
@@ -631,15 +672,25 @@ function loadSettingsInfo() {
   if (settingsInfo) settingsInfo.innerHTML = `Remote sirviendo desde <span class="mono">${location.host}</span>`;
   const hostEl = $("#pair-host");
   if (hostEl) hostEl.textContent = location.host;
-  if (tokenInput) tokenInput.value = token || "";
+  if (tokenInput) tokenInput.placeholder = "Código de emparejamiento (TV)";
 }
 
 if (btnTokenSave) {
-  btnTokenSave.addEventListener("click", () => {
-    const t = (tokenInput.value || "").trim();
-    if (t) localStorage.setItem("catodo_token", t);
-    else localStorage.removeItem("catodo_token");
-    showStatus("Código guardado — recargando");
+  btnTokenSave.addEventListener("click", async () => {
+    const code = (tokenInput.value || "").trim();
+    if (!code) {
+      localStorage.removeItem(TOKEN_KEY);
+      showStatus("Token eliminado — recargando");
+      setTimeout(() => location.reload(), 400);
+      return;
+    }
+    const newToken = await redeemPairingCode(code);
+    if (!newToken) {
+      showStatus("Código inválido o vencido; generá uno nuevo en la TV", "err");
+      return;
+    }
+    localStorage.setItem(TOKEN_KEY, newToken);
+    showStatus("✓ Vinculado — recargando", "ok");
     setTimeout(() => location.reload(), 400);
   });
 }

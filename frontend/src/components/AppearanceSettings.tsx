@@ -229,6 +229,7 @@ export default function AppearanceSettings({
   const [newPresetName, setNewPresetName] = useState("");
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [version, setVersion] = useState("");
 
   const refreshPresets = async () => {
     try {
@@ -242,6 +243,7 @@ export default function AppearanceSettings({
   useEffect(() => {
     refreshPresets();
     api.config().then(setEffectiveConfig).catch(() => {});
+    api.version().then((info) => setVersion(info.version)).catch(() => {});
   }, []);
 
   // Refrescar presets cuando el backend broadcastea config_changed con key
@@ -688,6 +690,23 @@ export default function AppearanceSettings({
           <div style={{ height: 6 }} />
         </>
       )}
+
+      <div
+        style={{
+          marginTop: 18,
+          paddingTop: 10,
+          borderTop: "1px solid var(--border)",
+          textAlign: "center",
+          fontFamily: "var(--font-mono)",
+          fontSize: 10,
+          letterSpacing: 1.5,
+          color: "var(--text-dim)",
+          opacity: 0.55,
+        }}
+        aria-label="Versión de Cátodo"
+      >
+        CÁTODO v{version || "…"}
+      </div>
     </div>
   );
 }

@@ -73,6 +73,15 @@ the game and this global navigation SHALL be suspended.
 - **WHEN** Chromium starts reporting a connected gamepad
 - **THEN** the UI briefly shows the detected controller name
 
+### Requirement: Version in settings
+
+The settings panel SHALL show the running Cátodo version subtly, read from `/api/version`, so the operator can identify the installed build.
+
+#### Scenario: Installed version visible
+
+- **WHEN** the user opens Settings
+- **THEN** the running version is displayed in a low-emphasis footer
+
 ### Requirement: Fullscreen toggle
 
 The app SHALL respond to `F11` to toggle fullscreen/windowed mode.

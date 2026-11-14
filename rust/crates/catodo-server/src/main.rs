@@ -44,7 +44,6 @@ async fn main() -> anyhow::Result<()> {
 
     let state = ServerState::new(env!("CARGO_PKG_VERSION"), config, broker, manager.clone());
     catodo_server::plugins::seed_bundled(&state).await;
-    let _ = catodo_server::pair::token(&state).await;
     catodo_server::mqtt::start(&state).await;
 
     for channel in
@@ -58,10 +57,13 @@ async fn main() -> anyhow::Result<()> {
         .with_context(|| format!("failed to bind {addr}"))?;
 
     tracing::info!(%addr, "catodo-server listening");
-    axum::serve(listener, router(state))
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-        .context("server error")?;
+    axum::serve(
+        listener,
+        router(state).into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal())
+    .await
+    .context("server error")?;
     tracing::info!("catodo-server stopped");
     Ok(())
 }
