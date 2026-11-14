@@ -6,6 +6,7 @@ pub mod cast;
 pub mod channels;
 pub mod config;
 pub mod events;
+pub mod frames;
 pub mod idle;
 pub mod iptv;
 pub mod libraries;

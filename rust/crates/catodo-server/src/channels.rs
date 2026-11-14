@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use catodo_domain::ChannelInfo;
 use serde::Deserialize;
 use serde_json::{json, Map, Value};
-use tokio::sync::RwLock;
+use tokio::sync::{watch, RwLock};
 
 use crate::arcade::ArcadeChannel;
 use crate::config::RuntimeConfig;
@@ -17,6 +17,14 @@ use crate::events::EventBroker;
 use crate::iptv::IptvChannel;
 use crate::media::build_media_channels;
 use crate::spotify::{default_client, SpotifyChannel};
+
+/// Último frame crudo listo para dibujar (RGBA tight-packed).
+#[derive(Clone)]
+pub struct LiveFrame {
+    pub width: u32,
+    pub height: u32,
+    pub data: Arc<Vec<u8>>,
+}
 
 /// Stream en vivo servido por un proceso (ffmpeg) en vez de un archivo.
 pub struct LiveStream {
@@ -48,6 +56,11 @@ pub trait Channel: Send + Sync {
 
     /// Audio en vivo (AAC fMP4), para canales que separan video y audio.
     async fn audio_stream(&self) -> Option<LiveStream> {
+        None
+    }
+
+    /// Frames crudos en vivo (para canales que se dibujan sin encoder).
+    async fn live_frames(&self) -> Option<watch::Receiver<Option<Arc<LiveFrame>>>> {
         None
     }
 

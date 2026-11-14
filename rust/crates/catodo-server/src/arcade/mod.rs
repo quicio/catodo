@@ -20,7 +20,7 @@ use serde_json::{json, Map, Value};
 use tokio::process::Command;
 use tokio::sync::{Mutex, RwLock};
 
-use crate::channels::{Channel, LiveStream};
+use crate::channels::{Channel, LiveFrame, LiveStream};
 use crate::config::RuntimeConfig;
 use crate::events::EventBroker;
 
@@ -367,6 +367,12 @@ impl Channel for ArcadeChannel {
             "resolution": [width, height],
             "error": error,
         }))
+    }
+
+    async fn live_frames(&self) -> Option<tokio::sync::watch::Receiver<Option<Arc<LiveFrame>>>> {
+        self.session_shared()
+            .await
+            .map(|shared| shared.subscribe_frames())
     }
 
     async fn live_stream(&self) -> Option<LiveStream> {

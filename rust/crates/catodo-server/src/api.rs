@@ -98,6 +98,10 @@ pub fn router(state: ServerState) -> Router {
         .route("/api/cast/stop", post(cast::stop))
         .route("/api/cast/ws", get(cast::ws_handler))
         .route("/api/ws", get(ws::ws_handler))
+        .route(
+            "/api/channels/{channel_id}/frames",
+            get(crate::frames::frames_handler),
+        )
         .route("/api/{*rest}", any(api_not_found))
         .layer(TraceLayer::new_for_http())
         .layer(axum::middleware::from_fn_with_state(

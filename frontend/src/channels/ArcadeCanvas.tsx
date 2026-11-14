@@ -3,218 +3,73 @@ import { useEffect, useRef, useState } from "react";
 export type ArcadeShader = "nearest" | "crt" | "smooth";
 
 /**
- * Dibuja el stream del arcade en un canvas WebGL y aplica el upscaler.
+ * Dibuja los frames crudos del arcade en un canvas WebGL.
  *
- * El `<video>` sigue existiendo (oculto) porque es quien decodifica el fMP4,
- * pero se alimenta por MSE con un `fetch` explícito. El loader nativo del
- * `<video>` se estancaba con el stream chunked en vivo (dejaba de pedir datos
- * por ~15 s y el timeline saltaba al inicio); con MSE el bombeo lo controla
- * este componente y el canvas dibuja el frame actual.
+ * El backend manda por WebSocket `width u32 LE | height u32 LE | RGBA`. Al no
+ * pasar por H.264/MSE no hay GOP ni rebuffering: el frame llega y se dibuja en
+ * el siguiente rAF (~1-2 frames de latencia en localhost).
  */
-
-/** Busca el box `avcC` del init segment y arma el codec string para MSE. */
-function findAvcC(bytes: Uint8Array): string | null {
-  for (let i = 0; i + 7 < bytes.length; i += 1) {
-    if (
-      bytes[i] === 0x61 && // a
-      bytes[i + 1] === 0x76 && // v
-      bytes[i + 2] === 0x63 && // c
-      bytes[i + 3] === 0x43 // C
-    ) {
-      const profile = bytes[i + 5];
-      const compatibility = bytes[i + 6];
-      const level = bytes[i + 7];
-      const hex = (value: number) => value.toString(16).padStart(2, "0");
-      return `avc1.${hex(profile)}${hex(compatibility)}${hex(level)}`;
-    }
-  }
-  return null;
-}
-
-function concatChunks(chunks: Uint8Array[], total: number): Uint8Array {
-  const joined = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    joined.set(chunk, offset);
-    offset += chunk.length;
-  }
-  return joined;
-}
-
-function appendBuffer(buffer: SourceBuffer, chunk: Uint8Array): Promise<boolean> {
-  return new Promise((resolve) => {
-    const tryAppend = () => {
-      // Si el buffer está ocupado, esperar el updateend y recién ahí agregar.
-      // Descartar el chunk produce huecos en el timeline (freezes/saltos).
-      if (buffer.updating) {
-        buffer.addEventListener("updateend", tryAppend, { once: true });
-        return;
-      }
-      try {
-        buffer.appendBuffer(chunk as unknown as BufferSource);
-      } catch {
-        resolve(false);
-        return;
-      }
-      buffer.addEventListener("updateend", () => resolve(true), { once: true });
-    };
-    tryAppend();
-  });
-}
-
-/** Acota el buffer para sesiones largas, sin tocar `currentTime`. */
-function trimBuffer(buffer: SourceBuffer) {
-  if (buffer.buffered.length === 0) return;
-  const start = buffer.buffered.start(0);
-  const end = buffer.buffered.end(buffer.buffered.length - 1);
-  if (end - start > 20) {
-    try {
-      buffer.remove(start, end - 10);
-    } catch {
-      /* remove falla si el buffer está updating */
-    }
-  }
-}
-
 export default function ArcadeCanvas({
-  src,
-  audioSrc,
+  framesUrl,
+  fallbackSrc,
   shader,
   outputHeight,
   aspectRatio,
 }: {
-  src: string;
-  audioSrc?: string;
+  framesUrl: string;
+  fallbackSrc?: string;
   shader: ArcadeShader;
   outputHeight: number;
   aspectRatio?: number;
 }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const frameRef = useRef<{ width: number; height: number; data: Uint8Array; serial: number } | null>(
+    null,
+  );
   const [failed, setFailed] = useState(false);
-  const [mediaFailed, setMediaFailed] = useState(false);
   const [error, setError] = useState(false);
 
-  // Alimentación por MSE: un solo fetch, sin que el media loader se estanque.
+  // WebSocket de frames. Sólo guarda el último: si el cliente no da abasto se
+  // saltean frames en vez de acumular latencia.
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    if (typeof MediaSource === "undefined") {
-      setMediaFailed(true);
-      return;
-    }
-
-    const media = new MediaSource();
-    const objectUrl = URL.createObjectURL(media);
-    video.src = objectUrl;
     let cancelled = false;
-    let controller: AbortController | null = null;
-    let videoReady = false;
-    let audioReady = !audioSrc;
+    let socket: WebSocket | null = null;
+    let retry: number | null = null;
+    let serial = 0;
 
-    const tryPlay = () => {
-      if (!cancelled && videoReady && audioReady) video.play().catch(() => {});
+    const connect = () => {
+      socket = new WebSocket(framesUrl);
+      socket.binaryType = "arraybuffer";
+      socket.onmessage = (event) => {
+        const raw = event.data;
+        if (!(raw instanceof ArrayBuffer) || raw.byteLength < 8) return;
+        const view = new DataView(raw);
+        const width = view.getUint32(0, true);
+        const height = view.getUint32(4, true);
+        if (!width || !height || raw.byteLength < 8 + width * height * 4) return;
+        serial += 1;
+        frameRef.current = { width, height, data: new Uint8Array(raw, 8), serial };
+        setError(false);
+      };
+      socket.onerror = () => setError(true);
+      socket.onclose = () => {
+        if (cancelled) return;
+        setError(true);
+        retry = window.setTimeout(connect, 800);
+      };
     };
-
-    // Audio en el mismo MediaSource que el video: el navegador sincroniza
-    // ambos tracks con una sola línea de tiempo.
-    const pumpAudio = async (buffer: SourceBuffer, signal: AbortSignal) => {
-      try {
-        const response = await fetch(audioSrc!, { signal });
-        if (!response.ok || !response.body) return;
-        const reader = response.body.getReader();
-        let first = true;
-        while (!cancelled) {
-          const { done, value } = await reader.read();
-          if (done || !value) break;
-          if (!(await appendBuffer(buffer, value))) break;
-          trimBuffer(buffer);
-          if (first) {
-            first = false;
-            audioReady = true;
-            tryPlay();
-          }
-        }
-      } catch {
-        // Sin audio el video sigue siendo válido; no se considera fatal.
-        audioReady = true;
-        tryPlay();
-      }
-    };
-
-    const onSourceOpen = async () => {
-      if (cancelled) return;
-      controller = new AbortController();
-
-      if (audioSrc) {
-        try {
-          const audioBuffer = media.addSourceBuffer('audio/mp4; codecs="mp4a.40.2"');
-          void pumpAudio(audioBuffer, controller.signal);
-        } catch {
-          audioReady = true;
-        }
-      }
-
-      try {
-        const response = await fetch(src, { signal: controller.signal });
-        if (!response.ok || !response.body) throw new Error(String(response.status));
-        const reader = response.body.getReader();
-        let pending: Uint8Array[] = [];
-        let pendingBytes = 0;
-        let buffer: SourceBuffer | null = null;
-
-        while (!cancelled) {
-          const { done, value } = await reader.read();
-          if (done || !value) break;
-
-          if (!buffer) {
-            pending.push(value);
-            pendingBytes += value.length;
-            const joined = concatChunks(pending, pendingBytes);
-            const codec = findAvcC(joined);
-            if (!codec) {
-              if (pendingBytes > 2_000_000) throw new Error("no se encontró avcC");
-              continue;
-            }
-            const type = `video/mp4; codecs="${codec}"`;
-            if (!MediaSource.isTypeSupported(type)) {
-              throw new Error(`codec no soportado: ${type}`);
-            }
-            buffer = media.addSourceBuffer(type);
-            pending = [];
-            pendingBytes = 0;
-            if (!(await appendBuffer(buffer, joined))) {
-              throw new Error("falló el append inicial");
-            }
-            videoReady = true;
-            tryPlay();
-            continue;
-          }
-
-          if (!(await appendBuffer(buffer, value))) break;
-          trimBuffer(buffer);
-        }
-      } catch {
-        if (!cancelled) setMediaFailed(true);
-      }
-    };
-
-    media.addEventListener("sourceopen", onSourceOpen);
+    connect();
 
     return () => {
       cancelled = true;
-      controller?.abort();
-      media.removeEventListener("sourceopen", onSourceOpen);
-      URL.revokeObjectURL(objectUrl);
-      video.removeAttribute("src");
-      video.load();
+      if (retry !== null) window.clearTimeout(retry);
+      socket?.close();
     };
-  }, [src, audioSrc]);
+  }, [framesUrl]);
 
   useEffect(() => {
-    const video = videoRef.current;
     const canvas = canvasRef.current;
-    if (!video || !canvas) return;
+    if (!canvas) return;
 
     const gl = canvas.getContext("webgl2", { antialias: false, alpha: false });
     if (!gl) {
@@ -302,6 +157,7 @@ export default function ArcadeCanvas({
     gl.enableVertexAttribArray(posLocation);
     gl.vertexAttribPointer(posLocation, 2, gl.FLOAT, false, 0, 0);
 
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
     const texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -316,18 +172,19 @@ export default function ArcadeCanvas({
 
     let frame = 0;
     let stopped = false;
+    let texWidth = 0;
+    let texHeight = 0;
+    let drawn = 0;
+
     const render = () => {
       if (stopped) return;
       frame = requestAnimationFrame(render);
-      if (video.readyState < 2 || video.videoWidth === 0) return;
+      const source = frameRef.current;
+      if (!source) return;
 
       const targetHeight = Math.max(240, outputHeight);
-      // El core declara la relación de aspecto de pantalla (SNES: 4:3). Si no
-      // viene, se usa el aspecto de píxel del stream.
       const aspect =
-        aspectRatio && aspectRatio > 0
-          ? aspectRatio
-          : video.videoWidth / video.videoHeight;
+        aspectRatio && aspectRatio > 0 ? aspectRatio : source.width / source.height;
       const targetWidth = Math.round(targetHeight * aspect);
       if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
         canvas.width = targetWidth;
@@ -335,15 +192,35 @@ export default function ArcadeCanvas({
       }
 
       gl.viewport(0, 0, canvas.width, canvas.height);
-      gl.texImage2D(
-        gl.TEXTURE_2D,
-        0,
-        gl.RGBA,
-        gl.RGBA,
-        gl.UNSIGNED_BYTE,
-        video,
-      );
-      gl.uniform2f(sizeUniform, video.videoWidth, video.videoHeight);
+      if (source.width !== texWidth || source.height !== texHeight) {
+        gl.texImage2D(
+          gl.TEXTURE_2D,
+          0,
+          gl.RGBA,
+          source.width,
+          source.height,
+          0,
+          gl.RGBA,
+          gl.UNSIGNED_BYTE,
+          source.data,
+        );
+        texWidth = source.width;
+        texHeight = source.height;
+        gl.uniform2f(sizeUniform, source.width, source.height);
+      } else if (source.serial !== drawn) {
+        gl.texSubImage2D(
+          gl.TEXTURE_2D,
+          0,
+          0,
+          0,
+          source.width,
+          source.height,
+          gl.RGBA,
+          gl.UNSIGNED_BYTE,
+          source.data,
+        );
+      }
+      drawn = source.serial;
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     };
     frame = requestAnimationFrame(render);
@@ -357,54 +234,30 @@ export default function ArcadeCanvas({
     };
   }, [shader, outputHeight, aspectRatio]);
 
-  if (failed || mediaFailed) {
-    return (
-      <>
-        <video
-          src={src}
-          autoPlay
-          playsInline
-          muted
-          style={{
-            width: "100%",
-            height: "100%",
-            objectFit: "contain",
-            background: "#000",
-            imageRendering: "pixelated",
-          }}
-          onError={() => setError(true)}
-        />
-        {audioSrc && (
-          <audio
-            src={audioSrc}
-            autoPlay
-            style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }}
-          />
-        )}
-      </>
+  if (failed) {
+    return fallbackSrc ? (
+      <video
+        src={fallbackSrc}
+        autoPlay
+        playsInline
+        muted
+        style={{
+          width: "100%",
+          height: "100%",
+          objectFit: "contain",
+          background: "#000",
+          imageRendering: "pixelated",
+        }}
+      />
+    ) : (
+      <div style={{ display: "grid", placeItems: "center", height: "100%", opacity: 0.6 }}>
+        WebGL no disponible
+      </div>
     );
   }
 
   return (
     <div style={{ position: "absolute", inset: 0, background: "#000" }}>
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        style={{
-          position: "absolute",
-          inset: 0,
-          width: "100%",
-          height: "100%",
-          objectFit: "contain",
-          // Full-size y apenas visible: si el elemento está oculto/1x1 Chromium
-          // throttlea el decoder y el juego se congela cada tanto.
-          opacity: 0.01,
-          pointerEvents: "none",
-          zIndex: 2,
-        }}
-        onError={() => setError(true)}
-      />
       <canvas
         ref={canvasRef}
         style={{
@@ -416,7 +269,6 @@ export default function ArcadeCanvas({
           maxWidth: "100%",
           maxHeight: "100%",
           imageRendering: "pixelated",
-          zIndex: 1,
         }}
       />
       {error && (
@@ -432,7 +284,7 @@ export default function ArcadeCanvas({
             fontSize: 12,
           }}
         >
-          no se pudo abrir el stream del juego
+          reconectando video…
         </div>
       )}
     </div>

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, type AppState } from "../api/client";
 import { setGamepadNavSuspended } from "../gamepad/useGamepadNav";
 import ArcadeCanvas, { type ArcadeShader } from "./ArcadeCanvas";
+import ArcadeAudio from "./ArcadeAudio";
 
 interface ArcadeGame {
   name: string;
@@ -509,6 +510,11 @@ function EmbeddedPlayer({ data, onStop }: { data: ArcadeData; onStop: () => void
     shader: "crt",
   });
   const [padName, setPadName] = useState<string | null>(null);
+  const framesUrl = useMemo(
+    () =>
+      `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/api/channels/${CHANNEL}/frames`,
+    [],
+  );
 
   // Mientras el player está abierto el mando pertenece al juego: se suspende
   // la navegación global (A/B/flechas) para no disparar la UI encima. La barra
@@ -658,10 +664,11 @@ function EmbeddedPlayer({ data, onStop }: { data: ArcadeData; onStop: () => void
         </span>
       </div>
 
+      <ArcadeAudio src={`/api/channels/${CHANNEL}/audio`} />
       <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
         <ArcadeCanvas
-          src={`/api/channels/${CHANNEL}/stream`}
-          audioSrc={`/api/channels/${CHANNEL}/audio`}
+          framesUrl={framesUrl}
+          fallbackSrc={`/api/channels/${CHANNEL}/stream`}
           shader={video.shader}
           outputHeight={video.height}
           aspectRatio={data.aspect}

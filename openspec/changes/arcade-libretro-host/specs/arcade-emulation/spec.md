@@ -63,6 +63,13 @@ H.264 y audio AAC en el mismo mux, reusando el patrón de streaming del canal IP
 - **WHEN** el core declara una relación de aspecto de pantalla (ej. 4:3)
 - **THEN** el player respeta esa relación y letterboxea dentro del área disponible en vez de estirar la imagen a todo el ancho
 
+#### Scenario: Frames crudos para el player
+
+- **WHEN** el player embebido se abre con un juego corriendo
+- **THEN** el video se entrega como frames RGBA por WebSocket
+  (`/api/channels/{id}/frames`) y se dibuja directo en WebGL, sin encoder
+  H.264/MSE, manteniendo la latencia en 1-2 frames
+
 ### Requirement: Input del juego
 
 El canal SHALL aceptar comandos de input y traducirlos al estado de botones del
