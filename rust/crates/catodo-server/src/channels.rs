@@ -26,6 +26,13 @@ pub struct LiveFrame {
     pub data: Arc<Vec<u8>>,
 }
 
+/// Fuente de audio PCM (s16le, estéreo intercalado) de un canal en vivo.
+pub trait AudioSource: Send + Sync {
+    fn sample_rate(&self) -> u32;
+    fn read_audio(&self, out: &mut Vec<i16>, max: usize);
+    fn clear(&self);
+}
+
 /// Stream en vivo servido por un proceso (ffmpeg) en vez de un archivo.
 pub struct LiveStream {
     pub content_type: String,
@@ -61,6 +68,11 @@ pub trait Channel: Send + Sync {
 
     /// Frames crudos en vivo (para canales que se dibujan sin encoder).
     async fn live_frames(&self) -> Option<watch::Receiver<Option<Arc<LiveFrame>>>> {
+        None
+    }
+
+    /// Audio PCM en vivo (para canales que lo reproducen con WebAudio).
+    async fn audio_source(&self) -> Option<Arc<dyn AudioSource>> {
         None
     }
 

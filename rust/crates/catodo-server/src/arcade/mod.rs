@@ -20,7 +20,7 @@ use serde_json::{json, Map, Value};
 use tokio::process::Command;
 use tokio::sync::{Mutex, RwLock};
 
-use crate::channels::{Channel, LiveFrame, LiveStream};
+use crate::channels::{AudioSource, Channel, LiveFrame, LiveStream};
 use crate::config::RuntimeConfig;
 use crate::events::EventBroker;
 
@@ -373,6 +373,12 @@ impl Channel for ArcadeChannel {
         self.session_shared()
             .await
             .map(|shared| shared.subscribe_frames())
+    }
+
+    async fn audio_source(&self) -> Option<Arc<dyn AudioSource>> {
+        self.session_shared()
+            .await
+            .map(|shared| shared as Arc<dyn AudioSource>)
     }
 
     async fn live_stream(&self) -> Option<LiveStream> {

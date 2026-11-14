@@ -70,6 +70,13 @@ H.264 y audio AAC en el mismo mux, reusando el patrón de streaming del canal IP
   (`/api/channels/{id}/frames`) y se dibuja directo en WebGL, sin encoder
   H.264/MSE, manteniendo la latencia en 1-2 frames
 
+#### Scenario: Audio PCM sincronizado
+
+- **WHEN** el player reproduce el juego embebido
+- **THEN** el audio viaja como PCM s16le por WebSocket
+  (`/api/channels/{id}/audio-frames`) y se reproduce con WebAudio con un
+  colchón chico, manteniendo la sincronía con los frames crudos
+
 ### Requirement: Input del juego
 
 El canal SHALL aceptar comandos de input y traducirlos al estado de botones del

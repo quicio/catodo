@@ -1,108 +1,87 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
 
 /**
- * Audio del Arcade vía MediaSource (AAC fMP4).
+ * Audio PCM del Arcade por WebSocket + WebAudio.
  *
- * No va por el canvas porque el video ahora viaja como frames crudos por
- * WebSocket; el audio conserva el pipeline AAC/MSE.
+ * El backend manda `s16le` estéreo intercalado cada ~10 ms y un mensaje de
+ * texto inicial `{"rate":…}`. Se programan buffers chicos con un colchón de
+ * ~30 ms para mantener el audio pegado al video crudo.
  */
-function append(buffer: SourceBuffer, chunk: Uint8Array): Promise<boolean> {
-  return new Promise((resolve) => {
-    const tryAppend = () => {
-      if (buffer.updating) {
-        buffer.addEventListener("updateend", tryAppend, { once: true });
-        return;
-      }
-      try {
-        buffer.appendBuffer(chunk as unknown as BufferSource);
-      } catch {
-        resolve(false);
-        return;
-      }
-      buffer.addEventListener("updateend", () => resolve(true), { once: true });
-    };
-    tryAppend();
-  });
-}
-
-function trim(audio: HTMLAudioElement, buffer: SourceBuffer) {
-  if (buffer.updating || buffer.buffered.length === 0) return;
-  const start = buffer.buffered.start(0);
-  if (audio.currentTime - start > 4) {
-    try {
-      buffer.remove(start, audio.currentTime - 2);
-    } catch {
-      /* remove falla si el buffer está updating */
-    }
-  }
-}
-
 export default function ArcadeAudio({ src }: { src: string }) {
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const [failed, setFailed] = useState(false);
-
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    if (typeof MediaSource === "undefined") {
-      setFailed(true);
-      return;
-    }
-
-    const media = new MediaSource();
-    const objectUrl = URL.createObjectURL(media);
-    audio.src = objectUrl;
     let cancelled = false;
-    let controller: AbortController | null = null;
+    let socket: WebSocket | null = null;
+    let retry: number | null = null;
+    let context: AudioContext | null = null;
+    let sampleRate = 48000;
+    let nextTime = 0;
 
-    const onSourceOpen = async () => {
-      if (cancelled || media.readyState !== "open") return;
-      let buffer: SourceBuffer;
-      try {
-        buffer = media.addSourceBuffer('audio/mp4; codecs="mp4a.40.2"');
-      } catch {
-        setFailed(true);
-        return;
-      }
-      controller = new AbortController();
-      try {
-        const response = await fetch(src, { signal: controller.signal });
-        if (!response.ok || !response.body) throw new Error(String(response.status));
-        const reader = response.body.getReader();
-        audio.play().catch(() => {});
-        while (!cancelled) {
-          const { done, value } = await reader.read();
-          if (done || !value) break;
-          if (!(await append(buffer, value))) break;
-          trim(audio, buffer);
-        }
-      } catch {
-        /* cancelado o red caída: el componente se desmonta con el player */
-      }
+    const resume = () => {
+      context?.resume().catch(() => {});
     };
+    window.addEventListener("keydown", resume);
+    window.addEventListener("mousedown", resume);
 
-    media.addEventListener("sourceopen", onSourceOpen);
+    try {
+      context = new AudioContext();
+    } catch {
+      return undefined;
+    }
+    context.resume().catch(() => {});
+
+    const connect = () => {
+      socket = new WebSocket(src);
+      socket.binaryType = "arraybuffer";
+      socket.onmessage = (event) => {
+        if (!context) return;
+        if (typeof event.data === "string") {
+          try {
+            const info = JSON.parse(event.data) as { rate?: number };
+            if (info.rate && info.rate > 0) sampleRate = info.rate;
+          } catch {
+            /* mensaje inesperado */
+          }
+          return;
+        }
+        if (!(event.data instanceof ArrayBuffer)) return;
+        if (context.state === "suspended") context.resume().catch(() => {});
+        const pcm = new Int16Array(event.data);
+        const frames = Math.floor(pcm.length / 2);
+        if (frames === 0) return;
+
+        const buffer = context.createBuffer(2, frames, sampleRate);
+        const left = buffer.getChannelData(0);
+        const right = buffer.getChannelData(1);
+        for (let i = 0; i < frames; i += 1) {
+          left[i] = pcm[i * 2] / 32768;
+          right[i] = pcm[i * 2 + 1] / 32768;
+        }
+
+        const node = context.createBufferSource();
+        node.buffer = buffer;
+        node.connect(context.destination);
+        const now = context.currentTime;
+        // Si nos pasamos del colchón, volvemos al borde en vivo.
+        if (nextTime < now + 0.01 || nextTime > now + 0.35) nextTime = now + 0.03;
+        node.start(nextTime);
+        nextTime += buffer.duration;
+      };
+      socket.onclose = () => {
+        if (cancelled) return;
+        retry = window.setTimeout(connect, 800);
+      };
+    };
+    connect();
 
     return () => {
       cancelled = true;
-      controller?.abort();
-      media.removeEventListener("sourceopen", onSourceOpen);
-      URL.revokeObjectURL(objectUrl);
-      audio.removeAttribute("src");
-      audio.load();
+      if (retry !== null) window.clearTimeout(retry);
+      window.removeEventListener("keydown", resume);
+      window.removeEventListener("mousedown", resume);
+      socket?.close();
+      context?.close();
     };
   }, [src]);
 
-  const hidden = {
-    position: "absolute" as const,
-    width: 1,
-    height: 1,
-    opacity: 0,
-    pointerEvents: "none" as const,
-  };
-
-  if (failed) {
-    return <audio src={src} autoPlay style={hidden} />;
-  }
-  return <audio ref={audioRef} autoPlay style={hidden} />;
+  return null;
 }

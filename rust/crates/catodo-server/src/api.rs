@@ -102,6 +102,10 @@ pub fn router(state: ServerState) -> Router {
             "/api/channels/{channel_id}/frames",
             get(crate::frames::frames_handler),
         )
+        .route(
+            "/api/channels/{channel_id}/audio-frames",
+            get(crate::frames::audio_frames_handler),
+        )
         .route("/api/{*rest}", any(api_not_found))
         .layer(TraceLayer::new_for_http())
         .layer(axum::middleware::from_fn_with_state(

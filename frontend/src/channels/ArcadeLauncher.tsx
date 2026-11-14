@@ -510,10 +510,14 @@ function EmbeddedPlayer({ data, onStop }: { data: ArcadeData; onStop: () => void
     shader: "crt",
   });
   const [padName, setPadName] = useState<string | null>(null);
+  const wsBase = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}`;
   const framesUrl = useMemo(
-    () =>
-      `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/api/channels/${CHANNEL}/frames`,
-    [],
+    () => `${wsBase}/api/channels/${CHANNEL}/frames`,
+    [wsBase],
+  );
+  const audioFramesUrl = useMemo(
+    () => `${wsBase}/api/channels/${CHANNEL}/audio-frames`,
+    [wsBase],
   );
 
   // Mientras el player está abierto el mando pertenece al juego: se suspende
@@ -664,7 +668,7 @@ function EmbeddedPlayer({ data, onStop }: { data: ArcadeData; onStop: () => void
         </span>
       </div>
 
-      <ArcadeAudio src={`/api/channels/${CHANNEL}/audio`} />
+      <ArcadeAudio src={audioFramesUrl} />
       <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
         <ArcadeCanvas
           framesUrl={framesUrl}

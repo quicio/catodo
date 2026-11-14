@@ -75,6 +75,20 @@ impl Default for SessionShared {
     }
 }
 
+impl crate::channels::AudioSource for SessionShared {
+    fn sample_rate(&self) -> u32 {
+        SessionShared::sample_rate(self)
+    }
+
+    fn read_audio(&self, out: &mut Vec<i16>, max: usize) {
+        SessionShared::read_audio(self, out, max);
+    }
+
+    fn clear(&self) {
+        self.clear_audio();
+    }
+}
+
 impl SessionShared {
     pub fn take_frame(&self) -> Option<Frame> {
         self.frame.lock().ok().and_then(|mut slot| slot.take())
