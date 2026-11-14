@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.7.0](https://github.com/quicio/catodo/compare/v0.6.0...v0.7.0) (2026-11-14)
+
+
+### Features
+
+* **gamepad:** navegación global con mando y mapeo Xbox en arcade ([a0fdca4](https://github.com/quicio/catodo/commit/a0fdca44bff1f8f53cfbca375ffe4616aee4148a))
+
+
+### Bug Fixes
+
+* **arcade:** corregir pitch y resolución del stream embebido ([1b4bf05](https://github.com/quicio/catodo/commit/1b4bf05997c76d879180a77182a2832a408e0014))
+
 ## [0.6.0](https://github.com/quicio/catodo/compare/v0.5.0...v0.6.0) (2026-11-14)
 
 
