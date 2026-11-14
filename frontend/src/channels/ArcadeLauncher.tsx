@@ -74,6 +74,28 @@ export default function ArcadeLauncher({ state }: { state: AppState }) {
   const [data, setData] = useState<ArcadeData | null>(null);
   const [selectedSystem, setSelectedSystem] = useState<string | null>(null);
   const [focused, setFocused] = useState(0);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  // El backend avisa cuando tiene que bajar el core del sistema. Sin esto, la
+  // primera partida de cada consola parece colgada durante la descarga.
+  useEffect(() => {
+    let timer: number | null = null;
+    const onDownload = (raw: Event) => {
+      const detail = (raw as CustomEvent).detail as
+        | { core?: string; system?: string; game?: string | null }
+        | undefined;
+      const core = detail?.core ?? "libretro";
+      const system = detail?.system ? ` (${detail.system})` : "";
+      setNotice(`Descargando core ${core}${system}…`);
+      if (timer !== null) window.clearTimeout(timer);
+      timer = window.setTimeout(() => setNotice(null), 30_000);
+    };
+    window.addEventListener("catodo:arcade_core_download", onDownload);
+    return () => {
+      if (timer !== null) window.clearTimeout(timer);
+      window.removeEventListener("catodo:arcade_core_download", onDownload);
+    };
+  }, []);
   const listRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(() => {
@@ -172,6 +194,25 @@ export default function ArcadeLauncher({ state }: { state: AppState }) {
         flexDirection: "column",
       }}
     >
+      {/* Aviso de descarga del core: la primera partida de cada sistema
+          necesita bajar la librería y hasta ahora no se veía nada. */}
+      {notice && (
+        <div
+          style={{
+            margin: "0 32px 8px",
+            padding: "10px 14px",
+            borderRadius: "var(--radius-sm)",
+            border: "1px solid color-mix(in srgb, var(--ch-arcade) 45%, transparent)",
+            background: "color-mix(in srgb, var(--ch-arcade) 18%, transparent)",
+            color: "var(--text)",
+            fontFamily: "var(--font-mono)",
+            fontSize: 12,
+            letterSpacing: 1,
+          }}
+        >
+          {notice}
+        </div>
+      )}
       {/* Header */}
       <div
         style={{

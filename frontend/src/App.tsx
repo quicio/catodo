@@ -145,6 +145,11 @@ export default function App() {
       if (event.event === "wallpapers_changed") {
         window.dispatchEvent(new CustomEvent("catodo:wallpapers_changed"));
       }
+      // El core del arcade hay que bajarlo antes de arrancar el juego: avisalo
+      // para que el usuario no se quede mirando una pantalla quieta.
+      if (event.event === "arcade_core_download") {
+        window.dispatchEvent(new CustomEvent("catodo:arcade_core_download", { detail: event }));
+      }
       // Comando por voz → feedback breve + "home" lo maneja el frontend.
       if (event.event === "voice_command") {
         setVoiceFeedback({ text: String(event.text ?? ""), recognized: Boolean(event.recognized) });

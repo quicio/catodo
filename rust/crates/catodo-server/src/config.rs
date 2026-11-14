@@ -29,6 +29,7 @@ fn theme_ids() -> Vec<String> {
 pub const KEYS: &[&str] = &[
     "anime_dir",
     "arcade_dir",
+    "arcade_mode",
     "arcade_emulators",
     "arcade_default_emulator",
     "arcade_boxart_enabled",
@@ -86,6 +87,9 @@ pub fn default_value(key: &str) -> Option<Value> {
     let value = match key {
         "anime_dir" => Value::String(env_or("CATODO_ANIME_DIR", &format!("{}/Anime", home()))),
         "arcade_dir" => Value::String(env_or("CATODO_ARCADE_DIR", &format!("{}/Arcade", home()))),
+        // auto: emulador externo si hay uno configurado, si no core embebido.
+        // embedded: siempre en la ventana de la app. external: siempre afuera.
+        "arcade_mode" => Value::String("auto".to_string()),
         "arcade_emulators" => json!({}),
         "arcade_default_emulator" => json!(""),
         "arcade_boxart_enabled" => json!(true),
