@@ -126,6 +126,8 @@ castLabs (ECS) y el CDM se instala en runtime vía la `components` API
 - Si una request no trae `ConnectInfo`, se clasifica como externa
   (fail-closed).
 - Los plugins se validan como slug `[a-z0-9-]+` antes de resolver paths.
+- Los dispositivos emparejados se listan sin exponer el token y se pueden
+  revocar desde el kiosko (`GET/DELETE /api/pair/devices`, local-only).
 
 ## Puntos de extensión
 

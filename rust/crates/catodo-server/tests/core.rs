@@ -56,6 +56,20 @@ async fn post_json(router: axum::Router, uri: &str, body: &str) -> axum::respons
     post_json_addr(router, uri, body, "127.0.0.1:5000", None).await
 }
 
+async fn delete(router: axum::Router, uri: &str) -> axum::response::Response {
+    router
+        .oneshot(with_client(
+            Request::builder()
+                .method("DELETE")
+                .uri(uri)
+                .body(Body::empty())
+                .unwrap(),
+            "127.0.0.1:5000",
+        ))
+        .await
+        .unwrap()
+}
+
 async fn post_json_addr(
     router: axum::Router,
     uri: &str,
@@ -365,4 +379,69 @@ async fn plugin_install_rejects_path_traversal_id() {
     let (app, _) = app().await;
     let response = post_json(app, "/api/plugins/install", r#"{"id":"../evil"}"#).await;
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn local_can_list_and_revoke_paired_devices() {
+    let (app, _) = app().await;
+    let token = pair_token(&app).await;
+
+    let response = get(app.clone(), "/api/pair/devices").await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let devices = body_json(response).await;
+    let devices = devices["devices"].as_array().expect("devices array");
+    assert_eq!(devices.len(), 1);
+    assert_eq!(devices[0]["name"], "test-remote");
+    assert!(devices[0].get("token").is_none());
+    let id = devices[0]["id"].as_str().expect("device id").to_string();
+
+    let response = delete(app.clone(), &format!("/api/pair/devices/{id}")).await;
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let response = app
+        .oneshot(with_client(
+            Request::builder()
+                .uri("/api/state")
+                .header("x-catodo-token", token)
+                .body(Body::empty())
+                .unwrap(),
+            "192.168.1.20:5000",
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn external_cannot_list_or_revoke_devices() {
+    let (app, _) = app().await;
+    let token = pair_token(&app).await;
+
+    let response = app
+        .clone()
+        .oneshot(with_client(
+            Request::builder()
+                .uri("/api/pair/devices")
+                .header("x-catodo-token", &token)
+                .body(Body::empty())
+                .unwrap(),
+            "192.168.1.20:5000",
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    let response = app
+        .oneshot(with_client(
+            Request::builder()
+                .method("DELETE")
+                .uri("/api/pair/devices/whatever")
+                .header("x-catodo-token", token)
+                .body(Body::empty())
+                .unwrap(),
+            "192.168.1.20:5000",
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
 }

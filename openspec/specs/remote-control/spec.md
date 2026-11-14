@@ -55,6 +55,11 @@ A paired remote SHALL control playback, channels, volume, theme, layout, UI scal
 - **WHEN** the remote posts `theme` to `/api/config`
 - **THEN** the backend accepts it and the TV updates
 
+#### Scenario: Remote tries to manage devices
+
+- **WHEN** the remote calls `/api/pair/devices`
+- **THEN** the backend responds 403; the device list is only manageable from the TV
+
 ### Requirement: Channel control
 
 The remote SHALL list available channels, show the current one, and switch channels on tap (via the existing open endpoint).

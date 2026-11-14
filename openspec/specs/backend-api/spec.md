@@ -270,6 +270,25 @@ Sensitive configuration keys (filesystem paths, arcade emulator commands, tunnel
 - **WHEN** `/api/plugins/install` receives an id outside `[a-z0-9-]+`
 - **THEN** the response is 400 and no filesystem path is touched.
 
+### Requirement: Device management
+
+`GET /api/pair/devices` SHALL list paired devices with a stable id, name and creation date, never the token. `DELETE /api/pair/devices/{id}` SHALL revoke that device so its token stops authenticating. Both endpoints SHALL be local-only.
+
+#### Scenario: List devices
+
+- **WHEN** the kiosk calls `GET /api/pair/devices`
+- **THEN** it receives the devices without any token value.
+
+#### Scenario: Revoke a device
+
+- **WHEN** the kiosk deletes a device id
+- **THEN** the next request with that device token gets 401.
+
+#### Scenario: Remote tries to manage devices
+
+- **WHEN** an authenticated external client calls either endpoint
+- **THEN** the response is 403.
+
 ### Requirement: Scoped CORS on LAN
 
 When binding beyond loopback, CORS allowed origins SHALL be limited to the configured host(s) instead of `*`.

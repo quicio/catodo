@@ -62,6 +62,8 @@ pub fn router(state: ServerState) -> Router {
         .route("/api/pair/info", get(pair::info))
         .route("/api/pair/qr", get(pair::qr))
         .route("/api/pair/redeem", post(pair::redeem_handler))
+        .route("/api/pair/devices", get(pair::devices))
+        .route("/api/pair/devices/{device_id}", delete(pair::revoke))
         .route("/api/modes", get(modes::list).post(modes::create))
         .route(
             "/api/modes/{preset_id}",

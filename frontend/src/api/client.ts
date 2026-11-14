@@ -81,9 +81,18 @@ export interface ModePreset {
   payload: Record<string, unknown>;
 }
 
+export interface PairDevice {
+  id: string;
+  name: string;
+  created?: number;
+}
+
 export const api = {
   health: () => request<{ status: string }>("/api/health"),
   version: () => request<{ version: string }>("/api/version"),
+  devices: () => request<{ devices: PairDevice[] }>("/api/pair/devices"),
+  revokeDevice: (id: string) =>
+    request<{ ok: boolean }>(`/api/pair/devices/${id}`, { method: "DELETE" }),
   channels: () => request<ChannelInfo[]>("/api/channels"),
   state: () => request<AppState>("/api/state"),
   config: () => request<RuntimeConfig>("/api/config"),

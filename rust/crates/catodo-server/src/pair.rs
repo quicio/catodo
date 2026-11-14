@@ -4,12 +4,13 @@ use std::net::{SocketAddr, UdpSocket};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use axum::extract::{Extension, Query, State};
+use axum::extract::{Extension, Path as AxumPath, Query, State};
 use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde::Deserialize;
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use tokio::sync::Mutex;
 
 use crate::ServerState;
@@ -156,6 +157,94 @@ pub async fn redeem(state: &ServerState, code: &str, name: &str) -> Result<Strin
         .set("paired_devices", Value::Array(devices))
         .await;
     Ok(token)
+}
+
+/// Identificador estable de un dispositivo sin exponer el token.
+fn token_id(token: &str) -> String {
+    let digest = format!("{:x}", Sha256::digest(token.as_bytes()));
+    digest[..12].to_string()
+}
+
+pub async fn list_devices(state: &ServerState) -> Vec<Value> {
+    state
+        .config
+        .get("paired_devices")
+        .await
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|device| {
+            let token = device.get("token").and_then(Value::as_str)?;
+            Some(json!({
+                "id": token_id(token),
+                "name": device.get("name").and_then(Value::as_str).unwrap_or("remote"),
+                "created": device.get("created").cloned().unwrap_or(Value::Null),
+            }))
+        })
+        .collect()
+}
+
+pub async fn devices(
+    State(state): State<ServerState>,
+    Extension(origin): Extension<RequestOrigin>,
+) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    if origin.is_external() {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({"detail": "paired devices are local-only"})),
+        ));
+    }
+    Ok(Json(json!({ "devices": list_devices(&state).await })))
+}
+
+pub async fn revoke(
+    State(state): State<ServerState>,
+    Extension(origin): Extension<RequestOrigin>,
+    AxumPath(device_id): AxumPath<String>,
+) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    if origin.is_external() {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({"detail": "paired devices are local-only"})),
+        ));
+    }
+    let devices = state
+        .config
+        .get("paired_devices")
+        .await
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    let kept: Vec<Value> = devices
+        .iter()
+        .filter(|device| {
+            device
+                .get("token")
+                .and_then(Value::as_str)
+                .map(token_id)
+                .as_deref()
+                != Some(device_id.as_str())
+        })
+        .cloned()
+        .collect();
+    if kept.len() == devices.len() {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(json!({"detail": format!("unknown device: {device_id}")})),
+        ));
+    }
+    state
+        .config
+        .set("paired_devices", Value::Array(kept))
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"detail": "could not save devices"})),
+            )
+        })?;
+    Ok(Json(json!({ "ok": true })))
 }
 
 /// Acepta `CATODO_TOKEN`, el `pair_token` legacy o un token de dispositivo.

@@ -45,6 +45,15 @@ function authHeaders(extra) {
   return h;
 }
 
+// El remote no administra rutas, bibliotecas ni repo de plugins (ADR-0012).
+// Si la request llega desde fuera de loopback, ocultamos esas secciones.
+fetch("/api/pair/info")
+  .then((r) => (r.ok ? r.json() : null))
+  .then((info) => {
+    if (info && info.pairing_required) document.body.classList.add("remote-external");
+  })
+  .catch(() => {});
+
 // Banner de bienvenida: si acabamos de vincular vía QR, mostramos un toast
 // verde confirmando. Si llegamos sin token (instalación nueva, no escaneó
 // QR), automáticamente abrimos el tab Ajustes para que tipee el código.

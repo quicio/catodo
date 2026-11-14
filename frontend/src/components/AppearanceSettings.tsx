@@ -10,7 +10,12 @@
  * sincronizan a otros suscriptores (ej. NowPlaying del Spotify).
  */
 import { useEffect, useState, type CSSProperties } from "react";
-import { api, type ModePreset, type RuntimeConfig } from "../api/client";
+import {
+  api,
+  type ModePreset,
+  type PairDevice,
+  type RuntimeConfig,
+} from "../api/client";
 import {
   FONT_STACKS,
   useTheme,
@@ -230,6 +235,25 @@ export default function AppearanceSettings({
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [version, setVersion] = useState("");
+  const [devices, setDevices] = useState<PairDevice[]>([]);
+
+  const refreshDevices = async () => {
+    try {
+      const result = await api.devices();
+      setDevices(result.devices);
+    } catch (e) {
+      console.warn("pair: devices failed", e);
+    }
+  };
+
+  const revokeDevice = async (id: string) => {
+    try {
+      await api.revokeDevice(id);
+      await refreshDevices();
+    } catch (e) {
+      console.warn("pair: revoke failed", e);
+    }
+  };
 
   const refreshPresets = async () => {
     try {
@@ -242,9 +266,14 @@ export default function AppearanceSettings({
 
   useEffect(() => {
     refreshPresets();
+    refreshDevices();
     api.config().then(setEffectiveConfig).catch(() => {});
     api.version().then((info) => setVersion(info.version)).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (tab === "general") refreshDevices();
+  }, [tab]);
 
   // Refrescar presets cuando el backend broadcastea config_changed con key
   // `mode_presets` (un cambio en la lista). Cualquier otra clave sólo refresca
@@ -337,6 +366,72 @@ export default function AppearanceSettings({
             <Icon name="smartphone" size={18} color="var(--text-dim)" />
             Conectar teléfono
           </button>
+          <div style={sectionLabel}>REMOTOS VINCULADOS</div>
+          {devices.length === 0 ? (
+            <div
+              style={{
+                padding: "6px 10px",
+                fontSize: 11,
+                fontFamily: "var(--font-mono)",
+                color: "var(--text-dim)",
+                opacity: 0.6,
+              }}
+            >
+              Sin remotos vinculados.
+            </div>
+          ) : (
+            devices.map((device) => (
+              <div
+                key={device.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "6px 10px",
+                  borderBottom: "1px solid var(--border)",
+                }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontFamily: "var(--font-mono)",
+                      color: "var(--text)",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {device.name}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      fontFamily: "var(--font-mono)",
+                      color: "var(--text-dim)",
+                      opacity: 0.6,
+                    }}
+                  >
+                    {device.created
+                      ? new Date(device.created * 1000).toLocaleDateString()
+                      : "fecha desconocida"}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => revokeDevice(device.id)}
+                  style={{
+                    ...rowStyle,
+                    width: "auto",
+                    padding: "4px 8px",
+                    color: "var(--danger)",
+                  }}
+                >
+                  Revocar
+                </button>
+              </div>
+            ))
+          )}
           <div style={sectionLabel}>SESIÓN</div>
           <button
             type="button"

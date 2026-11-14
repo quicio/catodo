@@ -953,6 +953,11 @@ input, select, textarea {
   flex-direction: column;
   gap: 20px;
 }
+/* Administración local-only: se oculta en el remote (ADR-0012). */
+body.remote-external .admin-only {
+  display: none !important;
+}
+
 .settings-section {
   background: var(--surface);
   border-radius: var(--radius-md);
