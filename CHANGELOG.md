@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.10.0](https://github.com/quicio/catodo/compare/v0.9.0...v0.10.0) (2026-11-14)
+
+
+### Features
+
+* modo de arcade configurable y aviso de descarga del core ([c0880a1](https://github.com/quicio/catodo/commit/c0880a1bb4700f4fd6d3e18b1e5f024405f64c67))
+* modo de arcade configurable y aviso de descarga del core ([17c65a6](https://github.com/quicio/catodo/commit/17c65a685e72e1ce3aa29f3f5a59cc0f0969b35a))
+* mostrar en el lanzador que se está descargando el core ([9022883](https://github.com/quicio/catodo/commit/902288313131336cf9c260a8a66e17d60af299f3))
+
 ## [0.9.0](https://github.com/quicio/catodo/compare/v0.8.0...v0.9.0) (2026-11-14)
 
 
