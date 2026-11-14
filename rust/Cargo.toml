@@ -36,3 +36,8 @@ rumqttc = "0.24"
 uuid = { version = "1", features = ["v4"] }
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
+
+# Sin esto, target/debug/incremental crece ~5,6 GB por ciclo de compilación.
+[profile.dev]
+incremental = false
+
