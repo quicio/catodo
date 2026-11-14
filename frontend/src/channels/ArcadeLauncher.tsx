@@ -435,6 +435,47 @@ function Cartridge({
   );
 }
 
+const PAD_BUTTONS: Record<number, string> = {
+  0: "a",
+  1: "b",
+  2: "x",
+  3: "y",
+  4: "l",
+  5: "r",
+  6: "l2",
+  7: "r2",
+  8: "select",
+  9: "start",
+  12: "up",
+  13: "down",
+  14: "left",
+  15: "right",
+};
+
+const AXIS_DEADZONE = 0.45;
+
+/** Botones del mando presentes en este frame. */
+function padButtons(pad: Gamepad): Set<string> {
+  const active = new Set<string>();
+  pad.buttons.forEach((button, index) => {
+    const name = PAD_BUTTONS[index];
+    if (name && button.pressed) active.add(name);
+  });
+  const [x, y] = [pad.axes[0] ?? 0, pad.axes[1] ?? 0];
+  if (x < -AXIS_DEADZONE) active.add("left");
+  if (x > AXIS_DEADZONE) active.add("right");
+  if (y < -AXIS_DEADZONE) active.add("up");
+  if (y > AXIS_DEADZONE) active.add("down");
+  // Hat del D-pad en mandos viejos.
+  const hatX = pad.axes[6] ?? 0;
+  const hatY = pad.axes[7] ?? 0;
+  if (hatX < -0.5) active.add("left");
+  if (hatX > 0.5) active.add("right");
+  if (hatY < -0.5) active.add("up");
+  if (hatY > 0.5) active.add("down");
+  return active;
+}
+
 const KEYMAP: Record<string, string> = {
   ArrowUp: "up",
   ArrowDown: "down",
@@ -460,6 +501,7 @@ function EmbeddedPlayer({ data, onStop }: { data: ArcadeData; onStop: () => void
     height: 720,
     shader: "crt",
   });
+  const [pads, setPads] = useState(0);
 
   // Preferencias de video del arcade (salida y shader).
   useEffect(() => {
@@ -515,6 +557,51 @@ function EmbeddedPlayer({ data, onStop }: { data: ArcadeData; onStop: () => void
     };
   }, [onStop]);
 
+  // Gamepad: se sondea con rAF y se mandan press/release sólo en los cambios.
+  useEffect(() => {
+    const send = (command: "press" | "release", button: string) =>
+      api.command(CHANNEL, command, { button }).catch(() => {});
+    const pressed = new Set<string>();
+    let frame = 0;
+
+    const poll = () => {
+      const connected = navigator.getGamepads?.() ?? [];
+      const pad = Array.from(connected).find((candidate) => candidate && candidate.connected) ?? null;
+      const next = pad ? padButtons(pad) : new Set<string>();
+      for (const button of next) {
+        if (!pressed.has(button)) {
+          pressed.add(button);
+          send("press", button);
+        }
+      }
+      for (const button of [...pressed]) {
+        if (!next.has(button)) {
+          pressed.delete(button);
+          send("release", button);
+        }
+      }
+      frame = requestAnimationFrame(poll);
+    };
+    frame = requestAnimationFrame(poll);
+
+    const updateCount = () => {
+      const count = (navigator.getGamepads?.() ?? []).filter(
+        (pad) => pad && pad.connected,
+      ).length;
+      setPads(count);
+    };
+    updateCount();
+    window.addEventListener("gamepadconnected", updateCount);
+    window.addEventListener("gamepaddisconnected", updateCount);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      pressed.forEach((button) => send("release", button));
+      window.removeEventListener("gamepadconnected", updateCount);
+      window.removeEventListener("gamepaddisconnected", updateCount);
+    };
+  }, []);
+
   const [width, height] = data.resolution ?? [0, 0];
 
   return (
@@ -547,7 +634,8 @@ function EmbeddedPlayer({ data, onStop }: { data: ArcadeData; onStop: () => void
           {width > 0 ? `${width}×${height}` : ""} {data.fps ? `${data.fps.toFixed(1)} fps` : ""}
         </span>
         <span style={{ marginLeft: "auto" }}>
-          {video.shader.toUpperCase()} · {video.height}p · ESC SALIR · FLECHAS + Z/X
+          {pads > 0 ? `🎮 ${pads}` : "sin gamepad"} · {video.shader.toUpperCase()} · {video.height}p · ESC
+          SALIR
         </span>
       </div>
 

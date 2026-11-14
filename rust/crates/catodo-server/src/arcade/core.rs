@@ -126,6 +126,10 @@ pub mod button {
     pub const X: u32 = 9;
     pub const L: u32 = 10;
     pub const R: u32 = 11;
+    pub const L2: u32 = 12;
+    pub const R2: u32 = 13;
+    pub const L3: u32 = 14;
+    pub const R3: u32 = 15;
 
     /// Nombre de la API (`press`/`release`) → bit del joypad.
     pub fn from_name(name: &str) -> Option<u32> {
@@ -142,6 +146,10 @@ pub mod button {
             "x" => X,
             "l" | "l1" => L,
             "r" | "r1" => R,
+            "l2" => L2,
+            "r2" => R2,
+            "l3" => L3,
+            "r3" => R3,
             _ => return None,
         })
     }
