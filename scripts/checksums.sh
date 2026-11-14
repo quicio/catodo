@@ -17,7 +17,7 @@ else
     FILES=()
     while IFS= read -r f; do
         FILES+=("$f")
-    done < <(find . -maxdepth 1 -type f ! -name SHA256SUMS ! -name '*.blockmap' -print | sed 's#^\./##' | sort)
+    done < <(find . -maxdepth 1 -type f ! -name SHA256SUMS ! -name SHA256SUMS.txt ! -name '*.blockmap' -print | sed 's#^\./##' | sort)
 fi
 
 if [ "${#FILES[@]}" -eq 0 ]; then
@@ -32,4 +32,7 @@ else
 fi
 
 echo "==> $DIR/SHA256SUMS"
+# Alias con extensión .txt: el repo hermano (candil) publica SHA256SUMS.txt, así
+# los dos proyectos se verifican con el mismo comando y el mismo nombre.
+cp SHA256SUMS SHA256SUMS.txt
 cat SHA256SUMS

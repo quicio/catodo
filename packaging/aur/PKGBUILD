@@ -1,0 +1,42 @@
+# Maintainer: Hugo Moraga <hg.moraga@gmail.com>
+#
+# Paquete binario del AUR para Cátodo. El upstream publica el .deb de
+# electron-builder; acá se desempaqueta y se instala tal cual (mismo contenido
+# que el .deb, sin compilar Electron).
+#
+# Dormido hasta que reabra el registro del AUR: no hay cuenta todavía.
+pkgname=catodo-bin
+pkgver=0.8.0
+pkgrel=1
+pkgdesc="Shell multimedia con estética CRT: Spotify, YouTube, anime, arcade y TV"
+arch=('x86_64')
+url="https://github.com/quicio/catodo"
+license=('MIT')
+depends=('gtk3' 'libnotify' 'nss' 'libxss' 'libxtst' 'xdg-utils' 'at-spi2-core' 'util-linux' 'libsecret' 'mesa' 'alsa-lib')
+optdepends=('libappindicator-gtk3: icono en la bandeja del sistema')
+provides=('catodo' 'catodo-frontend')
+conflicts=('catodo' 'catodo-frontend' 'catodo-git')
+source=("Catodo-$pkgver-linux-amd64.deb::$url/releases/download/v$pkgver/Catodo-$pkgver-linux-amd64.deb"
+        "LICENSE::$url/raw/v$pkgver/LICENSE")
+sha256sums=('ba4f4f760d2023e4df9ea1752592827b3415557823263d3bf34377badd304569'
+            'SKIP')
+
+package() {
+  # El .deb es un archivo `ar` con data.tar.*: se extrae en dos pasos para no
+  # depender de dpkg.
+  mkdir -p "$srcdir/deb"
+  ( cd "$srcdir/deb" && ar x "$srcdir/Catodo-$pkgver-linux-amd64.deb" )
+  bsdtar -xf "$srcdir"/deb/data.tar.* -C "$pkgdir"
+
+  # En un paquete no se instalan binarios setuid: se asume user namespaces
+  # (default en Arch). Sin eso, el sandbox de Chromium se queja al arrancar.
+  chmod 0755 "$pkgdir/opt/Catodo/chrome-sandbox"
+
+  # electron-builder deja la entrada de menú apuntando a /opt; el enlace de
+  # /usr/bin lo crea su postinst en Debian, acá va declarado.
+  install -d "$pkgdir/usr/bin"
+  ln -s /opt/Catodo/catodo-frontend "$pkgdir/usr/bin/catodo-frontend"
+  ln -s /opt/Catodo/catodo-frontend "$pkgdir/usr/bin/catodo"
+
+  install -Dm644 "$srcdir/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

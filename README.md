@@ -183,6 +183,24 @@ Para agregar Windows o un nuevo adapter, sólo se toca `infrastructure/<platafor
 
 ## Production install
 
+Desde los paquetes de la release (no compila nada):
+
+| asset | instalación |
+|---|---|
+| `Catodo-<ver>-linux-amd64.deb` | `sudo apt install ./Catodo-<ver>-linux-amd64.deb` |
+| `catodo-<ver>-1.x86_64.rpm` | `sudo dnf install ./catodo-<ver>-1.x86_64.rpm` |
+| `catodo-<ver>-1-x86_64.pkg.tar.zst` | `sudo pacman -U catodo-<ver>-1-x86_64.pkg.tar.zst` |
+| `Catodo-<ver>-linux-x86_64.AppImage` | `chmod +x` y ejecutar |
+| `Catodo-<ver>-mac-arm64.zip` | descomprimir y mover a `/Applications` |
+
+El `.rpm` y el `.pkg.tar.zst` los arma `scripts/package-extra-formats.sh` con nfpm a
+partir del árbol del `.deb` que ya genera electron-builder, así que el contenido es
+el mismo; solo cambia el formato y las dependencias declaradas. En Arch, además,
+está previsto `catodo-bin` en el AUR (`packaging/aur/`), dormido hasta que reabra el
+registro.
+
+Desde el código:
+
 ```bash
 # Verificar requisitos sin modificar el sistema (recomendado primero)
 bash install.sh --check
