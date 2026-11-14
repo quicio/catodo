@@ -501,7 +501,7 @@ function EmbeddedPlayer({ data, onStop }: { data: ArcadeData; onStop: () => void
     height: 720,
     shader: "crt",
   });
-  const [pads, setPads] = useState(0);
+  const [padName, setPadName] = useState<string | null>(null);
 
   // Preferencias de video del arcade (salida y shader).
   useEffect(() => {
@@ -585,10 +585,10 @@ function EmbeddedPlayer({ data, onStop }: { data: ArcadeData; onStop: () => void
     frame = requestAnimationFrame(poll);
 
     const updateCount = () => {
-      const count = (navigator.getGamepads?.() ?? []).filter(
-        (pad) => pad && pad.connected,
-      ).length;
-      setPads(count);
+      const pad = Array.from(navigator.getGamepads?.() ?? []).find(
+        (candidate) => candidate && candidate.connected,
+      );
+      setPadName(pad ? pad.id.replace(/\(.*\)$/, "").trim() : null);
     };
     updateCount();
     window.addEventListener("gamepadconnected", updateCount);
@@ -634,8 +634,8 @@ function EmbeddedPlayer({ data, onStop }: { data: ArcadeData; onStop: () => void
           {width > 0 ? `${width}×${height}` : ""} {data.fps ? `${data.fps.toFixed(1)} fps` : ""}
         </span>
         <span style={{ marginLeft: "auto" }}>
-          {pads > 0 ? `🎮 ${pads}` : "sin gamepad"} · {video.shader.toUpperCase()} · {video.height}p · ESC
-          SALIR
+          {padName ? `🎮 ${padName.slice(0, 28)}` : "sin gamepad"} ·{" "}
+          {video.shader.toUpperCase()} · {video.height}p · ESC SALIR
         </span>
       </div>
 
