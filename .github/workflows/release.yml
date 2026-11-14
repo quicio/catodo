@@ -44,6 +44,13 @@ jobs:
         run: ./scripts/package-rust-backend.sh
       - name: Build Linux app
         run: ./scripts/package-linux-app.sh
+      - name: nfpm
+        run: |
+          curl -fsSL -o /tmp/nfpm.tar.gz \
+            https://github.com/goreleaser/nfpm/releases/download/v2.49.0/nfpm_2.49.0_Linux_x86_64.tar.gz
+          sudo tar -C /usr/local/bin -xzf /tmp/nfpm.tar.gz nfpm
+      - name: Build rpm y pkg.tar.zst desde el .deb
+        run: ./scripts/package-extra-formats.sh
       - name: Build source tarball
         run: ./scripts/package-src.sh
       - uses: actions/upload-artifact@v4
@@ -102,6 +109,8 @@ jobs:
           expected=(
             "Catodo-${version}-linux-x86_64.AppImage"
             "Catodo-${version}-linux-amd64.deb"
+            "catodo-${version}-1.x86_64.rpm"
+            "catodo-${version}-1-x86_64.pkg.tar.zst"
             "catodo-${version}-src.tar.gz"
             "Catodo-${version}-mac-arm64.zip"
           )
@@ -125,6 +134,6 @@ jobs:
         run: |
           # Sólo archivos: `release/` también contiene el bundle backend-rust/.
           shopt -s nullglob
-          assets=(release/*.zip release/*.AppImage release/*.deb release/*.tar.gz release/SHA256SUMS)
+          assets=(release/*.zip release/*.AppImage release/*.deb release/*.rpm release/*.pkg.tar.zst release/*.tar.gz release/SHA256SUMS release/SHA256SUMS.txt)
           gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
 

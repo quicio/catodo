@@ -1,0 +1,76 @@
+# nFPM: arma .rpm y .pkg.tar.zst desde el árbol que ya generó electron-builder
+# en el .deb. No reemplaza el .deb ni el AppImage: los complementa para Fedora y
+# Arch, que hasta ahora solo podían usar el AppImage.
+#
+# Lo llama `scripts/package-extra-formats.sh`, que extrae el .deb en
+# `.packaging-root/` (ruta fija: nfpm expande ${VAR} en `version` pero no en
+# `contents[].src`).
+#
+#   VERSION=0.8.0 nfpm package -f packaging/nfpm-catodo.yaml -p rpm -t release/
+
+name: catodo
+arch: amd64
+platform: linux
+version: ${VERSION}
+release: "1"
+section: sound
+priority: optional
+maintainer: Cátodo Project <hg.moraga@gmail.com>
+vendor: Cátodo Project
+homepage: https://github.com/quicio/catodo
+license: MIT
+description: |
+  Shell multimedia con estética CRT.
+  Canales de Spotify, YouTube, anime, arcade, TV, Crunchyroll y HBO Max sobre
+  Electron, con backend Rust como sidecar y plugins.
+
+contents:
+  - src: .packaging-root/opt/Catodo
+    dst: /opt/Catodo
+    type: tree
+  - src: .packaging-root/usr/share/applications/catodo-frontend.desktop
+    dst: /usr/share/applications/catodo-frontend.desktop
+  - src: .packaging-root/usr/share/icons
+    dst: /usr/share/icons
+    type: tree
+  - src: .packaging-root/usr/share/doc
+    dst: /usr/share/doc
+    type: tree
+  # El postinst del .deb crea este enlace; en rpm/Arch va declarado.
+  - src: /opt/Catodo/catodo-frontend
+    dst: /usr/bin/catodo-frontend
+    type: symlink
+  - src: /opt/Catodo/catodo-frontend
+    dst: /usr/bin/catodo
+    type: symlink
+
+overrides:
+  rpm:
+    depends:
+      - gtk3
+      - libnotify
+      - nss
+      - libXScrnSaver
+      - libXtst
+      - xdg-utils
+      - at-spi2-core
+      - libuuid
+      - libsecret
+      - mesa-libgbm
+      - alsa-lib
+  archlinux:
+    depends:
+      - gtk3
+      - libnotify
+      - nss
+      - libxss
+      - libxtst
+      - xdg-utils
+      - at-spi2-core
+      - util-linux
+      - libsecret
+      - mesa
+      - alsa-lib
+    # `recommends` en el paquete de Arch se traduce a dependencias opcionales.
+    recommends:
+      - "libappindicator-gtk3: icono en la bandeja del sistema"
