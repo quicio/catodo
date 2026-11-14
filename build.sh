@@ -9,7 +9,7 @@ BACKEND_DIR="$ROOT_DIR/backend"
 RELEASE_DIR="$ROOT_DIR/release"
 
 echo "==> Descargando wallpapers nuevos si hace falta"
-python3 "$ROOT_DIR/scripts/fetch_wallpapers.py" 2 2>/dev/null || true
+node "$ROOT_DIR/scripts/fetch_wallpapers.mjs" 2 2>/dev/null || true
 
 "$ROOT_DIR/scripts/build-static.sh"
 

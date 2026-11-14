@@ -175,7 +175,7 @@ async fn open_close_and_next_channel() {
 }
 
 #[tokio::test]
-async fn unknown_route_is_fastapi_shaped() {
+async fn unknown_route_returns_json_404() {
     let (app, _) = app().await;
     let response = get(app, "/api/nope").await;
     assert_eq!(response.status(), StatusCode::NOT_FOUND);

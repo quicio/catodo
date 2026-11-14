@@ -7,6 +7,10 @@ updated: 2026-11-11
 
 # ADR-0005 — Release reproducible con VERSION único, release-please y app única
 
+> **Nota (2026-11-14)**: el release, `VERSION`, release-please y la app única
+> siguen vigentes. El sidecar Python/PyInstaller y `uv` fueron retirados
+> ([ADR-0011](0011-retiro-del-backend-python.md)); el sidecar es el binario Rust.
+
 ## Contexto
 
 Cátodo solo se instala desde el repo con `uv`, `npm` e `install.sh`. No hay CI,

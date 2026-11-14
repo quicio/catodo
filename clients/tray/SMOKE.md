@@ -7,8 +7,9 @@ exercises the full flow end-to-end against a local backend.
 
 ```bash
 # Terminal 1: backend
-cd /path/to/catodo
-CATODO_TOKEN=secret uv run python -m catodo
+cd /path/to/catodo/rust
+CATODO_TOKEN=secret CATODO_PORT=8765 \
+  CATODO_STATIC_DIR=../backend/static cargo run -p catodo-server
 ```
 
 ## Launch the tray

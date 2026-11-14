@@ -25,9 +25,8 @@ cp -R "$ROOT/backend/static" "$TMP/$NAME/backend/static"
 cp "$ROOT/VERSION" "$TMP/$NAME/VERSION"
 
 # Defensa por si el árbol de trabajo dejó basura tracked/untracked.
-find "$TMP/$NAME" -type d \( -name node_modules -o -name .venv -o -name __pycache__ \
-    -o -name .pytest_cache -o -name target -o -name dist \) -prune -exec rm -rf {} +
-find "$TMP/$NAME" -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete
+find "$TMP/$NAME" -type d \( -name node_modules -o -name target -o -name dist \) \
+    -prune -exec rm -rf {} +
 
 mkdir -p "$ROOT/release"
 echo "==> Empaquetando $OUT"

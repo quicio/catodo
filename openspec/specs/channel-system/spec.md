@@ -9,8 +9,8 @@ The system SHALL provide a `Channel` interface that all channels implement.
 
 #### Scenario: Channel interface contract
 
-- **WHEN** a new plugin is created in `backend/catodo/channels/`
-- **THEN** it MUST subclass `Channel` and implement `id`, `name`, `icon`, `type`, `open()`, `close()`, `state()`, and `command()`.
+- **WHEN** a new native channel is created in `rust/crates/catodo-server/src/channels.rs` or a service module
+- **THEN** it MUST implement the `Channel` trait and provide `info()`, `open()`, `close()`, `state()`, and `command()`.
 
 ### Requirement: Channel registration
 

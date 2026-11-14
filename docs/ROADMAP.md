@@ -19,7 +19,7 @@ milestones y el criterio de salida de cada uno.
 | M2 | Paridad dominio/plataforma Rust | hecho | config/store/events + `/api/config`, `/api/state`, `/api/ws` con tests de contrato |
 | M3 | Channels y plugins en Rust | hecho | `/api/channels`, plugins web, Spotify (AppleScript en macOS, `playerctl` en Linux), media/anime y arcade |
 | M4 | Paridad de API y sidecar Rust | hecho (macOS) | el `.app` y el AppImage usan el binario Rust; falta validar el AppImage en Linux limpio |
-| M5 | Cutover y limpieza | en curso | release/dev/prod usan Rust; Python queda como fallback de desarrollo |
+| M5 | Cutover y limpieza | hecho | release/dev/prod usan Rust; backend, tests, gate y packaging Python retirados (ADR-0011) |
 
 ## Deuda de producto (lo que falta para uso diario)
 

@@ -51,32 +51,39 @@ for core in "${CORES[@]}"; do
         exit 1
     fi
     lib_sha="$(sha256 "$lib")"
-    python3 - "$entries" "$core" "$url" "$zip_sha" "$lib_sha" <<'PY'
-import json, sys
-path, core, url, zip_sha, lib_sha = sys.argv[1:]
-with open(path) as f:
-    data = json.load(f)
-data[core] = {"url": url, "zip_sha256": zip_sha, "lib_sha256": lib_sha}
-with open(path, "w") as f:
-    json.dump(data, f, indent=2)
-    f.write("\n")
-PY
+    ENTRIES="$entries" CORE="$core" CORE_URL="$url" ZIP_SHA="$zip_sha" LIB_SHA="$lib_sha" node <<'JS'
+const fs = require("node:fs");
+const data = JSON.parse(fs.readFileSync(process.env.ENTRIES, "utf8"));
+data[process.env.CORE] = {
+  url: process.env.CORE_URL,
+  zip_sha256: process.env.ZIP_SHA,
+  lib_sha256: process.env.LIB_SHA,
+};
+fs.writeFileSync(process.env.ENTRIES, `${JSON.stringify(data, null, 2)}\n`);
+JS
 done
 
-python3 - "$LOCK" "$platform" "$entries" <<'PY'
-import datetime, json, os, sys
-lock_path, platform, entries_path = sys.argv[1:]
-with open(entries_path) as f:
-    entries = json.load(f)
-if os.path.exists(lock_path):
-    with open(lock_path) as f:
-        lock = json.load(f)
-else:
-    lock = {}
-lock["generated"] = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
-lock.setdefault("pins", {})[platform] = entries
-with open(lock_path, "w") as f:
-    json.dump(lock, f, indent=2, sort_keys=True)
-    f.write("\n")
-print(f"==> pin actualizado: {lock_path} ({platform})")
-PY
+LOCK="$LOCK" PLATFORM="$platform" ENTRIES="$entries" node <<'JS'
+const fs = require("node:fs");
+const lockPath = process.env.LOCK;
+const entries = JSON.parse(fs.readFileSync(process.env.ENTRIES, "utf8"));
+const lock = fs.existsSync(lockPath)
+  ? JSON.parse(fs.readFileSync(lockPath, "utf8"))
+  : {};
+lock.generated = new Date().toISOString().slice(0, 10);
+lock.pins = lock.pins || {};
+lock.pins[process.env.PLATFORM] = entries;
+
+function sortKeys(value) {
+  if (Array.isArray(value)) return value.map(sortKeys);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.keys(value).sort().map((key) => [key, sortKeys(value[key])]),
+    );
+  }
+  return value;
+}
+
+fs.writeFileSync(lockPath, `${JSON.stringify(sortKeys(lock), null, 2)}\n`);
+console.log(`==> pin actualizado: ${lockPath} (${process.env.PLATFORM})`);
+JS

@@ -10,44 +10,52 @@ if [ ! -f rust/Cargo.toml ]; then
     exit 0
 fi
 
-python3 - <<'PY'
-import json
-import subprocess
-import sys
+ROOT="$ROOT" node <<'JS'
+const { execFileSync } = require("node:child_process");
+const path = require("node:path");
 
-meta = json.loads(subprocess.check_output(
-    ["cargo", "metadata", "--no-deps", "--format-version", "1"],
-    cwd="rust",
-    text=True,
-))
+const root = process.env.ROOT;
+const meta = JSON.parse(
+  execFileSync("cargo", ["metadata", "--no-deps", "--format-version", "1"], {
+    cwd: path.join(root, "rust"),
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
+  }),
+);
 
-packages = {p["name"]: p for p in meta["packages"]}
-errors: list[str] = []
+const packages = new Map(meta.packages.map((pkg) => [pkg.name, pkg]));
+const errors = [];
 
-def deps(name: str) -> set[str]:
-    return {d["name"] for d in packages[name]["dependencies"]}
+const deps = (name) =>
+  new Set((packages.get(name)?.dependencies ?? []).map((dep) => dep.name));
 
-domain = deps("catodo-domain")
-platform = deps("catodo-platform")
-server = deps("catodo-server")
+const domain = deps("catodo-domain");
+const platform = deps("catodo-platform");
+const server = deps("catodo-server");
 
-for forbidden in ("axum", "tokio", "hyper", "catodo-platform", "catodo-server"):
-    if forbidden in domain:
-        errors.append(f"catodo-domain no puede depender de {forbidden}")
+for (const forbidden of ["axum", "tokio", "hyper", "catodo-platform", "catodo-server"]) {
+  if (domain.has(forbidden)) {
+    errors.push(`catodo-domain no puede depender de ${forbidden}`);
+  }
+}
 
-for forbidden in ("axum", "hyper", "catodo-server"):
-    if forbidden in platform:
-        errors.append(f"catodo-platform no puede depender de {forbidden}")
+for (const forbidden of ["axum", "hyper", "catodo-server"]) {
+  if (platform.has(forbidden)) {
+    errors.push(`catodo-platform no puede depender de ${forbidden}`);
+  }
+}
 
-for required in ("catodo-domain", "catodo-platform"):
-    if required not in server:
-        errors.append(f"catodo-server debe depender de {required}")
+for (const required of ["catodo-domain", "catodo-platform"]) {
+  if (!server.has(required)) {
+    errors.push(`catodo-server debe depender de ${required}`);
+  }
+}
 
-if errors:
-    print("Límites de capas violados:", file=sys.stderr)
-    for err in errors:
-        print(f"  - {err}", file=sys.stderr)
-    sys.exit(1)
+if (errors.length > 0) {
+  console.error("Rust layer violations:");
+  for (const error of errors) console.error(`  - ${error}`);
+  process.exit(1);
+}
 
-print("Rust layer checks OK")
-PY
+console.log(`Rust layer checks OK (${packages.size} crates)`);
+JS

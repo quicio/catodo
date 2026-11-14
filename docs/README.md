@@ -7,8 +7,8 @@ updated: 2026-11-10
 
 # Documentación
 
-Cátodo ya tiene su sistema de specs: **`openspec/`** (schema `spec-driven`, 32
-capacidades y 8 changes activos). Este directorio es el **envoltorio**: cómo
+Cátodo ya tiene su sistema de specs: **`openspec/`** (schema `spec-driven`, 34
+capacidades y 6 changes activos). Este directorio es el **envoltorio**: cómo
 entrar, qué está medido, qué decisiones están cerradas. No duplica specs.
 
 Orden de lectura para un agente nuevo:
@@ -27,22 +27,22 @@ Orden de lectura para un agente nuevo:
 Capacidades en `openspec/specs/<capacidad>/spec.md`:
 
 ```
-anime-channel          arcade-boxart        arcade-launcher      backend-api
-channel-capabilities   channel-system       cross-platform-runtime  event-system
-frontend-kiosk         home-layout          home-layouts         idle-screensaver
-kiosk-drm-engine       lyrics               media-persistence    mqtt-home-automation
-per-channel-volume     plugin-system        remote-control       remote-keyboard
-resume-session         runtime-config       screen-casting       spotify-channel
-systemd-integration    testing-tooling      theme-system         tv-channel
-voice-control          volume-control       wallpapers           youtube-channel
+anime-channel          appearance           arcade-boxart        arcade-cartridge-ux
+arcade-launcher        backend-api          channel-capabilities channel-system
+cross-platform-runtime event-system         frontend-kiosk       home-layout
+home-layouts           idle-screensaver     installation         kiosk-drm-engine
+lyrics                 media-persistence    mqtt-home-automation per-channel-volume
+plugin-system          remote-control       remote-keyboard      resume-session
+runtime-config         screen-casting       spotify-channel      systemd-integration
+testing-tooling        tv-channel           voice-control        volume-control
+wallpapers             youtube-channel
 ```
 
 Changes activos en `openspec/changes/`:
 
 ```
-add-system-tray-client   arcade-cartridge-ux   iptv-channel
-m1-release-and-rust-foundation   public-domain-tunnel
-replicable-installation-and-config   spotify-on-macos   theme-personalization
+add-system-tray-client   arcade-libretro-host   iptv-channel
+m1-release-and-rust-foundation   packaged-widevine   public-domain-tunnel
 ```
 
 Para trabajar en una capacidad: leer su `spec.md`, y si el trabajo es grande
@@ -62,6 +62,7 @@ abrir un change (no editar la spec directamente sin pasar por change).
 | [0008](adr/0008-libretro-embebido.md) | Host libretro embebido | aceptada |
 | [0009](adr/0009-video-crudo-y-audio-pcm.md) | Video crudo + PCM por WebSocket | aceptada |
 | [0010](adr/0010-checksums-de-cores.md) | Checksums y pin de cores | aceptada |
+| [0011](adr/0011-retiro-del-backend-python.md) | Retiro del backend Python; runtime, gate y packaging Rust + Node | aceptada |
 
 ## Flujo
 

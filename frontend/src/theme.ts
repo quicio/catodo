@@ -117,7 +117,7 @@ export const DENSITY_PRESETS: Record<DensityId, { fontSize: string; space: strin
 };
 
 // ---------------------------------------------------------------------------
-// Fallback = spotify-dark (sync con backend/catodo/themes.py)
+// Fallback = spotify-dark (sync con rust/crates/catodo-server/src/themes.json)
 // ---------------------------------------------------------------------------
 
 const FALLBACK: Theme = {

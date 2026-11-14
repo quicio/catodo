@@ -5,7 +5,7 @@ TBD - created by archiving change initial-mvp. Update Purpose after archive.
 ## Requirements
 ### Requirement: HTTP server
 
-The system SHALL run a FastAPI HTTP server on `127.0.0.1:8765`.
+The system SHALL run a Rust (axum) HTTP server on `127.0.0.1:8765` in dev and `127.0.0.1:8767` in prod.
 
 #### Scenario: Health endpoint
 
@@ -160,7 +160,7 @@ The system SHALL expose `GET /api/config` (full effective config) and `POST /api
 
 ### Requirement: Graceful WebSocket shutdown
 
-On server shutdown the system SHALL terminate every WebSocket subscriber loop, including subscribers whose event queue is full. No generator task SHALL be left awaiting a queue that will never be fed.
+On server shutdown the system SHALL terminate every WebSocket subscriber task, including subscribers whose event queue is full. No task SHALL be left awaiting a queue that will never be fed.
 
 #### Scenario: Shutdown with idle client
 
@@ -222,19 +222,24 @@ The server SHALL bind `127.0.0.1` unless explicitly configured otherwise (`CATOD
 - **WHEN** `CATODO_HOST=0.0.0.0` is set
 - **THEN** the server binds all interfaces and logs a warning that the API is network-exposed.
 
-### Requirement: Optional shared access token
+### Requirement: Token auth and pairing
 
-When an access token is configured (`CATODO_TOKEN` env or `token` runtime key), all `/api/*` requests SHALL require it via `X-Catodo-Token` header or `?token=` query parameter (the latter needed for WebSocket clients), returning 401 otherwise. When no token is configured, the API stays open. Static assets and `/remote` itself remain reachable so the page can prompt for the token.
+Requests to `/api/*` from outside loopback SHALL require a valid device token via `X-Catodo-Token` header or `?token=` query parameter (the latter needed for WebSocket clients), returning 401 otherwise. The kiosk on loopback SHALL remain token-free. `/api/health`, `/api/pair/info` and `/api/pair/redeem` SHALL be public. Device tokens SHALL be issued only by redeeming a single-use pairing code (`POST /api/pair/redeem`). `CATODO_TOKEN` SHALL remain valid as a master token for recovery.
 
 #### Scenario: Rejected without token
 
-- **WHEN** a token is configured and `GET /api/state` arrives without it
+- **WHEN** a client outside loopback calls `GET /api/state` without a token
 - **THEN** the response is 401.
 
-#### Scenario: Accepted with token
+#### Scenario: Accepted with device token
 
-- **WHEN** the request carries the configured token
+- **WHEN** the request carries a token issued by `/api/pair/redeem`
 - **THEN** the API responds normally.
+
+#### Scenario: Kiosk on loopback
+
+- **WHEN** the Electron kiosk calls the local API from 127.0.0.1 without a token
+- **THEN** the request is allowed.
 
 ### Requirement: Scoped CORS on LAN
 

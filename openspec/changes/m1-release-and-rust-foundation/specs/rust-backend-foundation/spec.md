@@ -143,7 +143,7 @@ El servidor SHALL emitir logs estructurados a stdout con nivel configurable por 
 
 ### Requirement: Cutover a Rust en M5
 
-A partir de M5, el backend Rust SHALL ser el backend por defecto de dev, prod y release. `run-dev.sh` y `run-prod.sh` SHALL arrancar `catodo-server` por defecto; el backend Python SHALL quedar disponible solo como fallback explícito (`CATODO_DEV_BACKEND=python`) y no SHALL incluirse en la app macOS ni en el AppImage. La app empaquetada SHALL lanzar el binario Rust como sidecar.
+A partir de M5, el backend Rust SHALL ser el único backend de dev, prod y release. `run-dev.sh` y `run-prod.sh` SHALL arrancar `catodo-server`; el paquete Python, sus tests y su packaging SHALL retirarse (ADR-0011). La app empaquetada SHALL lanzar el binario Rust como sidecar.
 
 #### Scenario: Dev usa Rust por defecto
 
@@ -155,10 +155,10 @@ A partir de M5, el backend Rust SHALL ser el backend por defecto de dev, prod y 
 - **WHEN** se ejecuta `./run-prod.sh start`
 - **THEN** el backend en `:8767` es `catodo-server` (Rust) y responde `/api/health`
 
-#### Scenario: Fallback Python explícito
+#### Scenario: Sin fallback Python
 
-- **WHEN** se ejecuta `CATODO_DEV_BACKEND=python ./run-dev.sh`
-- **THEN** el backend en `:8765` es FastAPI y el flujo de desarrollo sigue funcionando
+- **WHEN** se ejecuta `./run-dev.sh` o `./run-prod.sh`
+- **THEN** el backend es siempre `catodo-server`; no existe una rama Python
 
 #### Scenario: Release sin Python
 

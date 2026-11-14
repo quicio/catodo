@@ -8,12 +8,6 @@ FAIL=0
 echo "==> Version consistency"
 "$ROOT/scripts/check-version.sh" || FAIL=1
 
-echo "==> Backend lint (ruff)"
-(cd "$ROOT/backend" && uv run --group dev ruff check) || FAIL=1
-
-echo "==> Backend tests (pytest)"
-(cd "$ROOT/backend" && uv run --group dev pytest -q --tb=short "$ROOT/backend/tests") || FAIL=1
-
 echo "==> Frontend typecheck (tsc)"
 (cd "$ROOT/frontend" && npm run typecheck) || FAIL=1
 

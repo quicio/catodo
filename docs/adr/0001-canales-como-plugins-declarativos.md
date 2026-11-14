@@ -33,6 +33,11 @@ Dos caminos, según lo que el canal necesite:
 
 Sin código ejecutable de terceros en ninguno de los dos casos.
 
+> **Nota (2026-11-14)**: la decisión sigue vigente, pero el backend Python fue
+> retirado (ADR-0011). El contrato `Channel` vive en
+> `rust/crates/catodo-server/src/channels.rs`; los canales web siguen siendo
+> sólo `manifest.json` gestionados por `plugins.rs`.
+
 ## Consecuencias
 
 Buenas:

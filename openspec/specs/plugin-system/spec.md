@@ -1,7 +1,7 @@
 # plugin-system Specification
 
 ## Purpose
-Permite instalar, gestionar y cargar canales como plugins declarativos (manifest + repo + CLI), de modo que agregar un canal no requiera tocar código ni rebuildear.
+Permite instalar, gestionar y cargar canales como plugins declarativos (manifest + repo + API), de modo que agregar un canal no requiera tocar código ni rebuildear. Los plugins no ejecutan código de terceros.
 ## Requirements
 ### Requirement: Manifest de plugin
 Cada plugin SHALL declarar un `manifest.json` con su identidad, versión y configuración.
@@ -22,7 +22,7 @@ El sistema SHALL soportar al menos canales declarativos de tipo `web` definidos 
 - **THEN** el canal se crea y el frontend lo renderiza en un `<webview>` con esos parámetros (comportamiento igual a los canales web actuales)
 
 ### Requirement: Directorio de plugins
-El sistema SHALL cargar plugins desde `~/.local/share/catodo/plugins/<id>/`.
+El sistema SHALL cargar plugins desde `~/.local/share/catodo/plugins/<id>/` y SHALL sembrar los plugins bundled desde `plugins-repo/` al arrancar.
 
 #### Scenario: Detección al arranque
 - **WHEN** Cátodo inicia
@@ -32,50 +32,38 @@ El sistema SHALL cargar plugins desde `~/.local/share/catodo/plugins/<id>/`.
 - **WHEN** se instala un plugin
 - **THEN** se copia a `plugins/<id>/` y se habilita por defecto
 
-### Requirement: Gestión por CLI
-El sistema SHALL ofrecer un CLI `catodo plugin` para gestionar plugins.
+### Requirement: Gestión por API
+El sistema SHALL ofrecer endpoints para gestionar plugins: listar, obtener, instalar, habilitar y deshabilitar.
 
 #### Scenario: Listar plugins
-- **WHEN** se ejecuta `catodo plugin list`
+- **WHEN** se consulta `GET /api/plugins`
 - **THEN** se muestra cada plugin con id, nombre, versión, estado (habilitado/deshabilitado) y origen
 
 #### Scenario: Instalar desde repo
-- **WHEN** se ejecuta `catodo plugin install <id>`
-- **THEN** se descarga desde el repo configurado, se verifica el checksum y se instala
+- **WHEN** se ejecuta `POST /api/plugins/install` con `{"id": "<id>"}`
+- **THEN** se copia desde el repo configurado y se instala
 
 #### Scenario: Habilitar / deshabilitar
-- **WHEN** se ejecuta `catodo plugin enable <id>` o `disable <id>`
+- **WHEN** se ejecuta `POST /api/plugins/{id}/enable` o `/disable`
 - **THEN** el plugin se marca como habilitado/deshabilitado y no se carga si está deshabilitado
 
-#### Scenario: Remover
-- **WHEN** se ejecuta `catodo plugin remove <id>`
-- **THEN** el plugin se deshabilita y su directorio se elimina
-
 ### Requirement: Repositorio de plugins
-El sistema SHALL poder instalar plugins desde un índice JSON remoto configurable.
+El sistema SHALL cargar plugins desde un repo local con un índice JSON configurable (`plugins-repo/index.json` o `CATODO_PLUGINS_REPO`).
 
 #### Scenario: Índice del repo
 - **WHEN** se consulta el repo
-- **THEN** el índice devuelve para cada plugin: `id`, `version`, `url` de descarga y `checksum`
+- **THEN** el índice devuelve para cada plugin: `id`, `version`, `url` o path, y `bundled`
 
-#### Scenario: Verificación de integridad
-- **WHEN** se descarga un plugin del repo
-- **THEN** se verifica el checksum declarado; si no coincide, la instalación se aborta
+### Requirement: Sin código ni dependencias de terceros
+Los plugins SHALL ser sólo declarativos. El sistema SHALL NOT ejecutar código de terceros, instalar paquetes pip ni crear un venv de plugins.
 
-#### Scenario: Compatibilidad de versión
-- **WHEN** un plugin declara una versión de Cátodo requerida incompatible con la instalada
-- **THEN** la instalación se rechaza con un mensaje de versión mínima/máxima
+#### Scenario: Manifest con dependencies
+- **WHEN** un manifest declara `dependencies`
+- **THEN** el campo se ignora y no se instala nada
 
-### Requirement: Dependencias externas (provisioning)
-El sistema SHALL instalar las dependencias declaradas por los plugins en un entorno aislado compartido.
-
-#### Scenario: Instalar dependencias
-- **WHEN** un plugin declara `dependencies` (paquetes pip) y se instala o habilita
-- **THEN** dichos paquetes se instalan en el venv de plugins del data dir
-
-#### Scenario: Arranque en entorno limpio
-- **WHEN** Cátodo arranca en un entorno sin las dependencias instaladas
-- **THEN** se detectan las faltantes y se instalan automáticamente desde el venv de plugins, sin tocar el venv principal
+#### Scenario: Plugin inválido en runtime
+- **WHEN** un plugin tiene un manifest roto
+- **THEN** el backend lo descarta con un log y el resto de canales sigue funcionando
 
 ### Requirement: API de gestión
 El backend SHALL exponer los plugins y su estado por API.
@@ -86,5 +74,4 @@ El backend SHALL exponer los plugins y su estado por API.
 
 #### Scenario: Instalar por API
 - **WHEN** se ejecuta `POST /api/plugins/install` con un `id`
-- **THEN** instala el plugin desde el repo y devuelve el plugin instalado (o un error 4xx si falla la verificación)
-
+- **THEN** instala el plugin desde el repo y devuelve el plugin instalado (o un error 4xx si no existe)

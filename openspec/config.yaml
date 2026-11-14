@@ -11,10 +11,10 @@ context: |
 
   Tech stack:
   - Frontend: Electron (castLabs build in dev for Widevine), TypeScript, React, Vite
-  - Backend: Python 3.12, FastAPI, Uvicorn
-  - Package manager: uv (Python)
+  - Backend: Rust (axum, tokio) — crates catodo-domain, catodo-platform, catodo-server
+  - Package managers: cargo (Rust), npm (frontend)
   - Communication: HTTP REST API + WebSocket for events
-  - OS: Linux exclusively, runs as kiosk/fullscreen
+  - OS: Linux target; macOS used for development, runs as kiosk/fullscreen
 
   Architecture:
   - Clean Architecture (light, KISS)

@@ -69,16 +69,15 @@ if [ -z "$VERSION" ]; then
     fi
     echo "==> Buscando última versión estable de cloudflared..."
     VERSION="$(curl -fsSL "https://api.github.com/repos/$REPO/releases" 2>/dev/null \
-        | python3 -c "
-import sys, json
-rels = json.load(sys.stdin)
-for r in rels:
-    tag = r.get('tag_name', '')
-    if 'pre' in tag.lower() or 'rc' in tag.lower():
-        continue
-    print(tag)
-    break
-" || true)"
+        | node -e '
+const fs = require("node:fs");
+const releases = JSON.parse(fs.readFileSync(0, "utf8"));
+const stable = releases.find((release) => {
+  const tag = (release.tag_name || "").toLowerCase();
+  return tag && !tag.includes("pre") && !tag.includes("rc");
+});
+if (stable) process.stdout.write(stable.tag_name);
+' || true)"
     if [ -z "$VERSION" ]; then
         echo "No se pudo resolver la versión. Especificá: --version 2024.12.2" >&2
         exit 1

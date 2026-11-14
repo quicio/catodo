@@ -19,11 +19,11 @@ Hotkeys `1`–`5` switch channels (`6` is reserved). The channel bar auto-hides 
 
 ```
 rust/       Backend Rust (axum) — API + static frontend + servicios
-backend/    Backend Python legacy (FastAPI) — fallback de desarrollo
+backend/    static/ (frontend compilado + remote PWA) y systemd/
 frontend/   Electron app (Chromium) — dev en :8765, release con sidecar
 ```
 
-- **Backend**: Rust (axum) handles channels + state + wallpapers + lyrics. Serves the built frontend as static files at `/`. User data lives at `~/.local/share/catodo/`. El backend FastAPI queda como fallback de desarrollo.
+- **Backend**: Rust (axum) handles channels + state + wallpapers + lyrics. Serves the built frontend as static files at `/`. User data lives at `~/.local/share/catodo/`.
 - **Frontend**: React + Vite, built into static HTML/JS, served by the backend.
 - **Shell**: Electron opens a frameless, fullscreen, kiosk window. En dev apunta al backend en `:8765`; la app macOS empaquetada incluye el backend en `Contents/Resources/backend/`, lo lanza como sidecar en un puerto libre y lo apaga al salir. In-app `<webview>` tags handle YouTube and TV.
 
@@ -31,12 +31,11 @@ frontend/   Electron app (Chromium) — dev en :8765, release con sidecar
 
 ## Backend Rust
 
-El backend de release es Rust: `Catodo.app` y el AppImage incluyen
+El backend es Rust en todos los modos: `Catodo.app` y el AppImage incluyen
 `Contents/Resources/backend/catodo-backend`, que Electron lanza como sidecar.
-`run-dev.sh` y `run-prod.sh` también usan Rust por defecto. Python queda como
-fallback de desarrollo (`CATODO_DEV_BACKEND=python`) y como referencia histórica.
-En Linux, el fallback necesita `cd backend && uv sync --extra mpris` para el
-canal Spotify por DBus; sin eso el backend degrada y reporta el canal sin MPRIS.
+`run-dev.sh` y `run-prod.sh` también usan el mismo binario. No hay runtime ni
+fallback Python. En Linux, el canal Spotify usa MPRIS vía D-Bus del sistema; si
+no está disponible, el backend degrada y reporta el canal sin MPRIS.
 
 ```bash
 cd rust
@@ -67,12 +66,9 @@ si el código se modificó después de que arrancó, se reinicia.
 ## Quickstart
 
 ```bash
-# 1. Backend Rust (default)
+# 1. Backend Rust
 cd rust
 cargo run -p catodo-server       # serves http://127.0.0.1:8769
-
-# Fallback Python legacy:
-# cd backend && uv sync && uv run python -m catodo
 
 # 2. Electron app
 cd ../frontend
@@ -136,8 +132,7 @@ Cátodo corre de forma nativa en macOS Apple Silicon con la misma experiencia qu
 | Herramienta | Para | Cómo |
 |---|---|---|
 | **brew** | instalar el resto | <https://brew.sh> |
-| **python 3.12+** | backend | `brew install python` o Apple CommandLineTools |
-| **uv** | package manager | `brew install uv` |
+| **rust** | backend | `brew install rust` o <https://rustup.rs> |
 | **node 20+** | build del frontend | `brew install node` |
 | **cliclick** (opcional) | remote trackpad con primitivas relativas | `brew install cliclick` — sin esto, el remote usa `osascript` como fallback (limitado) |
 | **ffmpeg** (opcional) | IPTV futura (stream proxy) | `brew install ffmpeg` |
@@ -147,7 +142,7 @@ Cátodo corre de forma nativa en macOS Apple Silicon con la misma experiencia qu
 ```bash
 git clone <repo> ~/catodo && cd ~/catodo
 bash install.sh --check       # verifica requisitos (sin modificar el sistema)
-bash install.sh               # instala venv, build, plugin venv (sin sudo)
+bash install.sh               # compila backend + frontend (sin sudo)
 ./run-dev.sh                  # vite + backend + Electron
 ```
 
@@ -202,12 +197,12 @@ bash install.sh --yes         # instala deps del sistema sin confirmar
 
 Esto detecta la distro (`/etc/os-release`) y el gestor de paquetes (`pacman` /
 `apt` / `dnf` / `zypper`), verifica e instala las dependencias del sistema
-(python3 ≥3.12, uv, node/npm, PyGObject, openssl, iproute2, xdotool/ydotool,
-pipewire/pulseaudio), y luego:
+(cargo/Rust, node/npm, openssl, iproute2, xdotool/ydotool, pipewire/pulseaudio),
+y luego:
 
-1. Set up del venv Python con `uv`
+1. Compila el backend Rust (`cargo build --release -p catodo-server`)
 2. Build del frontend
-3. Genera el unit `catodo.service` con las rutas reales del repo y de `uv`
+3. Genera el unit `catodo.service` con las rutas reales del repo y del binario
 4. Instala y arranca el servicio de usuario (`systemctl --user enable --now`)
 5. Build del Electron AppImage
 
@@ -583,19 +578,20 @@ arrancar.
 }
 ```
 
-### CLI
+### Gestión
+
+Los plugins se gestionan por API (no hay CLI Python):
 
 ```bash
-cd backend
-uv run python -m catodo plugin list           # ver instalados
-uv run python -m catodo plugin install <id>   # instalar desde el repo
-uv run python -m catodo plugin remove <id>
-uv run python -m catodo plugin enable|disable <id>
+curl http://127.0.0.1:8767/api/plugins
+curl -X POST http://127.0.0.1:8767/api/plugins/install \
+  -H 'Content-Type: application/json' -d '{"id":"youtube"}'
+curl -X POST http://127.0.0.1:8767/api/plugins/youtube/enable
+curl -X POST http://127.0.0.1:8767/api/plugins/youtube/disable
 ```
 
-> El CLI modifica el estado persistente (`~/.local/share/catodo/plugins.json`);
-> los cambios aplican al próximo arranque. Para cambios en caliente usá la API
-> (`POST /api/plugins/{id}/enable|disable` o `/api/plugins/install`).
+> Los cambios de estado se persisten en `~/.local/share/catodo/plugins.json`;
+> habilitar/deshabilitar aplica en caliente.
 
 ### Repos y dependencias
 
@@ -603,10 +599,9 @@ uv run python -m catodo plugin enable|disable <id>
   que lista plugins (id, versión, url o path, checksum `sha256`, `requires_catodo`).
   Se puede cambiar con `plugin_repo` en `~/.local/share/catodo/config.json` o
   `CATODO_PLUGIN_REPO`.
-- Las **dependencias** (`dependencies`) se instalan en un venv aislado en
-  `~/.local/share/catodo/plugin-venv`, sin tocar el venv principal. En un entorno
-  limpio se instalan automáticamente al arrancar (desactivar con
-  `CATODO_PLUGIN_AUTOINSTALL=0`).
+- Los plugins son **sólo declarativos**: no se ejecuta código de terceros y no
+  se instalan dependencias pip. Un manifest con `dependencies` se ignora
+  (ADR-0011).
 
 ## API
 
@@ -649,7 +644,8 @@ uv run python -m catodo plugin enable|disable <id>
 ## Layout
 
 ```
-backend/    FastAPI service + channels + systemd unit + static assets
+rust/       Backend Rust (axum) — crates domain, platform y server
+backend/    static assets (frontend compilado + remote PWA) + systemd unit
 frontend/   React + Vite + Electron (no Tauri)
 ```
 

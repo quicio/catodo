@@ -7,6 +7,11 @@ updated: 2026-11-10
 
 # ADR-0006 — Workspace Rust con tres crates y convivencia con Python
 
+> **Nota (2026-11-14)**: la decisión del workspace de tres crates sigue vigente.
+> La parte de convivencia con Python quedó superseded por
+> [ADR-0011](0011-retiro-del-backend-python.md): Python ya no es backend ni
+> fallback.
+
 ## Contexto
 
 El backend actual es FastAPI (7.595 líneas Python) y funciona. La migración a

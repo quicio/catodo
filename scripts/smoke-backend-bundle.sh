@@ -4,7 +4,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VERSION="$(cat "$ROOT/VERSION")"
-INPUT="${1:-$ROOT/release/backend/catodo-backend}"
+INPUT="${1:-$ROOT/release/backend-rust/catodo-backend}"
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/catodo-smoke.XXXXXX")"
 PID=""
 cleanup() {
@@ -36,7 +36,14 @@ case "$VERSION_OUT" in
     *) echo "Versión inesperada: $VERSION_OUT (esperaba $VERSION)" >&2; exit 1 ;;
 esac
 
-PORT="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')"
+PORT="$(node -e '
+const net = require("node:net");
+const server = net.createServer();
+server.listen(0, "127.0.0.1", () => {
+  console.log(server.address().port);
+  server.close();
+});
+')"
 DATA="$TMP/data"
 mkdir -p "$DATA"
 LOG="$TMP/backend.log"

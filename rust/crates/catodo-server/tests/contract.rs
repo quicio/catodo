@@ -69,7 +69,7 @@ async fn version_matches_contract_fixture() {
 }
 
 #[tokio::test]
-async fn unknown_route_returns_fastapi_shaped_404() {
+async fn unknown_route_returns_json_404() {
     let response = app()
         .await
         .oneshot(

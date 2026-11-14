@@ -34,7 +34,7 @@ impl Store {
     }
 
     /// Reads a JSON file. Corrupt files are moved aside to `<name>.json.bak`
-    /// and the default is returned, matching the Python store.
+    /// and the default is returned, matching the store contract.
     pub fn load(&self, name: &str, default: Value) -> Value {
         let file = self.path(name);
         if !file.is_file() {

@@ -13,28 +13,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  backend:
-    name: backend (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-22.04, macos-15]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
-      - name: Sync backend
-        working-directory: backend
-        run: uv sync --group dev
-      - name: Ruff
-        working-directory: backend
-        run: uv run --group dev ruff check
-      - name: Pytest
-        working-directory: backend
-        run: uv run --group dev pytest -q --tb=short
-
   frontend:
     name: frontend (${{ matrix.os }})
     strategy:
@@ -82,8 +60,8 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-node@v4
         with:
-          enable-cache: true
+          node-version: "20"
       - name: Version consistency
         run: ./scripts/check-version.sh

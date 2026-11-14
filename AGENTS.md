@@ -16,11 +16,10 @@ Leer en este orden:
 ## Comandos
 
 ```bash
-./scripts/check.sh                 # gate: ruff + pytest + tsc + version + Rust
+./scripts/check.sh                 # gate: tsc + version + Rust
 ./scripts/check-rust.sh            # fmt + clippy + tests + límites de capas
-./scripts/check-version.sh         # VERSION vs manifests
-cd rust && cargo run -p catodo-server      # backend Rust (default)
-cd backend && uv run python -m catodo     # backend Python (fallback dev)
+./scripts/check-version.sh         # VERSION vs manifests (Node)
+cd rust && cargo run -p catodo-server      # backend (único runtime)
 ./run-dev.sh                       # dev: backend :8765 + Vite :1420
 ./run-prod.sh start                # prod: backend :8767 + bundle estático
 cd frontend && npm ci              # necesario una vez, sin esto el tsc del gate falla
@@ -45,9 +44,11 @@ cd frontend && npm run electron:build:linux
 
 ## Reglas duras
 
-- **Un canal es una implementación de `Channel`** (`backend/catodo/channel.py`).
-  Comportamiento opcional se declara como `Protocol` de capacidad, nunca como
-  `if channel.type == ...`.
+- **Un canal es una implementación del trait `Channel`**
+  (`rust/crates/catodo-server/src/channels.rs`). Comportamiento opcional se
+  declara como método del trait con default o capability en `ChannelInfo`, nunca
+  como `if channel.type == ...`.
+- **No reintroducir Python/uv/pytest** en runtime, gate ni packaging — ADR-0011.
 - **La UI no implementa canales**: el frontend consume la API y nada más.
 - **Canales web = sólo `manifest.json`**. No se ejecuta código de terceros.
 - **No unificar los puertos `:8765` (dev) y `:8767` (prod)** — ADR-0002.
@@ -60,8 +61,7 @@ cd frontend && npm run electron:build:linux
 
 ## Definición de terminado
 
-- [ ] `./scripts/check.sh` sin fallas nuevas (hoy: 2 fallas conocidas por entorno,
-      ver HANDOFF).
+- [ ] `./scripts/check.sh` sin fallas nuevas (ver HANDOFF).
 - [ ] Si tocó Rust: `./scripts/check-rust.sh` verde y límites de capas OK.
 - [ ] Si tocó versión/release: `./scripts/check-version.sh` verde.
 - [ ] Si tocó un canal: contrato `Channel` respetado y capability declarada.

@@ -1,7 +1,7 @@
 //! Platform detection and data-directory resolution.
 //!
 //! This crate has no HTTP dependency; it only knows about the host OS and the
-//! user data paths shared with the Python backend.
+//! user data paths shared by the backend.
 
 use std::env;
 use std::path::PathBuf;
@@ -55,7 +55,7 @@ impl PlatformInfo {
     }
 }
 
-/// Resolves the data directory using the same precedence as the Python backend:
+/// Resolves the data directory using the stable precedence:
 /// `CATODO_DATA_DIR`, then `$HOME/.local/share/catodo`.
 pub fn data_dir_from(env_var: Option<&str>, home: Option<&str>) -> PathBuf {
     if let Some(value) = env_var.filter(|value| !value.trim().is_empty()) {
@@ -76,7 +76,7 @@ pub fn data_dir() -> PathBuf {
     data_dir_from(env_var.as_deref(), home.as_deref())
 }
 
-/// Resolves the bundled plugin repository used by the Python backend.
+/// Resolves the bundled plugin repository used by the backend.
 ///
 /// Order: `CATODO_PLUGINS_REPO`, `CATODO_REPO_ROOT/plugins-repo`, then the
 /// repository-relative path compiled into the crate (useful for `cargo run`).

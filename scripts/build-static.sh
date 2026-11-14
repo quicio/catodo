@@ -27,23 +27,6 @@ for d in remote cast; do
 done
 
 # noise.png lo usan los efectos del canal Anime; se regenera determinístico.
-NOISE_TARGET="$STATIC_DIR/noise.png" python3 - <<'PY'
-import os, struct, zlib, random
-random.seed(42)
-W, H = 128, 128
-raw = b''
-for _y in range(H):
-    raw += b'\x00'
-    for _x in range(W):
-        v = random.randint(0, 255)
-        raw += bytes([v, v, v, 255])
-def chunk(t, d):
-    return struct.pack('>I', len(d)) + t + d + struct.pack('>I', zlib.crc32(t+d) & 0xffffffff)
-ihdr = struct.pack('>IIBBBBB', W, H, 8, 6, 0, 0, 0)
-sig = b'\x89PNG\r\n\x1a\n'
-png = sig + chunk(b'IHDR', ihdr) + chunk(b'IDAT', zlib.compress(raw, 9)) + chunk(b'IEND', b'')
-with open(os.environ["NOISE_TARGET"], 'wb') as f:
-    f.write(png)
-PY
+node "$ROOT/scripts/gen-noise.mjs" "$STATIC_DIR/noise.png"
 
 echo "==> Static listo en $STATIC_DIR"

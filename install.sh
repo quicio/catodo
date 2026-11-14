@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Cátodo install script — detección de SO, verificación/instalación de
-# dependencias del sistema, backend venv + frontend build + Electron AppImage
+# dependencias del sistema, backend Rust + frontend build + Electron AppImage
 # + sistema de service systemd con rutas resueltas.
 #
 # Uso:
@@ -13,7 +13,7 @@ set -euo pipefail
 
 # ---------------------------------------------------------------------------
 # Rutas resueltas desde la ubicación real del script (portable, sin asumir
-# ~/projects/catodo ni ~/.local/bin/uv).
+# ~/projects/catodo).
 # ---------------------------------------------------------------------------
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$PROJECT_DIR/backend"
@@ -22,10 +22,8 @@ SERVICE_TEMPLATE="$BACKEND_DIR/systemd/catodo.service.in"
 SERVICE_DST="$HOME/.config/systemd/user/catodo.service"
 DATA_DIR="${CATODO_DATA_DIR:-$HOME/.local/share/catodo}"
 
-UV_BIN="$(command -v uv || true)"
 NODE_BIN="$(command -v node || true)"
 NPM_BIN="$(command -v npm || true)"
-PYTHON_BIN="$(command -v python3 || true)"
 
 # ---------------------------------------------------------------------------
 # Flags
@@ -94,9 +92,7 @@ pkg_name() {
     local bin="$1"
     if [ "$IS_MACOS" -eq 1 ]; then
         case "$bin" in
-            python3) echo "python" ;;
             cargo) echo "rust" ;;
-            uv) echo "uv" ;;
             node) echo "node" ;;
             npm) echo "node" ;;            # viene con node
             openssl) echo "openssl" ;;     # preinstalado en macOS, no requiere brew
@@ -106,12 +102,6 @@ pkg_name() {
         return
     fi
     case "$bin" in
-        python3)
-            case "$PM" in
-                pacman) echo "python" ;;
-                apt) echo "python3" ;;
-                dnf|zypper) echo "python3" ;;
-            esac ;;
         cargo)
             case "$PM" in
                 pacman) echo "rust" ;;
@@ -127,36 +117,19 @@ pkg_name() {
         ydotool) echo "ydotool" ;;
         wpctl) echo "pipewire" ;;
         pactl) echo "pulseaudio" ;;
-        gobject-introspection)
-            case "$PM" in
-                pacman) echo "gobject-introspection" ;;
-                apt) echo "gir1.2-glib-2.0" ;;
-                dnf) echo "gobject-introspection" ;;
-                zypper) echo "gobject-introspection" ;;
-            esac ;;
-        pygobject)
-            case "$PM" in
-                pacman) echo "python-gobject" ;;
-                apt) echo "python3-gi" ;;
-                dnf) echo "python3-gobject" ;;
-                zypper) echo "python3-gobject" ;;
-            esac ;;
     esac
 }
 
 # Dependencias a validar/instalar: <bin> [<bin alternativo>...]
-# - python3 es obligatorio (backend).
-# - uv se auto-instala si falta (opción 1); también puede instalarse por gestor.
+# - cargo: compila el backend Rust.
 # - node/npm obligatorios para build del frontend.
-# - gobject-introspection + pygobject: MPRIS de Spotify (control remoto).
 # - openssl: certificados SSL (/cast). ip: detección de IP para el cert.
 # - xdotool/ydotool: control de mouse/teclado (X11 / Wayland).
 # - wpctl/pactl: control de volumen (PipeWire / PulseAudio).
 MISSING=()
 OPTIONAL_DEPENDENCIES=()
 CHECK_DEPENDENCIES=(
-    "python3"
-    "uv"
+    "cargo"
     "node"
     "npm"
     "openssl"
@@ -168,7 +141,6 @@ CHECK_DEPENDENCIES=(
 # wpctl/pactl) — el chequeo de binarios se ajusta más abajo si IS_MACOS.
 if [ "$IS_MACOS" -eq 1 ]; then
     CHECK_DEPENDENCIES=(
-        "python3"
         "cargo"
         "node"
         "npm"
@@ -204,16 +176,6 @@ check_deps() {
             fi
         fi
     done
-    # Chequeos de versión / feature
-    if [ -n "$PYTHON_BIN" ]; then
-        pyver="$("$PYTHON_BIN" -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null || echo "0")"
-        if [ "$(echo "$pyver" | cut -d. -f1)" -lt 3 ] || { [ "$(echo "$pyver" | cut -d. -f1)" -eq 3 ] && [ "$(echo "$pyver" | cut -d. -f2)" -lt 12 ]; }; then
-            printf "  %-22s FALTA (se necesita Python >= 3.12, se tiene %s)\n" "python3-version" "$pyver"
-            MISSING+=("python3-version")
-        else
-            printf "  %-22s OK (Python %s)\n" "python3-version" "$pyver"
-        fi
-    fi
 }
 
 report_missing() {
@@ -244,23 +206,14 @@ install_missing() {
                 *) echo "Cancelado."; exit 1 ;;
             esac
         fi
-        local need_uv=0
         local pkgs=()
         for m in "${MISSING[@]}"; do
-            if [ "$m" = "uv" ]; then
-                need_uv=1
-                continue
-            fi
             local pkg
             pkg="$(pkg_name "$m")"
             [ -n "$pkg" ] && pkgs+=("$pkg")
         done
         if [ "${#pkgs[@]}" -gt 0 ]; then
             brew install "${pkgs[@]}"
-        fi
-        if [ "$need_uv" -eq 1 ] && ! command -v uv >/dev/null 2>&1; then
-            echo "==> Instalando uv (brew)"
-            brew install uv
         fi
     else
         echo "==> Instalando dependencias del sistema faltantes con $PM"
@@ -272,14 +225,8 @@ install_missing() {
                 *) echo "Cancelado."; exit 1 ;;
             esac
         fi
-        # uv se auto-instala (curl install.sh de astral) porque es el gestor oficial.
-        local need_uv=0
         local pkgs=()
         for m in "${MISSING[@]}"; do
-            if [ "$m" = "uv" ]; then
-                need_uv=1
-                continue
-            fi
             local pkg
             pkg="$(pkg_name "$m")"
             [ -n "$pkg" ] && pkgs+=("$pkg")
@@ -288,17 +235,10 @@ install_missing() {
             $PM_UPDATE >/dev/null 2>&1 || true
             $PM_INSTALL "${pkgs[@]}"
         fi
-        if [ "$need_uv" -eq 1 ] && ! command -v uv >/dev/null 2>&1; then
-            echo "==> Instalando uv (Astral)"
-            curl -LsSf https://astral.sh/uv/install.sh | sh
-            export PATH="$HOME/.local/bin:$PATH"
-        fi
     fi
     # Re-detectar bins tras instalar
-    UV_BIN="$(command -v uv || true)"
     NODE_BIN="$(command -v node || true)"
     NPM_BIN="$(command -v npm || true)"
-    PYTHON_BIN="$(command -v python3 || true)"
 }
 
 # ---------------------------------------------------------------------------
@@ -308,8 +248,8 @@ echo "==> Detectando sistema: distro='${distro_id:-desconocida}' gestor='${PM:-b
 if [ -z "$PM" ] && [ "$IS_MACOS" -eq 0 ]; then
     echo
     echo "==> No se reconoció el gestor de paquetes de la distro." >&2
-    echo "    Instalá manualmente: python3, uv, nodejs, npm, openssl, iproute2," >&2
-    echo "    xdotool o ydotool, pipewire o pulseaudio, y pygobject (python-gobject)." >&2
+    echo "    Instalá manualmente: cargo (Rust), nodejs, npm, openssl, iproute2," >&2
+    echo "    xdotool o ydotool, y pipewire o pulseaudio." >&2
     if [ "$CHECK_ONLY" -eq 1 ]; then exit 1; fi
 fi
 
@@ -336,8 +276,8 @@ if [ "${#MISSING[@]}" -gt 0 ]; then
     fi
 fi
 
-if [ -z "$NODE_BIN" ] || [ -z "$PYTHON_BIN" ]; then
-    echo "==> Faltan herramientas esenciales (node/python3). Revisá lo anterior." >&2
+if [ -z "$NODE_BIN" ] || [ -z "$NPM_BIN" ]; then
+    echo "==> Faltan herramientas esenciales (node/npm). Revisá lo anterior." >&2
     exit 1
 fi
 
@@ -381,11 +321,7 @@ if [ -n "$APPIMAGE" ]; then
     echo "==> AppImage built: $APPIMAGE"
 fi
 
-echo "==> Provisioning plugin venv (dependencias de plugins)"
 mkdir -p "$DATA_DIR"
-if command -v uv >/dev/null 2>&1; then
-    uv venv "$DATA_DIR/plugin-venv" >/dev/null 2>&1 || true
-fi
 
 if [ "${CATODO_SSL:-0}" = "1" ]; then
     echo "==> Generando certificado SSL (necesario para /cast y compartir pantalla)"

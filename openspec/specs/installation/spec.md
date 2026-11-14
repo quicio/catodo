@@ -24,7 +24,7 @@ El instalador SHALL detectar la distribución Linux en ejecución y seleccionar 
 
 ### Requirement: Verificación de dependencias del sistema
 
-El instalador SHALL verificar la presencia de cada dependencia del sistema requerida (python3 ≥3.12, uv, node/npm, pygobject/gir1.2, openssl, xdotool o ydotool, pipewire o pulseaudio, iproute2) antes de proceder. Las dependencias faltantes SHALL reportarse con nombre del paquete por distro y comando de instalación.
+El instalador SHALL verificar la presencia de cada dependencia del sistema requerida (cargo/Rust, node/npm, openssl, xdotool o ydotool, pipewire o pulseaudio, iproute2) antes de proceder. Las dependencias faltantes SHALL reportarse con nombre del paquete por distro y comando de instalación.
 
 #### Scenario: Dependencias presentes
 
@@ -38,21 +38,21 @@ El instalador SHALL verificar la presencia de cada dependencia del sistema reque
 
 ### Requirement: Rutas del proyecto independientes del repositorio
 
-El instalador SHALL resolver todas las rutas (directorio del proyecto, backend, uv, data dir, servicio systemd) desde la ubicación real del repositorio y de las herramientas detectadas en el PATH, sin asumir `~/projects/catodo` ni `~/.local/bin/uv`.
+El instalador SHALL resolver todas las rutas (directorio del proyecto, backend, binario Rust, data dir, servicio systemd) desde la ubicación real del repositorio y de las herramientas detectadas en el PATH, sin asumir `~/projects/catodo`.
 
 #### Scenario: Repo en ubicación arbitraria
 
 - **WHEN** el repositorio está clonado en cualquier ruta (ej. `~/src/catodo`)
 - **THEN** el instalador genera la configuración del servicio con esa ruta real.
 
-#### Scenario: uv fuera de ~/.local/bin
+#### Scenario: cargo fuera de ~/.cargo/bin
 
-- **WHEN** `uv` está instalado en otro directorio del PATH (ej. `/usr/local/bin/uv`)
-- **THEN** el instalador usa la ruta detectada por `command -v uv`.
+- **WHEN** `cargo` está instalado en otro directorio del PATH (ej. `/usr/local/bin/cargo`)
+- **THEN** el instalador usa la ruta detectada por `command -v cargo`.
 
 ### Requirement: Generación de unit de systemd
 
-El instalador SHALL generar el unit `catodo.service` con las rutas resueltas (WorkingDirectory, ExecStart con ruta de uv) en lugar de usar un template con rutas fijas.
+El instalador SHALL generar el unit `catodo.service` con las rutas resueltas (WorkingDirectory, ExecStart con la ruta del binario Rust) en lugar de usar un template con rutas fijas.
 
 #### Scenario: Unit generado correcto
 
