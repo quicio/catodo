@@ -1,6 +1,6 @@
 //! WebSocket de frames crudos del arcade: video sin encoder ni MSE.
 //!
-//! Cada mensaje binario es `width u32 LE | height u32 LE | RGBA tight-packed`.
+//! Cada mensaje binario es `width u32 LE | height u32 LE | RGB565 tight-packed`.
 //! El `watch` sólo guarda el último frame: si el cliente no da abasto, se
 //! saltean frames en vez de acumular latencia.
 

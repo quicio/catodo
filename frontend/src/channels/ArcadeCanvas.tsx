@@ -23,7 +23,7 @@ export default function ArcadeCanvas({
   aspectRatio?: number;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const frameRef = useRef<{ width: number; height: number; data: Uint8Array; serial: number } | null>(
+  const frameRef = useRef<{ width: number; height: number; data: Uint16Array; serial: number } | null>(
     null,
   );
   const [failed, setFailed] = useState(false);
@@ -46,9 +46,14 @@ export default function ArcadeCanvas({
         const view = new DataView(raw);
         const width = view.getUint32(0, true);
         const height = view.getUint32(4, true);
-        if (!width || !height || raw.byteLength < 8 + width * height * 4) return;
+        if (!width || !height || raw.byteLength < 8 + width * height * 2) return;
         serial += 1;
-        frameRef.current = { width, height, data: new Uint8Array(raw, 8), serial };
+        frameRef.current = {
+          width,
+          height,
+          data: new Uint16Array(raw, 8, width * height),
+          serial,
+        };
         setError(false);
       };
       socket.onerror = () => setError(true);
@@ -196,12 +201,12 @@ export default function ArcadeCanvas({
         gl.texImage2D(
           gl.TEXTURE_2D,
           0,
-          gl.RGBA,
+          gl.RGB,
           source.width,
           source.height,
           0,
-          gl.RGBA,
-          gl.UNSIGNED_BYTE,
+          gl.RGB,
+          gl.UNSIGNED_SHORT_5_6_5,
           source.data,
         );
         texWidth = source.width;
@@ -215,8 +220,8 @@ export default function ArcadeCanvas({
           0,
           source.width,
           source.height,
-          gl.RGBA,
-          gl.UNSIGNED_BYTE,
+          gl.RGB,
+          gl.UNSIGNED_SHORT_5_6_5,
           source.data,
         );
       }

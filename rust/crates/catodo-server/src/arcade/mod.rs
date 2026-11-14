@@ -342,15 +342,16 @@ impl Channel for ArcadeChannel {
             .map(|shared| shared.resolution())
             .unwrap_or((0, 0));
         let mode = *self.mode.read().await;
-        let (fps, aspect, core_name, error, audio_samples) = match shared.as_ref() {
+        let (fps, aspect, core_name, error, audio_samples, runs) = match shared.as_ref() {
             Some(shared) => (
                 shared.fps(),
                 shared.aspect_ratio(),
                 shared.core_name(),
                 shared.error(),
                 shared.audio_samples(),
+                shared.runs(),
             ),
-            None => (0.0, 0.0, None, None, 0),
+            None => (0.0, 0.0, None, None, 0, 0),
         };
         Ok(json!({
             "id": "arcade",
@@ -364,6 +365,7 @@ impl Channel for ArcadeChannel {
             "fps": fps,
             "aspect": aspect,
             "audio_samples": audio_samples,
+            "runs": runs,
             "resolution": [width, height],
             "error": error,
         }))
@@ -383,6 +385,7 @@ impl Channel for ArcadeChannel {
 
     async fn live_stream(&self) -> Option<LiveStream> {
         let shared = self.session_shared().await?;
+        shared.request_h264();
         let mut guard = self.encoder.lock().await;
         // Si ya hay un encoder con su stdout tomado, el cliente anterior sigue
         // leyendo: se reinicia para el nuevo consumidor.

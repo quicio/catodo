@@ -47,8 +47,10 @@ pub struct SessionShared {
     width: AtomicU32,
     height: AtomicU32,
     audio_samples: AtomicU64,
+    runs: AtomicU64,
     audio: Mutex<VecDeque<i16>>,
     frame_tx: watch::Sender<Option<Arc<LiveFrame>>>,
+    h264: AtomicBool,
     core_name: Mutex<Option<String>>,
     error: Mutex<Option<String>>,
 }
@@ -67,8 +69,10 @@ impl Default for SessionShared {
             width: AtomicU32::new(0),
             height: AtomicU32::new(0),
             audio_samples: AtomicU64::new(0),
+            runs: AtomicU64::new(0),
             audio: Mutex::new(VecDeque::new()),
             frame_tx,
+            h264: AtomicBool::new(false),
             core_name: Mutex::new(None),
             error: Mutex::new(None),
         }
@@ -143,6 +147,15 @@ impl SessionShared {
 
     pub fn subscribe_frames(&self) -> watch::Receiver<Option<Arc<LiveFrame>>> {
         self.frame_tx.subscribe()
+    }
+
+    /// El encoder H.264 necesita que el core guarde el frame crudo.
+    pub fn request_h264(&self) {
+        self.h264.store(true, Ordering::Relaxed);
+    }
+
+    pub fn runs(&self) -> u64 {
+        self.runs.load(Ordering::Relaxed)
     }
 
     pub fn core_name(&self) -> Option<String> {
@@ -263,32 +276,37 @@ unsafe extern "C" fn video_cb(
     }
     with_ctx(|ctx| {
         let format = PixelFormat::from_raw(ctx.pixel_format.load(Ordering::Relaxed));
-        let len = pitch * height as usize;
-        let bytes = std::slice::from_raw_parts(data as *const u8, len).to_vec();
         if ctx.frame_tx.receiver_count() > 0 {
-            if let Some(rgba) = rgba_from_raw(&bytes, width, height, pitch, format) {
+            let len = pitch * height as usize;
+            let raw = std::slice::from_raw_parts(data as *const u8, len);
+            if let Some(pixels) = rgb565_from_raw(raw, width, height, pitch, format) {
                 let live = Arc::new(LiveFrame {
                     width,
                     height,
-                    data: Arc::new(rgba),
+                    data: Arc::new(pixels),
                 });
                 ctx.frame_tx.send_replace(Some(live));
             }
         }
-        if let Ok(mut slot) = ctx.frame.lock() {
-            *slot = Some(Frame {
-                width,
-                height,
-                pitch,
-                format,
-                data: bytes,
-            });
+        // Sólo el fallback H.264 consume el frame crudo; el player usa RGB565.
+        if ctx.h264.load(Ordering::Relaxed) {
+            let len = pitch * height as usize;
+            let bytes = std::slice::from_raw_parts(data as *const u8, len).to_vec();
+            if let Ok(mut slot) = ctx.frame.lock() {
+                *slot = Some(Frame {
+                    width,
+                    height,
+                    pitch,
+                    format,
+                    data: bytes,
+                });
+            }
         }
     });
 }
 
-/// Convierte un frame crudo del core (con pitch) a RGBA tight-packed.
-fn rgba_from_raw(
+/// Convierte un frame crudo del core (con pitch) a RGB565 tight-packed.
+fn rgb565_from_raw(
     data: &[u8],
     width: u32,
     height: u32,
@@ -301,37 +319,28 @@ fn rgba_from_raw(
     if data.len() < source_pitch * height as usize {
         return None;
     }
-    let mut out = vec![255u8; width as usize * height as usize * 4];
+    let mut out = vec![0u8; width as usize * height as usize * 2];
     for y in 0..height as usize {
         let line = &data[y * source_pitch..y * source_pitch + row_bytes];
         for x in 0..width as usize {
-            let dst = (y * width as usize + x) * 4;
-            match format {
-                PixelFormat::Rgb565 => {
-                    let value = u16::from_le_bytes([line[x * 2], line[x * 2 + 1]]);
-                    let r = (value >> 11) & 0x1f;
-                    let g = (value >> 5) & 0x3f;
-                    let b = value & 0x1f;
-                    out[dst] = ((r << 3) | (r >> 2)) as u8;
-                    out[dst + 1] = ((g << 2) | (g >> 4)) as u8;
-                    out[dst + 2] = ((b << 3) | (b >> 2)) as u8;
-                }
+            let value: u16 = match format {
+                PixelFormat::Rgb565 => u16::from_le_bytes([line[x * 2], line[x * 2 + 1]]),
                 PixelFormat::Rgb1555 => {
-                    let value = u16::from_le_bytes([line[x * 2], line[x * 2 + 1]]);
-                    let r = (value >> 10) & 0x1f;
-                    let g = (value >> 5) & 0x1f;
-                    let b = value & 0x1f;
-                    out[dst] = ((r << 3) | (r >> 2)) as u8;
-                    out[dst + 1] = ((g << 3) | (g >> 2)) as u8;
-                    out[dst + 2] = ((b << 3) | (b >> 2)) as u8;
+                    let v = u16::from_le_bytes([line[x * 2], line[x * 2 + 1]]);
+                    let r = (v >> 10) & 0x1f;
+                    let g = (v >> 5) & 0x1f;
+                    let b = v & 0x1f;
+                    (r << 11) | (((g << 1) | (g >> 4)) << 5) | b
                 }
                 PixelFormat::Xrgb8888 => {
-                    // El core entrega B,G,R,X en little-endian.
-                    out[dst] = line[x * 4 + 2];
-                    out[dst + 1] = line[x * 4 + 1];
-                    out[dst + 2] = line[x * 4];
+                    let b = line[x * 4] as u16;
+                    let g = line[x * 4 + 1] as u16;
+                    let r = line[x * 4 + 2] as u16;
+                    ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)
                 }
-            }
+            };
+            let dst = (y * width as usize + x) * 2;
+            out[dst..dst + 2].copy_from_slice(&value.to_le_bytes());
         }
     }
     Some(out)
@@ -491,6 +500,15 @@ fn run_core(
     commands: Receiver<Command>,
     ready: Sender<anyhow::Result<()>>,
 ) {
+    // macOS coalescea los timers de procesos de fondo y el core cae a ~45 fps
+    // (el audio se queda corto). User-interactive le da un hilo de primer nivel.
+    #[cfg(target_os = "macos")]
+    unsafe {
+        extern "C" {
+            fn pthread_set_qos_class_self_np(qos_class: u32, relative_priority: i32) -> i32;
+        }
+        pthread_set_qos_class_self_np(0x21, 0); // QOS_CLASS_USER_INTERACTIVE
+    }
     CTX.with(|slot| *slot.borrow_mut() = Some(shared.clone()));
 
     let mut core = match Core::load(&core_path) {
@@ -589,10 +607,28 @@ fn run_core(
         }
 
         core.run();
+        shared.runs.fetch_add(1, Ordering::Relaxed);
 
         let elapsed = started.elapsed();
         if elapsed < frame_time {
-            std::thread::sleep(frame_time - elapsed);
+            let remaining = frame_time - elapsed;
+            // En macOS el sleep de un proceso de fondo se estira varios ms por
+            // coalescencia; se duerme el grueso y se cierra con spin hasta el
+            // deadline para mantener los 60 fps (y el audio a 32 kHz).
+            #[cfg(target_os = "macos")]
+            {
+                let margin = Duration::from_millis(5);
+                if remaining > margin {
+                    std::thread::sleep(remaining - margin);
+                }
+                while started.elapsed() < frame_time {
+                    std::hint::spin_loop();
+                }
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                std::thread::sleep(remaining);
+            }
         }
     }
 

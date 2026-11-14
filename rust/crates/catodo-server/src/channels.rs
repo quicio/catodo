@@ -18,7 +18,7 @@ use crate::iptv::IptvChannel;
 use crate::media::build_media_channels;
 use crate::spotify::{default_client, SpotifyChannel};
 
-/// Último frame crudo listo para dibujar (RGBA tight-packed).
+/// Último frame crudo listo para dibujar (RGB565 tight-packed).
 #[derive(Clone)]
 pub struct LiveFrame {
     pub width: u32,
