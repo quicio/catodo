@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.0](https://github.com/quicio/catodo/compare/v0.5.0...v0.6.0) (2026-11-14)
+
+
+### Features
+
+* **arcade:** audio AAC con MediaSource en el kiosko ([998ff05](https://github.com/quicio/catodo/commit/998ff05b7919e28aa2965c59df4dc57afb369413))
+* **arcade:** host libretro embebido con cores on-demand ([5ecc00d](https://github.com/quicio/catodo/commit/5ecc00d7f18a49af1e700281efdb657aba2cbf2c))
+* **arcade:** mostrar el mando detectado en el HUD ([c489002](https://github.com/quicio/catodo/commit/c489002d628c9250e5b5fd8b651246a6ae636f81))
+* **arcade:** soporte de gamepad con indicador en el player ([fb9493a](https://github.com/quicio/catodo/commit/fb9493a655c9d7d19bb02eea9447a26e15d30c2e))
+* **arcade:** stream fMP4 y player embebido en el kiosko ([dec135f](https://github.com/quicio/catodo/commit/dec135f262e9c5dd91295ae9159a59e877bcbee0))
+* **arcade:** upscaling WebGL 720p/1080p con shaders ([cb58bb2](https://github.com/quicio/catodo/commit/cb58bb20b7a3004018bbbe3f22906454c6d0ed5f))
+
 ## [0.5.0](https://github.com/quicio/catodo/compare/v0.4.5...v0.5.0) (2026-11-13)
 
 
