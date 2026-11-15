@@ -12,8 +12,8 @@ on:
         required: true
         type: string
   # release-auto.yml lo llama como workflow reutilizable cuando release-please
-  # crea el Release: ese evento NO dispara `release: published` porque lo genera
-  # GITHUB_TOKEN, y llamar un workflow evita depender de un dispatch por API.
+  # corre sin PAT. Con RELEASE_PAT, el Release lo crea un usuario y este
+  # workflow se dispara directamente por `release: published`.
   workflow_call:
     inputs:
       tag:

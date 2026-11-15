@@ -19,5 +19,8 @@ jobs:
       - name: Release Please
         uses: googleapis/release-please-action@v4
         with:
+          # PAT para que el PR/tag los cree un usuario y los workflows corran
+          # sin quedar en `action_required`. Fallback a GITHUB_TOKEN.
+          token: ${{ secrets.RELEASE_PAT || github.token }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json

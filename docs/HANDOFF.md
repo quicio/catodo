@@ -164,7 +164,7 @@ navegador o Electron. Documentar cualquier atajo nuevo acá.
 | `ROADMAP.md` de raíz inexistente | el backlog real son los changes de openspec | `docs/ROADMAP.md` mapea a openspec |
 | tap Homebrew | `Casks/catodo.rb` en `quicio/homebrew-tap`; cask estático | Homebrew 5+ requiere `brew trust quicio/tap`; no usa token |
 | runners macOS en CI | se usa `macos-15` | no volver a `macos-14` |
-| release-please | habilitado | el release que crea no dispara `release.yml`: correr `gh workflow run release.yml -f tag=vX.Y.Z` |
+| release-please | habilitado con `RELEASE_PAT` | el Release lo crea un usuario y dispara `release.yml`; `release-auto.yml` queda como fallback sin PAT |
 | publish con `--clobber` | si el job falla a mitad quedan assets faltando | desde el fix sólo se suben archivos |
 | salida del kiosko | `⌘⇧Q` con confirmación + botón en Ajustes | no romper esos dos caminos |
 | tray client | `clients/tray/` (Tauri) no se compila ni distribuye | integrarlo al pipeline o archivar el change |

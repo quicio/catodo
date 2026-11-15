@@ -1,12 +1,11 @@
 name: release-auto
 
-# Dispara la publicación de artefactos cuando release-please crea un Release.
+# Fallback de publicación cuando release-please corre sin PAT.
 #
-# Hace falta porque release-please corre con GITHUB_TOKEN y GitHub no dispara
-# workflows desde ese token: el `on: release: published` de release.yml nunca se
-# entera. Acá se escucha la *finalización* del workflow (evento `workflow_run`,
-# que sí se emite) y se llama release.yml como workflow reutilizable, sin
-# depender de un dispatch por API ni de un PAT.
+# Con `RELEASE_PAT`, release-please crea el Release como un usuario y el evento
+# `release: published` dispara release.yml directamente; este workflow se salta.
+# Sin PAT, escucha la finalización de release-please (workflow_run) y llama a
+# release.yml como workflow reutilizable.
 #
 # Si el release ya tiene assets, no hace nada: evita recompilar cuando
 # release-please solo abrió/actualizó el PR de release y no publicó nada.
@@ -41,6 +40,18 @@ jobs:
       tag: ${{ steps.check.outputs.tag }}
       pending: ${{ steps.check.outputs.pending }}
     steps:
+      - name: Detectar PAT
+        id: pat
+        shell: bash
+        env:
+          RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
+        run: |
+          if [ -n "$RELEASE_PAT" ]; then
+            printf 'configured=true\n' >> "$GITHUB_OUTPUT"
+          else
+            printf 'configured=false\n' >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Leer el último release y sus assets
         id: check
         shell: bash
@@ -48,8 +59,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           FORCE: ${{ inputs.force || 'false' }}
+          PAT_CONFIGURED: ${{ steps.pat.outputs.configured }}
         run: |
           set -euo pipefail
+          # Con PAT, release-please crea el Release como un usuario y el evento
+          # `release: published` dispara release.yml directamente. Evitamos
+          # duplicar el build; `--force` sigue permitiendo reconstruir a mano.
+          if [ "$PAT_CONFIGURED" = "true" ] && [ "$FORCE" != "true" ]; then
+            echo "RELEASE_PAT configurado: release.yml se dispara por release published"
+            printf 'pending=false\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           tag=$(gh api "repos/$REPO/releases/latest" --jq .tag_name 2>/dev/null || true)
           if [ -z "$tag" ]; then
             echo "todavía no hay releases; nada que hacer"
