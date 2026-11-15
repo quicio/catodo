@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/quicio/catodo/compare/v0.11.0...v0.12.0) (2026-11-15)
+
+
+### Features
+
+* **pair:** expiración configurable de tokens de dispositivo ([60282e0](https://github.com/quicio/catodo/commit/60282e03659abfbd55034b2a538377ecb9cd22fa))
+
 ## [0.11.0](https://github.com/quicio/catodo/compare/v0.10.1...v0.11.0) (2026-11-14)
 
 
