@@ -85,6 +85,7 @@ export interface PairDevice {
   id: string;
   name: string;
   created?: number;
+  expires?: number | null;
 }
 
 export const api = {

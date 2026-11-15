@@ -73,6 +73,7 @@ pub const KEYS: &[&str] = &[
     "tunnel_require_token",
     "pair_token",
     "paired_devices",
+    "pair_token_ttl_days",
 ];
 
 /// Claves que sólo puede escribir el kiosko en loopback.
@@ -109,6 +110,7 @@ pub const LOCAL_ONLY_KEYS: &[&str] = &[
     "tunnel_require_token",
     "pair_token",
     "paired_devices",
+    "pair_token_ttl_days",
 ];
 
 pub fn is_local_only_key(key: &str) -> bool {
@@ -179,6 +181,8 @@ pub fn default_value(key: &str) -> Option<Value> {
         "tunnel_require_token" => json!(true),
         "pair_token" => json!(""),
         "paired_devices" => json!([]),
+        // 0 = los tokens de dispositivo no vencen.
+        "pair_token_ttl_days" => json!(30),
         _ => return None,
     };
     Some(value)

@@ -28,6 +28,9 @@ Dos consecuencias graves:
   túnel (`POST /api/tunnel/start|stop`) también son local-only.
 - El remote conserva las preferencias seguras (tema, layout, `ui_scale`, idle,
   volumen, navegación y comandos de canales).
+- Los tokens de dispositivo vencen a los 30 días por defecto
+  (`pair_token_ttl_days`; `0` desactiva el vencimiento) y se pueden revocar
+  desde el kiosko.
 - Los ids de plugin se validan como slug `[a-z0-9-]+` antes de tocar el
   filesystem.
 

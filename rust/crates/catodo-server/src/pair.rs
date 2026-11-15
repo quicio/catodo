@@ -114,6 +114,21 @@ pub async fn current_code(state: &ServerState) -> String {
     value
 }
 
+fn now_secs() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or(0)
+}
+
+/// Un dispositivo sin `expires` es legacy y no vence; con `expires: null` tampoco.
+fn is_expired(device: &Value, now: u64) -> bool {
+    device
+        .get("expires")
+        .and_then(Value::as_u64)
+        .is_some_and(|expires| expires <= now)
+}
+
 /// Canjea un código de un solo uso y devuelve el token del dispositivo.
 pub async fn redeem(state: &ServerState, code: &str, name: &str) -> Result<String, &'static str> {
     let mut attempts = state.pairing.inner.attempts.lock().await;
@@ -136,10 +151,18 @@ pub async fn redeem(state: &ServerState, code: &str, name: &str) -> Result<Strin
     drop(slot);
 
     let token = uuid::Uuid::new_v4().simple().to_string();
-    let created = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0);
+    let created = now_secs();
+    let ttl_days = state
+        .config
+        .get("pair_token_ttl_days")
+        .await
+        .as_u64()
+        .unwrap_or(30);
+    let expires = if ttl_days == 0 {
+        Value::Null
+    } else {
+        json!(created + ttl_days.saturating_mul(86_400))
+    };
     let mut devices = state
         .config
         .get("paired_devices")
@@ -147,10 +170,12 @@ pub async fn redeem(state: &ServerState, code: &str, name: &str) -> Result<Strin
         .as_array()
         .cloned()
         .unwrap_or_default();
+    devices.retain(|device| !is_expired(device, created));
     devices.push(json!({
         "token": token,
         "name": name.chars().take(60).collect::<String>(),
         "created": created,
+        "expires": expires,
     }));
     let _ = state
         .config
@@ -166,20 +191,37 @@ fn token_id(token: &str) -> String {
 }
 
 pub async fn list_devices(state: &ServerState) -> Vec<Value> {
-    state
+    let now = now_secs();
+    let devices = state
         .config
         .get("paired_devices")
         .await
         .as_array()
         .cloned()
-        .unwrap_or_default()
-        .into_iter()
+        .unwrap_or_default();
+    let mut kept = Vec::with_capacity(devices.len());
+    let mut removed = false;
+    for device in devices {
+        if is_expired(&device, now) {
+            removed = true;
+            continue;
+        }
+        kept.push(device);
+    }
+    if removed {
+        let _ = state
+            .config
+            .set("paired_devices", Value::Array(kept.clone()))
+            .await;
+    }
+    kept.into_iter()
         .filter_map(|device| {
             let token = device.get("token").and_then(Value::as_str)?;
             Some(json!({
                 "id": token_id(token),
                 "name": device.get("name").and_then(Value::as_str).unwrap_or("remote"),
                 "created": device.get("created").cloned().unwrap_or(Value::Null),
+                "expires": device.get("expires").cloned().unwrap_or(Value::Null),
             }))
         })
         .collect()
@@ -265,6 +307,7 @@ pub async fn validate_token(state: &ServerState, provided: &str) -> bool {
     if !legacy.is_empty() && secure_eq(&legacy, provided) {
         return true;
     }
+    let now = now_secs();
     state
         .config
         .get("paired_devices")
@@ -276,6 +319,7 @@ pub async fn validate_token(state: &ServerState, provided: &str) -> bool {
                     .get("token")
                     .and_then(Value::as_str)
                     .is_some_and(|token| secure_eq(token, provided))
+                    && !is_expired(device, now)
             })
         })
         .unwrap_or(false)
@@ -406,6 +450,16 @@ mod tests {
     #[test]
     fn missing_address_is_external() {
         assert!(is_external(None, &HeaderMap::new()));
+    }
+
+    #[test]
+    fn device_expiration_is_opt_in() {
+        let now = 1_000;
+        assert!(!is_expired(&json!({}), now));
+        assert!(!is_expired(&json!({"expires": null}), now));
+        assert!(is_expired(&json!({"expires": 999}), now));
+        assert!(is_expired(&json!({"expires": 1_000}), now));
+        assert!(!is_expired(&json!({"expires": 1_001}), now));
     }
 
     #[test]

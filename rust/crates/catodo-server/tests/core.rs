@@ -413,6 +413,54 @@ async fn local_can_list_and_revoke_paired_devices() {
 }
 
 #[tokio::test]
+async fn paired_device_has_expiration() {
+    let (app, _) = app().await;
+    let _token = pair_token(&app).await;
+
+    let devices = body_json(get(app, "/api/pair/devices").await).await;
+    let device = &devices["devices"][0];
+    let created = device["created"].as_u64().expect("created");
+    let expires = device["expires"].as_u64().expect("expires");
+    assert!(expires > created);
+}
+
+#[tokio::test]
+async fn zero_ttl_disables_expiration() {
+    let (app, _) = app().await;
+    let response = post_json(app.clone(), "/api/config", r#"{"pair_token_ttl_days":0}"#).await;
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let _token = pair_token(&app).await;
+    let devices = body_json(get(app, "/api/pair/devices").await).await;
+    assert!(devices["devices"][0]["expires"].is_null());
+}
+
+#[tokio::test]
+async fn expired_device_token_is_rejected() {
+    let (app, _) = app().await;
+    let token = pair_token(&app).await;
+
+    let body = format!(
+        r#"{{"paired_devices":[{{"token":"{token}","name":"expired","created":1,"expires":1}}]}}"#
+    );
+    let response = post_json(app.clone(), "/api/config", &body).await;
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let response = app
+        .oneshot(with_client(
+            Request::builder()
+                .uri("/api/state")
+                .header("x-catodo-token", token)
+                .body(Body::empty())
+                .unwrap(),
+            "192.168.1.20:5000",
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
 async fn external_cannot_list_or_revoke_devices() {
     let (app, _) = app().await;
     let token = pair_token(&app).await;

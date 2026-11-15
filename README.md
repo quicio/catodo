@@ -348,7 +348,8 @@ abajo) o la **LAN** como fallback. Como fallback extra, el remote tiene un campo
 > comandos de emuladores, repo de plugins, túnel, MQTT ni tokens: esas opciones
 > se configuran en la TV (loopback) y un request externo recibe 403 (ADR-0012).
 > En **Ajustes → General → Remotos vinculados** podés revocar un teléfono; su
-> token deja de autenticar al instante.
+> token deja de autenticar al instante. Los tokens vencen a los 30 días por
+> defecto (`pair_token_ttl_days`; `0` = sin vencimiento).
 
 ## Dominio público y túnel (HTTPS válido desde internet)
 

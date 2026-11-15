@@ -21,7 +21,7 @@ En esta máquina (macOS arm64) se desarrolla el target Linux (`systemd/`,
 
 | métrica | valor | comando |
 |---|---|---|
-| tests Rust | **50 pasan, 0 fallan** | `cd rust && cargo test --workspace` |
+| tests Rust | **54 pasan, 0 fallan** | `cd rust && cargo test --workspace` |
 | quality gate completo | **verde** | `./scripts/check.sh` |
 | typecheck frontend | limpio | `npm run typecheck` |
 | workspace Rust | 3 crates, 35 archivos `.rs`, 9.462 líneas | `find rust/crates -name '*.rs' \| xargs cat \| wc -l` |
@@ -53,7 +53,9 @@ En esta máquina (macOS arm64) se desarrolla el target Linux (`systemd/`,
   falta de `ConnectInfo` se trata como request externa (fail-closed). Los ids de
   plugin se validan como slug antes de tocar el filesystem.
 - Los remotos se listan sin token y se revocan desde Ajustes
-  (`GET/DELETE /api/pair/devices`, local-only).
+  (`GET/DELETE /api/pair/devices`, local-only). Los tokens vencen a los 30 días
+  por defecto (`pair_token_ttl_days`; `0` = sin vencimiento) y los vencidos se
+  rechazan y depuran.
 - Cores libretro pineados por SHA-256 (ADR-0010) para `apple/osx/arm64` y
   `linux/x86_64`.
 - Video crudo RGB565 + audio PCM por WebSocket, con H.264 como fallback

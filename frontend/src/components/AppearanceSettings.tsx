@@ -415,6 +415,9 @@ export default function AppearanceSettings({
                     {device.created
                       ? new Date(device.created * 1000).toLocaleDateString()
                       : "fecha desconocida"}
+                    {device.expires
+                      ? ` · expira ${new Date(device.expires * 1000).toLocaleDateString()}`
+                      : " · sin vencimiento"}
                   </div>
                 </div>
                 <button

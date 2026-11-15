@@ -272,7 +272,7 @@ Sensitive configuration keys (filesystem paths, arcade emulator commands, tunnel
 
 ### Requirement: Device management
 
-`GET /api/pair/devices` SHALL list paired devices with a stable id, name and creation date, never the token. `DELETE /api/pair/devices/{id}` SHALL revoke that device so its token stops authenticating. Both endpoints SHALL be local-only.
+`GET /api/pair/devices` SHALL list paired devices with a stable id, name, creation date and expiration, never the token. `DELETE /api/pair/devices/{id}` SHALL revoke that device so its token stops authenticating. Device tokens SHALL expire after `pair_token_ttl_days` (default 30; `0` = never), and expired tokens SHALL be rejected and pruned from the list. Both endpoints SHALL be local-only.
 
 #### Scenario: List devices
 
@@ -283,6 +283,16 @@ Sensitive configuration keys (filesystem paths, arcade emulator commands, tunnel
 
 - **WHEN** the kiosk deletes a device id
 - **THEN** the next request with that device token gets 401.
+
+#### Scenario: Expired device token
+
+- **WHEN** a device token is past its `expires` timestamp
+- **THEN** the request gets 401 and the device disappears from the local list.
+
+#### Scenario: TTL disabled
+
+- **WHEN** `pair_token_ttl_days` is `0`
+- **THEN** newly paired tokens have no expiration.
 
 #### Scenario: Remote tries to manage devices
 
