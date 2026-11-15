@@ -24,12 +24,12 @@ En esta máquina (macOS arm64) se desarrolla el target Linux (`systemd/`,
 | tests Rust | **54 pasan, 0 fallan** | `cd rust && cargo test --workspace` |
 | quality gate completo | **verde** | `./scripts/check.sh` |
 | typecheck frontend | limpio | `npm run typecheck` |
-| workspace Rust | 3 crates, 35 archivos `.rs`, 9.462 líneas | `find rust/crates -name '*.rs' \| xargs cat \| wc -l` |
-| frontend | 44 archivos `.ts/.tsx`, 8.734 líneas | `find frontend/src …` |
+| workspace Rust | 3 crates, 35 archivos `.rs`, 10.106 líneas | `find rust/crates -name '*.rs' \| xargs cat \| wc -l` |
+| frontend | 44 archivos `.ts/.tsx`, 8.888 líneas | `find frontend/src …` |
 | specs | 34 capacidades en `openspec/specs/` | `ls openspec/specs` |
 | changes activos | 6 en `openspec/changes/` | `ls openspec/changes \| grep -v archive` |
-| versión | `0.8.0` (release instalado) | `cat VERSION` |
-| rama | `main`, por delante de `v0.8.0` | `git log --oneline` |
+| versión | `0.12.0` | `cat VERSION` |
+| rama | `main`, al día con `origin/main` | `git log --oneline` |
 
 ### Backend Rust y retiro de Python
 
@@ -61,10 +61,13 @@ En esta máquina (macOS arm64) se desarrolla el target Linux (`systemd/`,
 - Video crudo RGB565 + audio PCM por WebSocket, con H.264 como fallback
   (ADR-0009).
 
-Los releases hasta `v0.8.0` están publicados con artefactos macOS (versionado +
-alias estable `Catodo-mac-arm64.zip`), Linux (AppImage, deb, source tarball) y
-`SHA256SUMS`. `brew install --cask quicio/tap/catodo` se verificó en macOS
-arm64. Los artefactos incluyen Electron ECS con Widevine (ADR-0007).
+Los releases hasta `v0.12.0` están publicados con artefactos macOS (versionado +
+alias estable `Catodo-mac-arm64.zip`), Linux (AppImage, deb, rpm,
+`pkg.tar.zst`, source tarball) y `SHA256SUMS`. `brew install --cask
+quicio/tap/catodo` se verificó en macOS arm64. Los artefactos incluyen Electron
+ECS con Widevine (ADR-0007). Con `RELEASE_PAT`, release-please crea el Release
+como usuario y `release: published` dispara `release.yml` sin aprobación manual
+de workflows.
 
 Pendiente de validación externa (no bloquea el código): probar
 `install.sh`/AppImage en un Linux limpio.
