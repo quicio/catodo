@@ -1,0 +1,13 @@
+{
+  "id": "netflix",
+  "name": "Netflix",
+  "version": "1.0.0",
+  "type": "web",
+  "icon": "play",
+  "color": "#e50914",
+  "url": "https://www.netflix.com",
+  "user_agent": "chrome",
+  "partition": "persist:netflix",
+  "order": 11,
+  "drm": true
+}

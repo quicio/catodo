@@ -25,6 +25,14 @@ El sistema SHALL escanear `arcade_dir` (default `~/Arcade`) interpretando cada s
 - **WHEN** un juego no tiene imagen de carátula
 - **THEN** se muestra con una carátula placeholder y su nombre, sin romper la grilla
 
+#### Scenario: Juego con varios archivos
+- **WHEN** un juego tiene `.cue` + `.bin`, bins multi-track o un `.m3u` multi-disco
+- **THEN** aparece como un solo juego, usando `.m3u`/`.cue` como archivo primario y ocultando los auxiliares
+
+#### Scenario: Archivos sueltos en el sistema
+- **WHEN** un sistema contiene archivos ROM directamente, sin subcarpeta por juego
+- **THEN** cada juego se lista por su nombre base y los archivos auxiliares no generan duplicados
+
 #### Scenario: Directorio vacío o inexistente
 - **WHEN** `arcade_dir` no existe o no contiene juegos
 - **THEN** el canal muestra una lista vacía con un mensaje y no falla

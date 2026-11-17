@@ -1,13 +1,13 @@
 {
   "id": "hbomax",
-  "name": "HBO Max",
-  "version": "1.0.0",
+  "name": "Max",
+  "version": "1.1.0",
   "type": "web",
   "icon": "play",
   "color": "#9918e4",
-  "url": "https://www.hbomax.com",
+  "url": "https://www.max.com",
   "user_agent": "chrome",
   "partition": "persist:hbomax",
-  "order": 5,
-  "config_key": "hbomax_url"
+  "order": 10,
+  "drm": true
 }

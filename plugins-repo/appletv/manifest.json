@@ -1,0 +1,13 @@
+{
+  "id": "appletv",
+  "name": "Apple TV+",
+  "version": "1.0.0",
+  "type": "web",
+  "icon": "play",
+  "color": "#ffffff",
+  "url": "https://tv.apple.com",
+  "user_agent": "chrome",
+  "partition": "persist:appletv",
+  "order": 15,
+  "drm": true
+}

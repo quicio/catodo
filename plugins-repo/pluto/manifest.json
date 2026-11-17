@@ -1,0 +1,13 @@
+{
+  "id": "pluto",
+  "name": "Pluto TV",
+  "version": "1.0.0",
+  "type": "web",
+  "icon": "tv",
+  "color": "#fff200",
+  "url": "https://pluto.tv",
+  "user_agent": "chrome",
+  "partition": "persist:pluto",
+  "order": 17,
+  "drm": false
+}

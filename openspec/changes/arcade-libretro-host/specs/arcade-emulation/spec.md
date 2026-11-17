@@ -124,3 +124,99 @@ core cuando esté disponible.
 
 - **WHEN** el core soporta resolución interna y `arcade_internal_scale` es `2x`
 - **THEN** el core rasteriza a 2x y el stream conserva ese detalle
+
+### Requirement: HUD no intrusivo del player
+
+El player embebido SHALL ocultar automáticamente su HUD (datos de core/fps/mando y botones de sesión) tras unos segundos sin interacción y SHALL mostrarlo al mover el mouse o tocar la pantalla.
+
+#### Scenario: Auto-ocultar el HUD
+
+- **WHEN** el player lleva unos segundos abierto o sin movimiento de mouse
+- **THEN** el HUD se desvanece y el juego ocupa toda el área del player
+
+#### Scenario: Reaparecer el HUD
+
+- **WHEN** el usuario mueve el mouse o toca la pantalla
+- **THEN** el HUD vuelve a mostrarse y reinicia su temporizador de auto-ocultado
+
+#### Scenario: Input del juego no revela el HUD
+
+- **WHEN** el usuario presiona teclas o botones del mando durante el juego
+- **THEN** esos inputs van al core y no fuerzan la aparición del HUD
+
+### Requirement: Marco de monitor retro configurable
+
+El player embebido SHALL envolver el juego en un marco de monitor CRT cuando `arcade_monitor_frame` sea `true`, y SHALL mostrarlo a pantalla completa cuando sea `false`.
+
+#### Scenario: Monitor activado
+
+- **WHEN** `arcade_monitor_frame` es `true` y el player embebido se abre
+- **THEN** el player se ve como un televisor CRT (carcasa, pantalla levemente curvada, parlante, LED y perillas), la pantalla muestra el juego con un borde negro fino y el HUD queda sobre el tubo
+
+#### Scenario: Monitor desactivado
+
+- **WHEN** `arcade_monitor_frame` es `false`
+- **THEN** el juego ocupa todo el área del player sin carcasa
+
+#### Scenario: Cambio en caliente
+
+- **WHEN** se cambia `arcade_monitor_frame` mientras hay una partida embebida
+- **THEN** el marco aparece o desaparece sin reiniciar el juego
+
+### Requirement: Ajustes de monitor en vivo
+
+El player embebido SHALL exponer un panel de ajustes del monitor (encendido, curvatura y borde negro) accesible con el botón TV o la tecla F1, y SHALL persistir `arcade_monitor_frame`, `arcade_monitor_curvature`, `arcade_monitor_black_border` y `arcade_monitor_rounded`.
+
+#### Scenario: Ajustar curvatura en vivo
+
+- **WHEN** el usuario mueve el control de curvatura con una partida abierta
+- **THEN** el tubo cambia su curvatura inmediatamente, sin reiniciar el juego
+
+#### Scenario: Ajustar borde negro en vivo
+
+- **WHEN** el usuario mueve el control de borde negro
+- **THEN** el grosor del borde alrededor de la pantalla cambia inmediatamente
+
+#### Scenario: Persistencia
+
+- **WHEN** se ajustan los parámetros y se cierra el panel
+- **THEN** los valores quedan guardados en el runtime config y se aplican en la próxima partida
+
+#### Scenario: Input del juego durante el ajuste
+
+- **WHEN** el panel de ajustes está abierto
+- **THEN** el teclado y el mando no envían inputs al core hasta cerrarlo
+
+### Requirement: Frame de imagen personalizado
+
+El player SHALL poder usar una imagen PNG/JPEG/WebP con la pantalla transparente como marco del juego, subible en runtime y con la zona de pantalla calibrable.
+
+#### Scenario: Frame incluido
+
+- **WHEN** `arcade_monitor_mode` es `image` y no hay una imagen subida
+- **THEN** se usa el frame vintage incluido y el juego se ve a través de su pantalla transparente
+
+#### Scenario: Subir un frame
+
+- **WHEN** el operador sube una imagen PNG/JPEG/WebP desde Ajustes → Arcade o desde el panel TV
+- **THEN** la imagen se guarda en el data dir, se sirve por `/api/arcade/frame` y se activa el modo imagen
+
+#### Scenario: Subida local-only
+
+- **WHEN** un origen externo intenta subir o borrar el frame
+- **THEN** responde 403 y la imagen no cambia
+
+#### Scenario: Calibrar la pantalla
+
+- **WHEN** se ajustan izquierda/arriba/ancho/alto de la pantalla
+- **THEN** el juego se reposiciona sobre el agujero del frame en vivo y los valores persisten
+
+#### Scenario: Quitar el frame subido
+
+- **WHEN** se borra la imagen subida
+- **THEN** se vuelve al frame CSS y al frame vintage incluido como fallback
+
+#### Scenario: Borde curvo del video
+
+- **WHEN** la curvatura es mayor que cero
+- **THEN** el contenido se deforma en barril y el contorno visible del video se curva, dejando un pequeño margen negro alrededor

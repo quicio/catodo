@@ -1,0 +1,13 @@
+{
+  "id": "paramount",
+  "name": "Paramount+",
+  "version": "1.0.0",
+  "type": "web",
+  "icon": "play",
+  "color": "#0064ff",
+  "url": "https://www.paramountplus.com",
+  "user_agent": "chrome",
+  "partition": "persist:paramount",
+  "order": 16,
+  "drm": true
+}

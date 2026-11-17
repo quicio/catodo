@@ -27,13 +27,16 @@ async fn app() -> (axum::Router, Arc<ChannelManager>) {
     let broker = EventBroker::new();
     let manager = Arc::new(ChannelManager::new(broker.clone(), dir.clone()));
     manager.init().await;
-    for channel in
-        build_default_channels(&config, &catodo_platform::plugins_repo(), &dir, &broker).await
-    {
+    let state = ServerState::new("0.2.0", config, broker, manager.clone());
+    catodo_server::plugins::seed_bundled(&state).await;
+    let enabled = catodo_server::plugins::enabled_ids(&state);
+    for channel in build_default_channels(&state.config, &dir, &state.broker, &enabled).await {
         manager.register(channel).await.unwrap();
     }
+    manager
+        .set_order_overrides(catodo_server::plugins::order_overrides(&state))
+        .await;
     manager.reorder().await;
-    let state = ServerState::new("0.2.0", config, broker, manager.clone());
     (router(state), manager)
 }
 
@@ -108,6 +111,25 @@ async fn get_addr(router: axum::Router, uri: &str, addr: &str) -> axum::response
         ))
         .await
         .unwrap()
+}
+
+async fn channel_ids(app: &axum::Router) -> Vec<String> {
+    let value = body_json(get(app.clone(), "/api/channels").await).await;
+    value
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|channel| {
+            channel
+                .get("id")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        })
+        .collect()
+}
+
+fn position(ids: &[String], id: &str) -> usize {
+    ids.iter().position(|candidate| candidate == id).unwrap()
 }
 
 async fn pair_token(app: &axum::Router) -> String {
@@ -372,6 +394,193 @@ async fn external_cannot_mutate_libraries() {
     )
     .await;
     assert_eq!(local.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn catalog_separates_available_from_installed() {
+    let (app, _) = app().await;
+
+    let ids = channel_ids(&app).await;
+    assert!(ids.contains(&"youtube".to_string()));
+    assert!(!ids.contains(&"netflix".to_string()));
+
+    let catalog = body_json(get(app, "/api/plugins/catalog").await).await;
+    let entries = catalog.as_array().unwrap();
+    let netflix = entries
+        .iter()
+        .find(|entry| entry.get("id").and_then(Value::as_str) == Some("netflix"))
+        .expect("netflix in catalog");
+    assert_eq!(netflix["installed"], false);
+    assert_eq!(netflix["bundled"], false);
+    assert_eq!(netflix["drm"], true);
+    assert_eq!(netflix["url"], "https://www.netflix.com");
+
+    let youtube = entries
+        .iter()
+        .find(|entry| entry.get("id").and_then(Value::as_str) == Some("youtube"))
+        .expect("youtube in catalog");
+    assert_eq!(youtube["installed"], true);
+    assert_eq!(youtube["bundled"], true);
+    assert_eq!(youtube["enabled"], true);
+}
+
+#[tokio::test]
+async fn install_registers_uninstalls_and_orders_channels() {
+    let (app, manager) = app().await;
+
+    let response = post_json(app.clone(), "/api/plugins/install", r#"{"id":"netflix"}"#).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let installed = body_json(response).await;
+    assert_eq!(installed["id"], "netflix");
+    assert_eq!(installed["enabled"], true);
+    assert_eq!(installed["drm"], true);
+
+    let ids = channel_ids(&app).await;
+    assert!(ids.contains(&"netflix".to_string()));
+    assert!(manager.get("netflix").await.is_some());
+
+    let config = body_json(get(app.clone(), "/api/config").await).await;
+    assert_eq!(config["channel_netflix_url"], "https://www.netflix.com");
+
+    let response = post_json(
+        app.clone(),
+        "/api/config",
+        r#"{"channel_netflix_url":"https://example.com/regional"}"#,
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let state = body_json(get(app.clone(), "/api/channels/netflix/state").await).await;
+    assert_eq!(state["configured_url"], "https://example.com/regional");
+
+    let response = post_json(
+        app.clone(),
+        "/api/config",
+        r#"{"channel_netflix_url":"javascript:alert(1)"}"#,
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let config = body_json(get(app.clone(), "/api/config").await).await;
+    assert_eq!(
+        config["channel_netflix_url"],
+        "https://example.com/regional"
+    );
+
+    let response = post_json(app.clone(), "/api/plugins/install", r#"{"id":"pluto"}"#).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let response = post_json(app.clone(), "/api/plugins/pluto/order", r#"{"order":1}"#).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let ids = channel_ids(&app).await;
+    assert!(position(&ids, "pluto") < position(&ids, "netflix"));
+
+    let response = post_json(app.clone(), "/api/plugins/pluto/order", r#"{"order":null}"#).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let ids = channel_ids(&app).await;
+    assert!(position(&ids, "netflix") < position(&ids, "pluto"));
+
+    let response = post_json(app.clone(), "/api/channels/netflix/open", "").await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(manager.current().await.as_deref(), Some("netflix"));
+    let response = delete(app.clone(), "/api/plugins/netflix").await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(manager.current().await, None);
+    assert!(!channel_ids(&app).await.contains(&"netflix".to_string()));
+
+    let response = delete(app.clone(), "/api/plugins/youtube").await;
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+    let response = delete(app, "/api/plugins/nope").await;
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn channel_url_config_is_local_only_and_validated() {
+    let (app, _) = app().await;
+    let token = pair_token(&app).await;
+    let response = post_json(app.clone(), "/api/plugins/install", r#"{"id":"netflix"}"#).await;
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let response = post_json_addr(
+        app.clone(),
+        "/api/config",
+        r#"{"channel_netflix_url":"https://evil.example"}"#,
+        "192.168.1.20:5000",
+        Some(&token),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    let response = post_json(
+        app.clone(),
+        "/api/config",
+        r#"{"channel_Upper_url":"https://example.com"}"#,
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let config = body_json(response).await;
+    assert!(config.get("channel_Upper_url").is_none());
+    assert_eq!(config["channel_netflix_url"], "https://www.netflix.com");
+}
+
+#[tokio::test]
+async fn upload_and_serve_custom_arcade_frame() {
+    let (app, _) = app().await;
+    let png = include_bytes!("fixtures/tiny.png");
+    let request = Request::builder()
+        .method("POST")
+        .uri("/api/arcade/frame")
+        .header("content-type", "image/png")
+        .body(Body::from(png.to_vec()))
+        .unwrap();
+    let response = app
+        .clone()
+        .oneshot(with_client(request, "127.0.0.1:5000"))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let value = body_json(response).await;
+    assert_eq!(value["mode"], "image");
+    assert!(value["url"]
+        .as_str()
+        .unwrap()
+        .starts_with("/api/arcade/frame"));
+
+    let response = get(app.clone(), "/api/arcade/frame").await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers()["content-type"], "image/png");
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    assert_eq!(&bytes[..], png);
+
+    let config = body_json(get(app.clone(), "/api/config").await).await;
+    assert_eq!(config["arcade_monitor_mode"], "image");
+    assert!(config["arcade_monitor_image"]
+        .as_str()
+        .unwrap()
+        .starts_with("/api/arcade/frame"));
+
+    let response = delete(app.clone(), "/api/arcade/frame").await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let response = get(app.clone(), "/api/arcade/frame").await;
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    let config = body_json(get(app, "/api/config").await).await;
+    assert_eq!(config["arcade_monitor_mode"], "css");
+}
+
+#[tokio::test]
+async fn external_cannot_upload_arcade_frame() {
+    let (app, _) = app().await;
+    let token = pair_token(&app).await;
+    let png = include_bytes!("fixtures/tiny.png");
+    let request = Request::builder()
+        .method("POST")
+        .uri("/api/arcade/frame")
+        .header("content-type", "image/png")
+        .header("x-catodo-token", token)
+        .body(Body::from(png.to_vec()))
+        .unwrap();
+    let response = app
+        .oneshot(with_client(request, "192.168.1.20:5000"))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
 }
 
 #[tokio::test]

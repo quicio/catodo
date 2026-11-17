@@ -1,0 +1,13 @@
+{
+  "id": "claro",
+  "name": "Claro TV",
+  "version": "1.0.0",
+  "type": "web",
+  "icon": "tv",
+  "color": "#da291c",
+  "url": "https://www.clarotv.com",
+  "user_agent": "chrome",
+  "partition": "persist:claro",
+  "order": 14,
+  "drm": true
+}

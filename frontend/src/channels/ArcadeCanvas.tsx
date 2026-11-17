@@ -15,12 +15,18 @@ export default function ArcadeCanvas({
   shader,
   outputHeight,
   aspectRatio,
+  fill = false,
+  curvature = 0.025,
 }: {
   framesUrl: string;
   fallbackSrc?: string;
   shader: ArcadeShader;
   outputHeight: number;
   aspectRatio?: number;
+  /** Escala el canvas al 100% del contenedor (el contenedor ya respeta el aspect). */
+  fill?: boolean;
+  /** Curvatura del tubo en modo CRT (0 = plano). */
+  curvature?: number;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameRef = useRef<{ width: number; height: number; data: Uint16Array; serial: number } | null>(
@@ -109,13 +115,15 @@ export default function ArcadeCanvas({
       uniform sampler2D tex;
       uniform vec2 sourceSize;
       uniform int mode;
+      uniform float curvature;
 
       void main() {
         vec2 p = uv;
         if (mode == 1) {
-          // CRT: curvatura suave
+          // CRT: barril con borde curvo. El mismo slider controla la
+          // deformación del contenido y el pequeño margen negro del contorno.
           vec2 c = p * 2.0 - 1.0;
-          c *= 1.0 + 0.025 * dot(c, c);
+          c *= 1.0 + curvature * dot(c, c);
           p = c * 0.5 + 0.5;
           if (p.x < 0.0 || p.x > 1.0 || p.y < 0.0 || p.y > 1.0) {
             color = vec4(0.0, 0.0, 0.0, 1.0);
@@ -173,6 +181,8 @@ export default function ArcadeCanvas({
 
     const modeUniform = gl.getUniformLocation(program, "mode");
     gl.uniform1i(modeUniform, shader === "crt" ? 1 : 0);
+    const curvatureUniform = gl.getUniformLocation(program, "curvature");
+    gl.uniform1f(curvatureUniform, curvature);
     const sizeUniform = gl.getUniformLocation(program, "sourceSize");
 
     let frame = 0;
@@ -237,7 +247,7 @@ export default function ArcadeCanvas({
       gl.deleteBuffer(buffer);
       gl.deleteProgram(program);
     };
-  }, [shader, outputHeight, aspectRatio]);
+  }, [shader, outputHeight, aspectRatio, curvature]);
 
   if (failed) {
     return fallbackSrc ? (
@@ -269,8 +279,8 @@ export default function ArcadeCanvas({
           position: "absolute",
           inset: 0,
           margin: "auto",
-          width: "auto",
-          height: "auto",
+          width: fill ? "100%" : "auto",
+          height: fill ? "100%" : "auto",
           maxWidth: "100%",
           maxHeight: "100%",
           imageRendering: "pixelated",

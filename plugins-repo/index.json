@@ -21,7 +21,7 @@
     {
       "id": "crunchyroll",
       "name": "Crunchyroll",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "bundled": true,
       "origin": "bundled",
       "path": "crunchyroll",
@@ -29,12 +29,75 @@
     },
     {
       "id": "hbomax",
-      "name": "HBO Max",
-      "version": "1.0.0",
+      "name": "Max",
+      "version": "1.1.0",
       "bundled": true,
       "origin": "bundled",
       "path": "hbomax",
       "requires_catodo": { "min": "0.1.0" }
+    },
+    {
+      "id": "netflix",
+      "name": "Netflix",
+      "version": "1.0.0",
+      "bundled": false,
+      "origin": "repo",
+      "path": "netflix",
+      "requires_catodo": { "min": "0.12.0" }
+    },
+    {
+      "id": "disneyplus",
+      "name": "Disney+",
+      "version": "1.0.0",
+      "bundled": false,
+      "origin": "repo",
+      "path": "disneyplus",
+      "requires_catodo": { "min": "0.12.0" }
+    },
+    {
+      "id": "movistar",
+      "name": "Movistar TV",
+      "version": "1.0.0",
+      "bundled": false,
+      "origin": "repo",
+      "path": "movistar",
+      "requires_catodo": { "min": "0.12.0" }
+    },
+    {
+      "id": "claro",
+      "name": "Claro TV",
+      "version": "1.0.0",
+      "bundled": false,
+      "origin": "repo",
+      "path": "claro",
+      "requires_catodo": { "min": "0.12.0" }
+    },
+    {
+      "id": "appletv",
+      "name": "Apple TV+",
+      "version": "1.0.0",
+      "bundled": false,
+      "origin": "repo",
+      "path": "appletv",
+      "requires_catodo": { "min": "0.12.0" }
+    },
+    {
+      "id": "paramount",
+      "name": "Paramount+",
+      "version": "1.0.0",
+      "bundled": false,
+      "origin": "repo",
+      "path": "paramount",
+      "requires_catodo": { "min": "0.12.0" }
+    },
+    {
+      "id": "pluto",
+      "name": "Pluto TV",
+      "version": "1.0.0",
+      "bundled": false,
+      "origin": "repo",
+      "path": "pluto",
+      "requires_catodo": { "min": "0.12.0" }
     }
   ]
 }

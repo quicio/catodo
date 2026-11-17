@@ -7,7 +7,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
   const res = await fetch(`${BASE}${path}`, { ...init, headers });
   if (!res.ok) {
-    throw new Error(`HTTP ${res.status} on ${path}`);
+    let detail = `HTTP ${res.status}`;
+    try {
+      const body = (await res.json()) as { detail?: string };
+      if (body?.detail) detail = body.detail;
+    } catch {
+      // Sin body JSON: conservar el status.
+    }
+    throw new Error(detail);
   }
   return (await res.json()) as T;
 }
@@ -88,6 +95,26 @@ export interface PairDevice {
   expires?: number | null;
 }
 
+export interface PluginInfo {
+  id: string;
+  name: string;
+  version: string;
+  type: string;
+  bundled: boolean;
+  installed: boolean;
+  enabled: boolean;
+  origin: string;
+  valid?: boolean;
+  drm?: boolean;
+  url?: string;
+  user_agent?: string;
+  partition?: string;
+  order?: number | null;
+  config_key?: string;
+  available_version?: string;
+  installed_version?: string;
+}
+
 export const api = {
   health: () => request<{ status: string }>("/api/health"),
   version: () => request<{ version: string }>("/api/version"),
@@ -95,6 +122,25 @@ export const api = {
   revokeDevice: (id: string) =>
     request<{ ok: boolean }>(`/api/pair/devices/${id}`, { method: "DELETE" }),
   channels: () => request<ChannelInfo[]>("/api/channels"),
+  plugins: () => request<PluginInfo[]>("/api/plugins"),
+  catalog: () => request<PluginInfo[]>("/api/plugins/catalog"),
+  installPlugin: (id: string) =>
+    request<PluginInfo>("/api/plugins/install", {
+      method: "POST",
+      body: JSON.stringify({ id }),
+    }),
+  uninstallPlugin: (id: string) =>
+    request<{ ok: boolean; id: string }>(`/api/plugins/${id}`, { method: "DELETE" }),
+  setPluginEnabled: (id: string, enabled: boolean) =>
+    request<{ ok: boolean; id: string }>(
+      `/api/plugins/${id}/${enabled ? "enable" : "disable"}`,
+      { method: "POST" }
+    ),
+  setPluginOrder: (id: string, order: number | null) =>
+    request<{ ok: boolean; id: string; order: number | null }>(
+      `/api/plugins/${id}/order`,
+      { method: "POST", body: JSON.stringify({ order }) }
+    ),
   state: () => request<AppState>("/api/state"),
   config: () => request<RuntimeConfig>("/api/config"),
   setConfig: (patch: Record<string, unknown>) =>

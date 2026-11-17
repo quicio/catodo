@@ -19,6 +19,7 @@ const HISTORY_SIZE: usize = 16;
 pub struct ChannelManager {
     channels: RwLock<HashMap<String, Arc<dyn Channel>>>,
     order: RwLock<Vec<String>>,
+    order_overrides: RwLock<HashMap<String, i64>>,
     current: RwLock<Option<String>>,
     history: Mutex<VecDeque<String>>,
     broker: EventBroker,
@@ -34,6 +35,7 @@ impl ChannelManager {
         Self {
             channels: RwLock::new(HashMap::new()),
             order: RwLock::new(Vec::new()),
+            order_overrides: RwLock::new(HashMap::new()),
             current: RwLock::new(None),
             history: Mutex::new(VecDeque::with_capacity(HISTORY_SIZE)),
             broker,
@@ -65,14 +67,34 @@ impl ChannelManager {
         Ok(())
     }
 
+    /// Overrides de orden por canal (id -> order). Los usa `reorder()` en vez
+    /// del `order` del manifest, sin reconstruir el canal.
+    pub async fn set_order_overrides(&self, overrides: HashMap<String, i64>) {
+        *self.order_overrides.write().await = overrides;
+    }
+
+    pub async fn set_order_override(&self, channel_id: &str, order: Option<i64>) {
+        let mut overrides = self.order_overrides.write().await;
+        match order {
+            Some(order) => {
+                overrides.insert(channel_id.to_string(), order);
+            }
+            None => {
+                overrides.remove(channel_id);
+            }
+        }
+    }
+
     pub async fn reorder(&self) {
         let channels = self.channels.read().await;
+        let overrides = self.order_overrides.read().await;
         let mut order = self.order.write().await;
         order.sort_by_key(|id| {
             let info = channels[id].info();
+            let order_value = overrides.get(id).copied().or(info.order);
             (
-                info.order.is_none(),
-                info.order.unwrap_or(i64::MAX),
+                order_value.is_none(),
+                order_value.unwrap_or(i64::MAX),
                 info.name.to_lowercase(),
             )
         });
@@ -81,9 +103,18 @@ impl ChannelManager {
     pub async fn list(&self) -> Vec<ChannelInfo> {
         let channels = self.channels.read().await;
         let order = self.order.read().await;
+        let overrides = self.order_overrides.read().await;
         order
             .iter()
-            .filter_map(|id| channels.get(id).map(|channel| channel.info()))
+            .filter_map(|id| {
+                channels.get(id).map(|channel| {
+                    let mut info = channel.info();
+                    if let Some(order) = overrides.get(id) {
+                        info.order = Some(*order);
+                    }
+                    info
+                })
+            })
             .collect()
     }
 
@@ -284,6 +315,7 @@ impl ChannelManager {
     pub async fn unregister(&self, channel_id: &str) {
         self.channels.write().await.remove(channel_id);
         self.order.write().await.retain(|id| id != channel_id);
+        self.order_overrides.write().await.remove(channel_id);
         if self.current.read().await.as_deref() == Some(channel_id) {
             *self.current.write().await = None;
         }

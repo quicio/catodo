@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use anyhow::Context;
-use catodo_platform::{data_dir, plugins_repo};
+use catodo_platform::data_dir;
 use catodo_server::channels::build_default_channels;
 use catodo_server::config::RuntimeConfig;
 use catodo_server::events::EventBroker;
@@ -46,11 +46,13 @@ async fn main() -> anyhow::Result<()> {
     catodo_server::plugins::seed_bundled(&state).await;
     catodo_server::mqtt::start(&state).await;
 
-    for channel in
-        build_default_channels(&state.config, &plugins_repo(), &data, &state.broker).await
-    {
+    let enabled = catodo_server::plugins::enabled_ids(&state);
+    for channel in build_default_channels(&state.config, &data, &state.broker, &enabled).await {
         manager.register(channel).await?;
     }
+    manager
+        .set_order_overrides(catodo_server::plugins::order_overrides(&state))
+        .await;
     manager.reorder().await;
     let listener = TcpListener::bind(addr)
         .await

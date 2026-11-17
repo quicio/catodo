@@ -37,6 +37,16 @@ pub const KEYS: &[&str] = &[
     "arcade_upscaler",
     "arcade_shader",
     "arcade_internal_scale",
+    "arcade_monitor_frame",
+    "arcade_monitor_curvature",
+    "arcade_monitor_black_border",
+    "arcade_monitor_rounded",
+    "arcade_monitor_mode",
+    "arcade_monitor_image",
+    "arcade_monitor_screen_left",
+    "arcade_monitor_screen_top",
+    "arcade_monitor_screen_width",
+    "arcade_monitor_screen_height",
     "arcade_cores_dir",
     "resume_last_channel",
     "spotify_minimize_on_launch",
@@ -114,7 +124,37 @@ pub const LOCAL_ONLY_KEYS: &[&str] = &[
 ];
 
 pub fn is_local_only_key(key: &str) -> bool {
-    LOCAL_ONLY_KEYS.contains(&key)
+    LOCAL_ONLY_KEYS.contains(&key) || channel_id_from_url_key(key).is_some()
+}
+
+/// Clave genérica de URL por canal: `channel_<slug>_url`.
+pub fn channel_url_key(channel_id: &str) -> String {
+    format!("channel_{channel_id}_url")
+}
+
+/// Devuelve el id de canal si `key` es una clave `channel_<slug>_url` válida.
+pub fn channel_id_from_url_key(key: &str) -> Option<&str> {
+    let id = key
+        .strip_prefix("channel_")
+        .and_then(|rest| rest.strip_suffix("_url"))?;
+    if id.is_empty() || id.len() > 64 {
+        return None;
+    }
+    id.chars()
+        .all(|character| {
+            character.is_ascii_lowercase() || character.is_ascii_digit() || character == '-'
+        })
+        .then_some(id)
+}
+
+/// Sólo URLs absolutas `http`/`https` con host y largo acotado.
+pub fn valid_channel_url(value: &str) -> bool {
+    if value.is_empty() || value.len() > 2048 {
+        return false;
+    }
+    url::Url::parse(value)
+        .map(|url| matches!(url.scheme(), "http" | "https") && url.host_str().is_some())
+        .unwrap_or(false)
 }
 
 fn env_or(name: &str, default: &str) -> String {
@@ -139,6 +179,16 @@ pub fn default_value(key: &str) -> Option<Value> {
         "arcade_upscaler" => json!("shader"),
         "arcade_shader" => json!("crt"),
         "arcade_internal_scale" => json!("auto"),
+        "arcade_monitor_frame" => json!(true),
+        "arcade_monitor_curvature" => json!(0.07),
+        "arcade_monitor_black_border" => json!(0),
+        "arcade_monitor_rounded" => json!(false),
+        "arcade_monitor_mode" => json!("css"),
+        "arcade_monitor_image" => json!("/arcade/vintage-crt.webp"),
+        "arcade_monitor_screen_left" => json!(14.0),
+        "arcade_monitor_screen_top" => json!(8.7),
+        "arcade_monitor_screen_width" => json!(68.25),
+        "arcade_monitor_screen_height" => json!(82.4),
         "arcade_cores_dir" => Value::String(env_or("CATODO_CORES_DIR", "")),
         "resume_last_channel" => json!(true),
         "spotify_minimize_on_launch" => json!(true),
@@ -390,6 +440,33 @@ mod tests {
         for key in LOCAL_ONLY_KEYS {
             assert!(KEYS.contains(key), "{key} no está en KEYS");
         }
+    }
+
+    #[test]
+    fn channel_url_keys_follow_the_pattern() {
+        assert_eq!(
+            channel_id_from_url_key("channel_netflix_url"),
+            Some("netflix")
+        );
+        assert_eq!(
+            channel_id_from_url_key("channel_hbo-max_url"),
+            Some("hbo-max")
+        );
+        assert_eq!(channel_id_from_url_key("channel__url"), None);
+        assert_eq!(channel_id_from_url_key("channel_Upper_url"), None);
+        assert_eq!(channel_id_from_url_key("channel_../evil_url"), None);
+        assert_eq!(channel_id_from_url_key("tv_url"), None);
+        assert!(is_local_only_key("channel_netflix_url"));
+    }
+
+    #[test]
+    fn channel_urls_must_be_http_with_host() {
+        assert!(valid_channel_url("https://www.netflix.com"));
+        assert!(valid_channel_url("http://127.0.0.1:8080/x"));
+        assert!(!valid_channel_url("javascript:alert(1)"));
+        assert!(!valid_channel_url("file:///etc/passwd"));
+        assert!(!valid_channel_url("notaurl"));
+        assert!(!valid_channel_url(""));
     }
 
     #[test]

@@ -1,5 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { api, type AppState } from "../api/client";
+import MonitorControls from "../components/MonitorControls";
 import { setGamepadNavSuspended } from "../gamepad/useGamepadNav";
 import ArcadeCanvas, { type ArcadeShader } from "./ArcadeCanvas";
 import ArcadeAudio from "./ArcadeAudio";
@@ -36,11 +45,21 @@ interface CartType {
 
 const CHANNEL = "arcade";
 const CARD_W = 240;
+// Separación entre fichas. El glow/efecto 3D necesita aire para no verse
+// recortado contra las vecinas.
+const GAP = 44;
+// Alto aproximado de la etiqueta con el nombre del juego bajo el cartucho.
+const LABEL_H = 28;
+
+// Ratio (ancho/alto) real de las carátulas de SNES descargadas (~1.41). Se usa
+// como fallback para los placeholders para que no desentonen con los juegos que
+// sí tienen carátula.
+const SNES_RATIO = 1.41;
 
 // Forma/proporción de cartucho por sistema (ratio = ancho/alto, fallback sin boxart).
 const CARTRIDGE_TYPES: Record<string, CartType> = {
-  snes: { kind: "cart", ratio: 0.72 },
-  "super nintendo": { kind: "cart", ratio: 0.72 },
+  snes: { kind: "cart", ratio: SNES_RATIO },
+  "super nintendo": { kind: "cart", ratio: SNES_RATIO },
   nes: { kind: "cart", ratio: 1.3 },
   nintendo: { kind: "cart", ratio: 1.3 },
   gb: { kind: "cart", ratio: 0.85 },
@@ -54,17 +73,17 @@ const CARTRIDGE_TYPES: Record<string, CartType> = {
   md: { kind: "cart", ratio: 0.85 },
   megadrive: { kind: "cart", ratio: 0.85 },
   "mega drive": { kind: "cart", ratio: 0.85 },
-  psx: { kind: "jewel", ratio: 0.9 },
-  ps1: { kind: "jewel", ratio: 0.9 },
-  playstation: { kind: "jewel", ratio: 0.9 },
-  psp: { kind: "jewel", ratio: 0.9 },
-  segacd: { kind: "jewel", ratio: 0.9 },
-  saturn: { kind: "jewel", ratio: 0.9 },
-  dreamcast: { kind: "jewel", ratio: 0.9 },
+  psx: { kind: "jewel", ratio: 1.0 },
+  ps1: { kind: "jewel", ratio: 1.0 },
+  playstation: { kind: "jewel", ratio: 1.0 },
+  psp: { kind: "jewel", ratio: 1.0 },
+  segacd: { kind: "jewel", ratio: 1.0 },
+  saturn: { kind: "jewel", ratio: 1.0 },
+  dreamcast: { kind: "jewel", ratio: 1.0 },
   mame: { kind: "marquee", ratio: 1.55 },
   arcade: { kind: "marquee", ratio: 1.55 },
 };
-const DEFAULT_CART: CartType = { kind: "cart", ratio: 0.75 };
+const DEFAULT_CART: CartType = { kind: "cart", ratio: SNES_RATIO };
 const cartTypeFor = (system: string) =>
   CARTRIDGE_TYPES[system.trim().toLowerCase()] ?? DEFAULT_CART;
 
@@ -97,6 +116,7 @@ export default function ArcadeLauncher({ state }: { state: AppState }) {
     };
   }, []);
   const listRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(() => {
     fetch(`/api/channels/${CHANNEL}/state`)
@@ -108,8 +128,35 @@ export default function ArcadeLauncher({ state }: { state: AppState }) {
   }, []);
 
   useEffect(() => {
-    load();
+    // Debounce: el backend puede emitir `boxarts_synced` en ráfaga; agrupamos.
+    const timer = window.setTimeout(load, 250);
+    return () => window.clearTimeout(timer);
   }, [load, state.arcade?.boxart_revision]);
+
+  // Cada carátula descargada se parchea localmente en lugar de recargar el
+  // estado completo (con SNES/PSX eran más de 1000 fichas por recarga).
+  useEffect(() => {
+    const onBoxart = (raw: Event) => {
+      const rel = (raw as CustomEvent<{ rel?: string }>).detail?.rel;
+      if (!rel) return;
+      setData((prev) => {
+        if (!prev) return prev;
+        let changed = false;
+        const systems = prev.systems.map((s) => {
+          if (!s.games.some((g) => g.rel === rel)) return s;
+          const games = s.games.map((g) => {
+            if (g.rel !== rel || g.boxart) return g;
+            changed = true;
+            return { ...g, boxart: rel };
+          });
+          return changed ? { ...s, games } : s;
+        });
+        return changed ? { ...prev, systems } : prev;
+      });
+    };
+    window.addEventListener("catodo:arcade_boxart", onBoxart);
+    return () => window.removeEventListener("catodo:arcade_boxart", onBoxart);
+  }, []);
 
   // Mientras hay una sesión embebida el estado cambia (fps, resolución, fin).
   useEffect(() => {
@@ -124,42 +171,102 @@ export default function ArcadeLauncher({ state }: { state: AppState }) {
   );
   const items: ArcadeSystem[] | ArcadeGame[] = activeSystem ? activeSystem.games : systems;
   const isGamesLevel = !!activeSystem;
-  const columns = Math.max(1, Math.floor((window.innerWidth || 1920) / CARD_W));
+  const embedded = data?.mode === "embedded" && data.playing === true;
 
-  const launch = (rel: string) => {
-    api.command(CHANNEL, "launch", { game: rel }).then(load).catch(() => {});
-  };
+  // Viewport del scroll para virtualizar la grilla de juegos (SNES/PSX llegan a
+  // 1000+ fichas): solo se montan las filas visibles (+ un margen de overscan).
+  const [viewport, setViewport] = useState({ width: 1920, height: 800, scrollTop: 0 });
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const update = () => {
+      if (!el.isConnected) return;
+      setViewport((v) => {
+        const nv = { width: el.clientWidth, height: el.clientHeight, scrollTop: el.scrollTop };
+        return nv.width === v.width && nv.height === v.height && nv.scrollTop === v.scrollTop
+          ? v
+          : nv;
+      });
+    };
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener("scroll", update);
+      ro.disconnect();
+    };
+  }, [embedded]);
 
-  const selectSystem = (name: string) => {
+  const PAD_X = 32;
+  const innerW = Math.max(320, viewport.width - PAD_X * 2);
+  const columns = Math.max(1, Math.floor((innerW + GAP) / (CARD_W + GAP)));
+  const cardWidth = Math.max(80, Math.floor((innerW - (columns - 1) * GAP) / columns));
+  // Ratio uniforme por sistema → todas las filas tienen el mismo alto.
+  const activeRatio = cartTypeFor(activeSystem?.name ?? "").ratio;
+  const rowH = Math.round(cardWidth / activeRatio) + LABEL_H + GAP;
+
+  const totalRows = isGamesLevel ? Math.ceil(items.length / columns) : 0;
+  const startRow = isGamesLevel ? Math.max(0, Math.floor(viewport.scrollTop / rowH) - 2) : 0;
+  const endRow = isGamesLevel
+    ? Math.min(totalRows, Math.ceil((viewport.scrollTop + viewport.height) / rowH) + 2)
+    : 0;
+  const startIdx = startRow * columns;
+  const endIdx = Math.min(items.length, endRow * columns);
+  const gamesWindow = isGamesLevel ? activeSystem!.games.slice(startIdx, endIdx) : [];
+
+  const launch = useCallback(
+    (rel: string) => {
+      api.command(CHANNEL, "launch", { game: rel }).then(load).catch(() => {});
+    },
+    [load],
+  );
+
+  const selectSystem = useCallback((name: string) => {
     setFocused(0);
     setSelectedSystem(name);
-  };
+  }, []);
+
+  const focusCard = useCallback((idx: number) => setFocused(idx), []);
+
+  // Refs para que el listener de teclado no se re-registre en cada movimiento
+  // (con cientos de fichas, re-suscribir por paso causaba saltos/pérdidas).
+  // Columnas efectivas de la grilla mostrada (los sistemas usan mínimo 2).
+  const navColumns = isGamesLevel ? columns : Math.max(2, columns);
+  const columnsRef = useRef(navColumns);
+  columnsRef.current = navColumns;
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+  const focusedRef = useRef(focused);
+  focusedRef.current = focused;
+  const isGamesRef = useRef(isGamesLevel);
+  isGamesRef.current = isGamesLevel;
 
   // Navegación con teclado/remote según nivel.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (items.length === 0) return;
-      const cur = focused;
-      if (e.key === "ArrowRight") {
+      const list = itemsRef.current;
+      if (list.length === 0) return;
+      const len = list.length;
+      const cols = columnsRef.current;
+      const cur = focusedRef.current;
+      const row = Math.floor(cur / cols);
+      const col = cur % cols;
+      const move = (n: number) => {
         e.preventDefault();
-        setFocused((cur + 1) % items.length);
-      } else if (e.key === "ArrowLeft") {
+        if (n >= 0 && n < len) setFocused(n);
+      };
+      // Grilla: sin wrap-around. En la primera/última columna izquierda/derecha
+      // no salta al otro extremo (eso se veía como "izquierda va a la derecha").
+      if (e.key === "ArrowLeft") move(col > 0 ? cur - 1 : cur);
+      else if (e.key === "ArrowRight") move(col < cols - 1 ? cur + 1 : cur);
+      else if (e.key === "ArrowUp") move(row > 0 ? cur - cols : cur);
+      else if (e.key === "ArrowDown") move(cur + cols < len ? cur + cols : cur);
+      else if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        setFocused((cur - 1 + items.length) % items.length);
-      } else if (e.key === "ArrowDown") {
-        e.preventDefault();
-        setFocused((cur + columns) % items.length);
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setFocused((cur - columns + items.length) % items.length);
-      } else if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        if (isGamesLevel) {
-          launch((items[cur] as ArcadeGame).rel);
-        } else {
-          selectSystem((items[cur] as ArcadeSystem).name);
-        }
-      } else if (e.key === "Escape" && isGamesLevel) {
+        if (isGamesRef.current) launch((list[cur] as ArcadeGame).rel);
+        else selectSystem((list[cur] as ArcadeSystem).name);
+      } else if (e.key === "Escape" && isGamesRef.current) {
         e.preventDefault();
         setFocused(0);
         setSelectedSystem(null);
@@ -167,19 +274,31 @@ export default function ArcadeLauncher({ state }: { state: AppState }) {
     };
     document.addEventListener("keydown", onKey, true);
     return () => document.removeEventListener("keydown", onKey, true);
-  }, [items, focused, columns, isGamesLevel]);
+  }, [launch, selectSystem]);
 
   useEffect(() => {
-    const el = listRef.current?.children[focused] as HTMLElement | undefined;
-    el?.scrollIntoView({ block: "nearest" });
-  }, [focused]);
+    const el = listRef.current;
+    if (!el) return;
+    if (isGamesLevel) {
+      // Con virtualización el foco puede quedar fuera de la ventana montada:
+      // calculamos el scroll por fila en vez de depender del DOM.
+      const row = Math.floor(focused / columns);
+      const top = row * rowH;
+      const bottom = top + rowH;
+      if (top < el.scrollTop) el.scrollTop = top;
+      else if (bottom > el.scrollTop + el.clientHeight) el.scrollTop = bottom - el.clientHeight;
+    } else {
+      const tile = gridRef.current?.children[focused] as HTMLElement | undefined;
+      tile?.scrollIntoView({ block: "nearest" });
+    }
+  }, [focused, isGamesLevel, columns, rowH]);
 
   const playing = state.arcade?.playing ?? false;
   const currentGame = state.arcade?.game as ArcadeGame | null | undefined;
   const error = state.arcade?.error;
 
-  if (data?.mode === "embedded" && data.playing) {
-    return <EmbeddedPlayer data={data} onStop={() => api.command(CHANNEL, "stop").then(load)} />;
+  if (embedded) {
+    return <EmbeddedPlayer data={data!} onStop={() => api.command(CHANNEL, "stop").then(load)} />;
   }
 
   return (
@@ -280,38 +399,49 @@ export default function ArcadeLauncher({ state }: { state: AppState }) {
           </div>
         )}
         {isGamesLevel ? (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
-              gap: 18,
-            }}
-          >
-            {activeSystem!.games.map((game, idx) => (
-              <Cartridge
-                key={game.rel}
-                game={game}
-                focused={idx === focused}
-                onFocus={() => setFocused(idx)}
-                onLaunch={() => launch(game.rel)}
-              />
-            ))}
+          <div ref={gridRef} style={{ position: "relative", height: totalRows * rowH, width: "100%" }}>
+            {gamesWindow.map((game, i) => {
+              const idx = startIdx + i;
+              const row = Math.floor(idx / columns);
+              const col = idx % columns;
+              return (
+                <div
+                  key={game.rel}
+                  style={{
+                    position: "absolute",
+                    top: row * rowH,
+                    left: col * (cardWidth + GAP),
+                    width: cardWidth,
+                  }}
+                >
+                  <Cartridge
+                    game={game}
+                    index={idx}
+                    focused={idx === focused}
+                    onFocus={focusCard}
+                    onLaunch={launch}
+                  />
+                </div>
+              );
+            })}
           </div>
         ) : (
           <div
+            ref={gridRef}
             style={{
               display: "grid",
               gridTemplateColumns: `repeat(${Math.max(2, columns)}, minmax(0, 1fr))`,
-              gap: 18,
+              gap: GAP,
             }}
           >
             {systems.map((system, idx) => (
               <ConsoleTile
                 key={system.name}
                 system={system}
+                index={idx}
                 focused={idx === focused}
-                onFocus={() => setFocused(idx)}
-                onPick={() => selectSystem(system.name)}
+                onFocus={focusCard}
+                onPick={selectSystem}
               />
             ))}
           </div>
@@ -346,23 +476,25 @@ export default function ArcadeLauncher({ state }: { state: AppState }) {
   );
 }
 
-function ConsoleTile({
+const ConsoleTile = memo(function ConsoleTile({
   system,
+  index,
   focused,
   onFocus,
   onPick,
 }: {
   system: ArcadeSystem;
+  index: number;
   focused: boolean;
-  onFocus: () => void;
-  onPick: () => void;
+  onFocus: (index: number) => void;
+  onPick: (name: string) => void;
 }) {
   const rep = system.games.find((g) => g.boxart) ?? null;
   return (
     <button
-      onClick={onPick}
-      onMouseEnter={onFocus}
-      onFocus={onFocus}
+      onClick={() => onPick(system.name)}
+      onMouseEnter={() => onFocus(index)}
+      onFocus={() => onFocus(index)}
       style={{
         display: "flex",
         flexDirection: "column",
@@ -394,6 +526,8 @@ function ConsoleTile({
           <img
             src={boxartUrl(rep.rel)}
             alt={system.name}
+            loading="lazy"
+            decoding="async"
             style={{ width: "100%", height: "100%", objectFit: "cover" }}
             onError={(e) => {
               (e.currentTarget as HTMLImageElement).style.display = "none";
@@ -409,32 +543,39 @@ function ConsoleTile({
       </div>
     </button>
   );
-}
+});
 
-function Cartridge({
+const Cartridge = memo(function Cartridge({
   game,
+  index,
   focused,
   onFocus,
   onLaunch,
 }: {
   game: ArcadeGame;
+  index: number;
   focused: boolean;
-  onFocus: () => void;
-  onLaunch: () => void;
+  onFocus: (index: number) => void;
+  onLaunch: (rel: string) => void;
 }) {
-  const [ratio, setRatio] = useState<number | null>(null);
   const type = cartTypeFor(game.system);
-  const ar = ratio ?? type.ratio;
+  // Ratio uniforme por sistema (real de las carátulas): mantiene las filas de
+  // alto constante (necesario para virtualizar) y los placeholders alineados.
+  const ar = type.ratio;
+  const monogram = (game.name.match(/[a-z0-9]/i)?.[0] ?? "?").toUpperCase();
+  const systemLabel = game.system.trim().toUpperCase().slice(0, 18);
   return (
     <button
-      onClick={onLaunch}
-      onMouseEnter={onFocus}
-      onFocus={onFocus}
+      onClick={() => onLaunch(game.rel)}
+      onMouseEnter={() => onFocus(index)}
+      onFocus={() => onFocus(index)}
       className={`cartridge cart-${type.kind}${focused ? " is-focused" : ""}`}
       style={{
         display: "flex",
         flexDirection: "column",
         gap: 8,
+        width: "100%",
+        boxSizing: "border-box",
         padding: 0,
         background: "transparent",
         border: "none",
@@ -449,18 +590,17 @@ function Cartridge({
             src={boxartUrl(game.rel)}
             alt={game.name}
             draggable={false}
-            onLoad={(e) => {
-              const img = e.currentTarget;
-              if (img.naturalWidth && img.naturalHeight) {
-                setRatio(img.naturalWidth / img.naturalHeight);
-              }
-            }}
+            loading="lazy"
+            decoding="async"
             onError={(e) => {
               (e.currentTarget as HTMLImageElement).style.display = "none";
             }}
           />
         ) : (
-          <span className="cart-placeholder">🕹</span>
+          <span className="cart-placeholder">
+            <span className="cart-ph-mono">{monogram}</span>
+            <span className="cart-ph-system">{systemLabel}</span>
+          </span>
         )}
       </div>
       <div
@@ -478,7 +618,7 @@ function Cartridge({
       </div>
     </button>
   );
-}
+});
 
 const PAD_BUTTONS: Record<number, string> = {
   // Mapeo por posición (igual que RetroArch): el botón físico de abajo (A en
@@ -542,10 +682,44 @@ const KEYMAP: Record<string, string> = {
   Shift: "select",
 };
 
+const HUD_TIMEOUT_MS = 4000;
+
 /** Player embebido: stream fMP4 del core + input + controles de sesión. */
 function EmbeddedPlayer({ data, onStop }: { data: ArcadeData; onStop: () => void }) {
   const game = data.current as ArcadeGame | null;
   const held = useRef<Set<string>>(new Set());
+  const [hudVisible, setHudVisible] = useState(true);
+  const hudTimer = useRef<number | null>(null);
+  const [monitorFrame, setMonitorFrame] = useState(true);
+  const [curvature, setCurvature] = useState(0.07);
+  const [blackBorder, setBlackBorder] = useState(6);
+  const [rounded, setRounded] = useState(false);
+  const [monitorMode, setMonitorMode] = useState<"css" | "image">("css");
+  const [monitorImage, setMonitorImage] = useState("/arcade/vintage-crt.webp");
+  const [screenBox, setScreenBox] = useState({
+    left: 14,
+    top: 8.7,
+    width: 68.25,
+    height: 82.4,
+  });
+  const [tuning, setTuning] = useState(false);
+  const tuningRef = useRef(tuning);
+  tuningRef.current = tuning;
+
+  // El HUD (datos del core/fps y botones) se oculta solo a los pocos segundos
+  // para no tapar el juego; vuelve al mover el mouse o tocar la pantalla.
+  const revealHud = useCallback(() => {
+    setHudVisible(true);
+    if (hudTimer.current !== null) window.clearTimeout(hudTimer.current);
+    hudTimer.current = window.setTimeout(() => setHudVisible(false), HUD_TIMEOUT_MS);
+  }, []);
+
+  useEffect(() => {
+    revealHud();
+    return () => {
+      if (hudTimer.current !== null) window.clearTimeout(hudTimer.current);
+    };
+  }, [revealHud]);
   const [video, setVideo] = useState<{ height: number; shader: ArcadeShader }>({
     height: 720,
     shader: "crt",
@@ -573,18 +747,92 @@ function EmbeddedPlayer({ data, onStop }: { data: ArcadeData; onStop: () => void
     };
   }, []);
 
-  // Preferencias de video del arcade (salida y shader).
+  // Preferencias de video del arcade (salida, shader y marco de monitor).
   useEffect(() => {
     fetch("/api/config")
       .then((r) => (r.ok ? r.json() : null))
-      .then((cfg: { arcade_output_height?: number; arcade_shader?: string } | null) => {
-        if (!cfg) return;
-        setVideo({
-          height: Number(cfg.arcade_output_height) || 720,
-          shader: (cfg.arcade_shader as ArcadeShader) || "crt",
-        });
-      })
+      .then(
+        (
+          cfg: {
+            arcade_output_height?: number;
+            arcade_shader?: string;
+            arcade_monitor_frame?: boolean;
+            arcade_monitor_curvature?: number;
+            arcade_monitor_black_border?: number;
+            arcade_monitor_rounded?: boolean;
+            arcade_monitor_mode?: string;
+            arcade_monitor_image?: string;
+            arcade_monitor_screen_left?: number;
+            arcade_monitor_screen_top?: number;
+            arcade_monitor_screen_width?: number;
+            arcade_monitor_screen_height?: number;
+          } | null,
+        ) => {
+          if (!cfg) return;
+          setVideo({
+            height: Number(cfg.arcade_output_height) || 720,
+            shader: (cfg.arcade_shader as ArcadeShader) || "crt",
+          });
+          setMonitorFrame(cfg.arcade_monitor_frame !== false);
+          if (typeof cfg.arcade_monitor_curvature === "number") {
+            setCurvature(cfg.arcade_monitor_curvature);
+          }
+          if (typeof cfg.arcade_monitor_black_border === "number") {
+            setBlackBorder(cfg.arcade_monitor_black_border);
+          }
+          setRounded(cfg.arcade_monitor_rounded === true);
+          setMonitorMode(cfg.arcade_monitor_mode === "image" ? "image" : "css");
+          if (typeof cfg.arcade_monitor_image === "string" && cfg.arcade_monitor_image) {
+            setMonitorImage(cfg.arcade_monitor_image);
+          }
+          setScreenBox({
+            left: Number(cfg.arcade_monitor_screen_left) || 14,
+            top: Number(cfg.arcade_monitor_screen_top) || 8.7,
+            width: Number(cfg.arcade_monitor_screen_width) || 68.25,
+            height: Number(cfg.arcade_monitor_screen_height) || 82.4,
+          });
+        },
+      )
       .catch(() => {});
+  }, []);
+
+  // Cambiar el marco o sus parámetros desde Ajustes se aplica en caliente.
+  useEffect(() => {
+    const onChange = (raw: Event) => {
+      const detail = (raw as CustomEvent<{ key?: string; value?: unknown }>).detail;
+      if (detail?.key === "arcade_monitor_frame") {
+        setMonitorFrame(detail.value !== false);
+      } else if (detail?.key === "arcade_monitor_curvature") {
+        const value = Number(detail.value);
+        if (Number.isFinite(value)) setCurvature(value);
+      } else if (detail?.key === "arcade_monitor_black_border") {
+        const value = Number(detail.value);
+        if (Number.isFinite(value)) setBlackBorder(value);
+      } else if (detail?.key === "arcade_monitor_rounded") {
+        setRounded(detail.value === true);
+      } else if (detail?.key === "arcade_monitor_mode") {
+        setMonitorMode(detail.value === "image" ? "image" : "css");
+      } else if (detail?.key === "arcade_monitor_image") {
+        if (typeof detail.value === "string" && detail.value) {
+          setMonitorImage(detail.value);
+        }
+      } else if (detail?.key === "arcade_monitor_screen_left") {
+        const value = Number(detail.value);
+        if (Number.isFinite(value)) setScreenBox((box) => ({ ...box, left: value }));
+      } else if (detail?.key === "arcade_monitor_screen_top") {
+        const value = Number(detail.value);
+        if (Number.isFinite(value)) setScreenBox((box) => ({ ...box, top: value }));
+      } else if (detail?.key === "arcade_monitor_screen_width") {
+        const value = Number(detail.value);
+        if (Number.isFinite(value)) setScreenBox((box) => ({ ...box, width: value }));
+      } else if (detail?.key === "arcade_monitor_screen_height") {
+        const value = Number(detail.value);
+        if (Number.isFinite(value)) setScreenBox((box) => ({ ...box, height: value }));
+      }
+    };
+    window.addEventListener("catodo:config_changed", onChange as EventListener);
+    return () =>
+      window.removeEventListener("catodo:config_changed", onChange as EventListener);
   }, []);
 
   useEffect(() => {
@@ -592,6 +840,15 @@ function EmbeddedPlayer({ data, onStop }: { data: ArcadeData; onStop: () => void
       api.command(CHANNEL, command, { button }).catch(() => {});
 
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "F1") {
+        event.preventDefault();
+        setTuning((value) => !value);
+        return;
+      }
+      if (tuningRef.current) {
+        if (event.key === "Escape") setTuning(false);
+        return;
+      }
       if (event.key === "Escape") {
         send("release", "start");
         onStop();
@@ -605,6 +862,7 @@ function EmbeddedPlayer({ data, onStop }: { data: ArcadeData; onStop: () => void
       send("press", button);
     };
     const onKeyUp = (event: KeyboardEvent) => {
+      if (tuningRef.current) return;
       const button = KEYMAP[event.key];
       if (!button) return;
       event.preventDefault();
@@ -635,6 +893,12 @@ function EmbeddedPlayer({ data, onStop }: { data: ArcadeData; onStop: () => void
     let frame = 0;
 
     const poll = () => {
+      if (tuningRef.current) {
+        pressed.forEach((button) => send("release", button));
+        pressed.clear();
+        frame = requestAnimationFrame(poll);
+        return;
+      }
       const connected = navigator.getGamepads?.() ?? [];
       const pad = Array.from(connected).find((candidate) => candidate && candidate.connected) ?? null;
       const next = pad ? padButtons(pad) : new Set<string>();
@@ -673,73 +937,257 @@ function EmbeddedPlayer({ data, onStop }: { data: ArcadeData; onStop: () => void
   }, []);
 
   const [width, height] = data.resolution ?? [0, 0];
+  const videoAspect =
+    data.aspect && data.aspect > 0
+      ? data.aspect
+      : width > 0 && height > 0
+        ? width / height
+        : 4 / 3;
+  const usingImage =
+    monitorFrame && monitorMode === "image" && monitorImage.length > 0;
+  const imageBoxStyle = usingImage
+    ? {
+        left: `${screenBox.left}%`,
+        top: `${screenBox.top}%`,
+        width: `${screenBox.width}%`,
+        height: `${screenBox.height}%`,
+      }
+    : undefined;
 
   return (
     <div
+      onMouseMove={revealHud}
+      onMouseDown={revealHud}
+      onTouchStart={revealHud}
       style={{
         position: "absolute",
         inset: 0,
-        display: "flex",
-        flexDirection: "column",
         background: "#000",
         color: "var(--text)",
+        cursor: hudVisible ? "default" : "none",
       }}
     >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 16,
-          padding: "10px 20px",
-          fontFamily: "var(--font-mono)",
-          fontSize: 12,
-          letterSpacing: 2,
-          color: "var(--text-dim)",
-          flexShrink: 0,
-        }}
-      >
-        <span style={{ color: "var(--ch-arcade)" }}>{game?.name ?? "ARCADE"}</span>
-        <span>{data.core ?? ""}</span>
-        <span>
-          {width > 0 ? `${width}×${height}` : ""} {data.fps ? `${data.fps.toFixed(1)} fps` : ""}
-        </span>
-        <span style={{ marginLeft: "auto" }}>
-          {padName ? `🎮 ${padName.slice(0, 28)}` : "sin gamepad"} ·{" "}
-          {video.shader.toUpperCase()} · {video.height}p · ESC SALIR
-        </span>
-      </div>
-
       <ArcadeAudio src={audioFramesUrl} />
-      <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
-        <ArcadeCanvas
-          framesUrl={framesUrl}
-          fallbackSrc={`/api/channels/${CHANNEL}/stream`}
-          shader={video.shader}
-          outputHeight={video.height}
-          aspectRatio={data.aspect}
-        />
+      <div
+        className={`arcade-stage${monitorFrame ? " is-monitor" : ""}${usingImage ? " is-image" : ""}`}
+      >
+        <div
+          className={`arcade-monitor-shell${monitorFrame && !usingImage ? " is-tv" : ""}${usingImage ? " is-image-screen" : ""}`}
+          style={imageBoxStyle}
+        >
+          {monitorFrame && !usingImage && (
+            <div className="crt-tv-brand" aria-hidden>
+              <span className="crt-tv-logo">CÁTODO</span>
+              <span className="crt-tv-logo-bars">
+                <i />
+                <i />
+                <i />
+              </span>
+              <span className="crt-tv-reg">®</span>
+            </div>
+          )}
+
+          <div className="crt-screen-shell">
+            <div
+              className="arcade-monitor-screen"
+              style={
+                {
+                  "--monitor-black-border": `${blackBorder}px`,
+                  "--monitor-radius": rounded ? "4% / 5.2%" : "0px",
+                } as CSSProperties
+              }
+            >
+              <ArcadeCanvas
+                framesUrl={framesUrl}
+                fallbackSrc={`/api/channels/${CHANNEL}/stream`}
+                shader={video.shader}
+                outputHeight={video.height}
+                aspectRatio={data.aspect}
+                fill={monitorFrame && Math.abs(videoAspect - 4 / 3) < 0.04}
+                curvature={monitorFrame ? curvature : 0.025}
+              />
+
+              {/* HUD superior: datos del core/fps dentro de la pantalla. */}
+              <div
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  zIndex: 2,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 16,
+                  padding: "10px 20px 26px",
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 12,
+                  letterSpacing: 2,
+                  color: "var(--text-dim)",
+                  background: "linear-gradient(180deg, rgba(0,0,0,0.78), transparent)",
+                  opacity: hudVisible ? 1 : 0,
+                  pointerEvents: hudVisible ? "auto" : "none",
+                  transition: "opacity 0.35s ease",
+                }}
+              >
+                <span style={{ color: "var(--ch-arcade)" }}>{game?.name ?? "ARCADE"}</span>
+                <span>{data.core ?? ""}</span>
+                <span>
+                  {width > 0 ? `${width}×${height}` : ""}{" "}
+                  {data.fps ? `${data.fps.toFixed(1)} fps` : ""}
+                </span>
+                <span style={{ marginLeft: "auto" }}>
+                  {padName ? `🎮 ${padName.slice(0, 28)}` : "sin gamepad"} ·{" "}
+                  {video.shader.toUpperCase()} · {video.height}p · F1 AJUSTES · ESC SALIR
+                </span>
+              </div>
+
+              {/* Controles de sesión, también auto-ocultables. */}
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  zIndex: 2,
+                  display: "flex",
+                  gap: 8,
+                  padding: "26px 20px 10px",
+                  background: "linear-gradient(0deg, rgba(0,0,0,0.78), transparent)",
+                  opacity: hudVisible ? 1 : 0,
+                  pointerEvents: hudVisible ? "auto" : "none",
+                  transition: "opacity 0.35s ease",
+                }}
+              >
+                <PlayerButton label="VOLVER" onClick={onStop} />
+                <PlayerButton label="TV · F1" onClick={() => setTuning((value) => !value)} />
+                <PlayerButton
+                  label="RESET"
+                  onClick={() => api.command(CHANNEL, "reset").catch(() => {})}
+                />
+                <PlayerButton
+                  label="GUARDAR"
+                  onClick={() => api.command(CHANNEL, "save_state", { slot: 1 }).catch(() => {})}
+                />
+                <PlayerButton
+                  label="CARGAR"
+                  onClick={() => api.command(CHANNEL, "load_state", { slot: 1 }).catch(() => {})}
+                />
+              </div>
+            </div>
+          </div>
+
+          {monitorFrame && !usingImage && (
+            <aside className="crt-tv-panel">
+              <div className="crt-tv-model">
+                COLOR
+                <br />
+                TV MONITOR
+                <br />
+                <b>14&quot;</b>
+              </div>
+              <div className="crt-tv-grille" />
+              <button
+                type="button"
+                className="crt-tv-power"
+                title="Apagar / volver al launcher"
+                onClick={onStop}
+              >
+                <span className="crt-tv-power-label">POWER</span>
+                <span className="crt-tv-power-led" />
+              </button>
+              <div className="crt-tv-knob-wrap">
+                <span className="crt-tv-knob-label">BRIGHT</span>
+                <span className="crt-tv-knob" />
+              </div>
+              <div className="crt-tv-knob-wrap">
+                <span className="crt-tv-knob-label">CONTRAST</span>
+                <span className="crt-tv-knob" />
+              </div>
+            </aside>
+          )}
+        </div>
+
+        {usingImage && (
+          <img className="arcade-image-frame" src={monitorImage} alt="" aria-hidden />
+        )}
       </div>
 
-      <div
-        style={{
-          display: "flex",
-          gap: 8,
-          padding: "10px 20px",
-          flexShrink: 0,
-          background: "rgba(0,0,0,0.6)",
-        }}
-      >
-        <PlayerButton label="VOLVER" onClick={onStop} />
-        <PlayerButton label="RESET" onClick={() => api.command(CHANNEL, "reset").catch(() => {})} />
-        <PlayerButton
-          label="GUARDAR"
-          onClick={() => api.command(CHANNEL, "save_state", { slot: 1 }).catch(() => {})}
-        />
-        <PlayerButton
-          label="CARGAR"
-          onClick={() => api.command(CHANNEL, "load_state", { slot: 1 }).catch(() => {})}
-        />
-      </div>
+      {tuning && (
+        <div
+          role="dialog"
+          aria-label="Ajustes del monitor"
+          style={{
+            position: "absolute",
+            right: "clamp(16px, 2vw, 34px)",
+            top: "50%",
+            transform: "translateY(-50%)",
+            zIndex: 10,
+            width: "min(360px, 88vw)",
+            maxHeight: "80vh",
+            overflowY: "auto",
+            padding: "12px 14px",
+            background: "color-mix(in srgb, var(--surface) 94%, transparent)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-lg)",
+            boxShadow: "0 18px 50px rgba(0,0,0,0.65)",
+            color: "var(--text)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 4,
+            }}
+          >
+            <span
+              style={{
+                fontFamily: "var(--font-mono)",
+                fontSize: 10,
+                letterSpacing: 2,
+                color: "var(--text-dim)",
+              }}
+            >
+              AJUSTES DE MONITOR
+            </span>
+            <button
+              type="button"
+              aria-label="Cerrar ajustes del monitor"
+              onClick={() => setTuning(false)}
+              style={{
+                width: 26,
+                height: 26,
+                display: "grid",
+                placeItems: "center",
+                background: "transparent",
+                border: "none",
+                color: "var(--text-dim)",
+                cursor: "pointer",
+                fontSize: 16,
+              }}
+            >
+              ×
+            </button>
+          </div>
+          <MonitorControls
+            onChange={(params) => {
+              setMonitorFrame(params.enabled);
+              setCurvature(params.curvature);
+              setBlackBorder(params.blackBorder);
+              setRounded(params.rounded);
+              setMonitorMode(params.mode);
+              setMonitorImage(params.imageUrl);
+              setScreenBox({
+                left: params.screenLeft,
+                top: params.screenTop,
+                width: params.screenWidth,
+                height: params.screenHeight,
+              });
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }

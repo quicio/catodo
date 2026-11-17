@@ -4,7 +4,9 @@ use std::net::SocketAddr;
 use std::path::Path as FilePath;
 
 use axum::body::Body;
-use axum::extract::{ConnectInfo, Extension, Path, Query, RawQuery, Request, State};
+use axum::extract::{
+    ConnectInfo, DefaultBodyLimit, Extension, Path, Query, RawQuery, Request, State,
+};
 use axum::http::{header, HeaderMap, StatusCode};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
@@ -19,7 +21,9 @@ use tower_http::trace::TraceLayer;
 
 use crate::config::KEYS;
 use crate::ServerState;
-use crate::{cast, libraries, lyrics, modes, mouse, pair, plugins, tunnel, voice, wallpapers, ws};
+use crate::{
+    arcade, cast, libraries, lyrics, modes, mouse, pair, plugins, tunnel, voice, wallpapers, ws,
+};
 
 type ApiError = (StatusCode, Json<Value>);
 type ApiResult = Result<Json<Value>, ApiError>;
@@ -71,10 +75,22 @@ pub fn router(state: ServerState) -> Router {
         )
         .route("/api/modes/{preset_id}/apply", post(modes::apply))
         .route("/api/plugins", get(plugins::list))
+        .route("/api/plugins/catalog", get(plugins::catalog))
         .route("/api/plugins/install", post(plugins::install))
-        .route("/api/plugins/{plugin_id}", get(plugins::get))
+        .route(
+            "/api/plugins/{plugin_id}",
+            get(plugins::get).delete(plugins::uninstall),
+        )
         .route("/api/plugins/{plugin_id}/enable", post(enable_plugin))
         .route("/api/plugins/{plugin_id}/disable", post(disable_plugin))
+        .route("/api/plugins/{plugin_id}/order", post(plugins::set_order))
+        .route(
+            "/api/arcade/frame",
+            get(arcade::frame_image::get)
+                .post(arcade::frame_image::upload)
+                .delete(arcade::frame_image::delete)
+                .layer(DefaultBodyLimit::max(10 * 1024 * 1024)),
+        )
         .route("/api/libraries", get(libraries::list).post(libraries::add))
         .route("/api/libraries/{library_id}", delete(libraries::remove))
         .route("/api/tunnel/providers", get(tunnel::providers))
@@ -411,7 +427,11 @@ async fn volume(State(state): State<ServerState>, RawQuery(query): RawQuery) -> 
 }
 
 async fn get_config(State(state): State<ServerState>) -> Json<Value> {
-    Json(Value::Object(state.config.all().await))
+    let mut values = state.config.all().await;
+    for (key, value) in plugins::channel_url_values(&state).await {
+        values.insert(key, value);
+    }
+    Json(Value::Object(values))
 }
 
 async fn set_config(
@@ -471,9 +491,38 @@ async fn set_config(
                 "key": key,
                 "value": value,
             }));
+        } else if let Some(channel_id) = crate::config::channel_id_from_url_key(key) {
+            // Clave por canal (no está en KEYS): sólo si el canal web está
+            // instalado. Un slug válido sin canal se ignora como desconocido.
+            if !plugins::is_installed_web(&state, channel_id) {
+                continue;
+            }
+            let url = match value {
+                Value::Null => "",
+                other => other
+                    .as_str()
+                    .ok_or_else(|| bad_request("channel url must be a string"))?,
+            };
+            if !url.is_empty() && !crate::config::valid_channel_url(url) {
+                return Err(bad_request("invalid channel url"));
+            }
+            state
+                .config
+                .set(key, json!(url))
+                .await
+                .map_err(|_| bad_request("config write failed"))?;
+            state.broker.publish(json!({
+                "event": "config_changed",
+                "key": key,
+                "value": url,
+            }));
         }
     }
-    Ok(Json(Value::Object(state.config.all().await)))
+    let mut values = state.config.all().await;
+    for (key, value) in plugins::channel_url_values(&state).await {
+        values.insert(key, value);
+    }
+    Ok(Json(Value::Object(values)))
 }
 
 async fn enable_plugin(

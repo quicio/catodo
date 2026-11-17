@@ -145,10 +145,29 @@ export default function App() {
       if (event.event === "wallpapers_changed") {
         window.dispatchEvent(new CustomEvent("catodo:wallpapers_changed"));
       }
+      // Ciclo de vida de plugins (instalar/desinstalar/habilitar/orden):
+      // recargar canales y avisar a Ajustes sin recargar la app.
+      if (event.event === "plugins_changed") {
+        window.dispatchEvent(new CustomEvent("catodo:plugins_changed"));
+        api
+          .channels()
+          .then((list) => {
+            setChannels(list);
+            dispatch({ event: "_channels_loaded", channels: list });
+          })
+          .catch(() => {});
+      }
       // El core del arcade hay que bajarlo antes de arrancar el juego: avisalo
       // para que el usuario no se quede mirando una pantalla quieta.
       if (event.event === "arcade_core_download") {
         window.dispatchEvent(new CustomEvent("catodo:arcade_core_download", { detail: event }));
+      }
+      // Carátula individual: el ArcadeLauncher la parchea localmente, sin
+      // recargar el estado completo (con SNES/PSX eran 1000+ fichas).
+      if (event.event === "boxart_fetched" && typeof event.game === "string") {
+        window.dispatchEvent(
+          new CustomEvent("catodo:arcade_boxart", { detail: { rel: event.game } }),
+        );
       }
       // Comando por voz → feedback breve + "home" lo maneja el frontend.
       if (event.event === "voice_command") {
@@ -326,6 +345,15 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
       const ch = channelsRef.current;
       // El canal IPTV usa ↑↓/←→ para grupos y zapping; el volumen queda en +/-
       // y en el remote.

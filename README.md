@@ -8,7 +8,7 @@ A multimedia shell for Linux, inspired by old CRT TVs. Turn any monitor into a "
 - **Ch2 — YouTube** — YouTube TV interface in an in-app webview (Android TV user agent, custom URL via backend config).
 - **Ch3 — Anime** — Local video player scanning `~/Anime`; grouped by series, with CRT/VHS/4K effects. Es una **biblioteca local configurable** (ver [Bibliotecas de medios](#bibliotecas-de-medios)).
 - **Ch4 — TV** — Movistar TV (or any provider URL, configurable) in an in-app webview with Widevine DRM.
-- **Ch5 — Crunchyroll** — crunchyroll.com in an in-app webview (Android TV user agent).
+- **Ch5 — Crunchyroll** — crunchyroll.com in an in-app webview (desktop Chrome user agent; requires Widevine for playback).
 
 Los canales `web` (YouTube, TV, Crunchyroll) son **plugins declarativos**: se definen
 con un `manifest.json` y se gestionan con el CLI (ver [Plugins](#plugins)).
@@ -228,7 +228,7 @@ El instalador resuelve las rutas desde la ubicación real del repositorio, así
 que funciona clonando el proyecto en cualquier directorio (no depende de
 `~/projects/catodo`).
 
-**Widevine:** los canales DRM (Movistar TV, HBO Max) necesitan Widevine. Cátodo
+**Widevine:** los canales DRM (Movistar TV, Max, Netflix, Disney+, etc.) necesitan Widevine. Cátodo
 empaqueta Electron for Content Security (castLabs), que instala el CDM en
 runtime; no hay que instalar nada aparte, ni en dev ni en los artefactos
 publicados.
@@ -304,6 +304,15 @@ Config (`~/.local/share/catodo/config.json`):
 - `arcade_default_emulator`: comando para sistemas sin mapeo.
 - El comando debe abrir el emulador a pantalla completa (ej. RetroArch con `--fullscreen`).
 - Mientras corre el emulador, el sistema se mantiene activo (no entra en screensaver).
+- `arcade_monitor_frame` (bool), `arcade_monitor_curvature` (0–0.2) y
+  `arcade_monitor_black_border` (0–24 px) controlan el marco de TV CRT del
+  player embebido. Con una partida abierta, **F1** o el botón **TV** del player abre los ajustes y
+  los aplica en vivo.
+- `arcade_monitor_mode` elige el marco `css` (dibujado por Cátodo) o `image`
+  (imagen PNG/WebP con la pantalla transparente). Viene incluido el frame
+  vintage en `/arcade/vintage-crt.webp`; también se puede **subir una imagen**
+  desde Ajustes → Arcade. `arcade_monitor_screen_left|top|width|height`
+  calibran la zona de pantalla del frame subido (porcentajes).
 
 ### Carátulas automáticas
 
@@ -581,9 +590,11 @@ mqtt:
 
 Cátodo tiene un sistema de plugins declarativos inspirado en los addons de Kodi:
 un plugin es una carpeta `plugins/<id>/` con un `manifest.json` que describe un
-canal `web` (URL + user-agent + partition + color), sin código. Los canales web
-built-in (YouTube, TV, Crunchyroll) son plugins bundled que se auto-instalan al
-arrancar.
+canal `web` (URL + user-agent + partition + color), sin código. El repo
+(`plugins-repo/`) es el **catálogo**: los `bundled: true` se auto-instalan al
+arrancar (YouTube, TV, Crunchyroll, Max) y los `bundled: false` se instalan desde
+la pestaña **Ajustes → Canales** o por API (Netflix, Disney+, Movistar TV, Claro
+TV, Apple TV+, Paramount+, Pluto TV).
 
 ```json
 // manifest.json de un plugin web
@@ -598,26 +609,38 @@ arrancar.
   "user_agent": "default",          // default | chrome | android-tv
   "partition": "persist:mi-canal",
   "order": 6,                       // posición en la barra (opcional)
-  "config_key": "mi_canal_url",     // override de URL vía config (opcional)
+  "drm": true,                      // requiere Widevine (aviso en la UI)
+  "config_key": "mi_canal_url",     // override legacy de URL (opcional)
   "requires_catodo": { "min": "0.1.0" },
-  "dependencies": []                // paquetes pip (opcional)
+  "dependencies": []                // ignorado: los plugins no ejecutan código
 }
 ```
+
+La URL de cualquier canal web se puede cambiar en caliente con la clave
+`channel_<id>_url` (por ejemplo `channel_netflix_url`). Es **local-only**: el
+remote/LAN no puede redirigir canales. `config_key` queda como fallback legacy.
 
 ### Gestión
 
 Los plugins se gestionan por API (no hay CLI Python):
 
 ```bash
-curl http://127.0.0.1:8767/api/plugins
+curl http://127.0.0.1:8767/api/plugins              # instalados
+curl http://127.0.0.1:8767/api/plugins/catalog      # disponibles + instalados
 curl -X POST http://127.0.0.1:8767/api/plugins/install \
-  -H 'Content-Type: application/json' -d '{"id":"youtube"}'
-curl -X POST http://127.0.0.1:8767/api/plugins/youtube/enable
-curl -X POST http://127.0.0.1:8767/api/plugins/youtube/disable
+  -H 'Content-Type: application/json' -d '{"id":"netflix"}'
+curl -X POST http://127.0.0.1:8767/api/plugins/netflix/enable
+curl -X POST http://127.0.0.1:8767/api/plugins/netflix/disable
+curl -X POST http://127.0.0.1:8767/api/plugins/netflix/order \
+  -H 'Content-Type: application/json' -d '{"order":1}'
+curl -X DELETE http://127.0.0.1:8767/api/plugins/netflix
 ```
 
-> Los cambios de estado se persisten en `~/.local/share/catodo/plugins.json`;
-> habilitar/deshabilitar aplica en caliente.
+> Los cambios de estado se persisten en `~/.local/share/catodo/plugins.json`.
+> Instalar registra el canal al instante; desinstalar lo quita sin reiniciar.
+> Los bundled no se desinstalan: se deshabilitan. El orden (`order`) se puede
+> fijar por plugin y sobrevive reinicios. Los canales con `drm: true` requieren
+> ECS+Widevine y dependen de lo que permita cada proveedor con tu cuenta.
 
 ### Repos y dependencias
 
@@ -652,11 +675,14 @@ curl -X POST http://127.0.0.1:8767/api/plugins/youtube/disable
 | GET    | `/api/lyrics?artist=&track=`    | Lyrics lookup via LRCLib           |
 | GET    | `/api/config`                   | Runtime config (read)              |
 | POST   | `/api/config`                   | Runtime config (write)             |
-| GET    | `/api/plugins`                  | Plugin list                        |
+| GET    | `/api/plugins`                  | Installed plugin list              |
+| GET    | `/api/plugins/catalog`          | Available + installed catalog      |
 | GET    | `/api/plugins/{id}`             | Plugin detail                      |
-| POST   | `/api/plugins/install`          | Install plugin from repo           |
+| POST   | `/api/plugins/install`          | Install + register plugin (hot)    |
+| DELETE | `/api/plugins/{id}`             | Uninstall non-bundled plugin (hot) |
 | POST   | `/api/plugins/{id}/enable`      | Enable plugin (hot)                |
 | POST   | `/api/plugins/{id}/disable`     | Disable plugin (hot)               |
+| POST   | `/api/plugins/{id}/order`       | Set per-plugin order override      |
 | GET    | `/api/libraries`                | Media library list                 |
 | POST   | `/api/libraries`                | Add media library (hot channel)    |
 | DELETE | `/api/libraries/{id}`           | Remove media library (hot)         |

@@ -28,12 +28,24 @@ import {
 import { LAYOUTS, LAYOUT_LABELS } from "./home/index";
 import { Icon, PACKS } from "../icons";
 import { TunnelSection } from "./TunnelSection";
+import ChannelSettings from "./ChannelSettings";
+import ArcadeSettings from "./ArcadeSettings";
 
-type TabId = "general" | "modos" | "apariencia" | "tipografia" | "efectos" | "dominio";
+type TabId =
+  | "general"
+  | "canales"
+  | "modos"
+  | "arcade"
+  | "apariencia"
+  | "tipografia"
+  | "efectos"
+  | "dominio";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "general", label: "General" },
+  { id: "canales", label: "Canales" },
   { id: "modos", label: "Modos" },
+  { id: "arcade", label: "Arcade" },
   { id: "apariencia", label: "Apariencia" },
   { id: "tipografia", label: "Tipografía" },
   { id: "efectos", label: "Efectos" },
@@ -447,6 +459,12 @@ export default function AppearanceSettings({
           <div style={{ height: 6 }} />
         </>
       )}
+
+      {/* ==== CANALES ==== */}
+      {tab === "canales" && <ChannelSettings />}
+
+      {/* ==== ARCADE ==== */}
+      {tab === "arcade" && <ArcadeSettings />}
 
       {/* ==== MODOS ==== */}
       {tab === "modos" && (

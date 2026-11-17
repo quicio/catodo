@@ -7,8 +7,10 @@
 pub mod av;
 pub mod core;
 pub mod cores;
+pub mod frame_image;
 pub mod runner;
 
+use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -28,7 +30,8 @@ use av::{AudioEncoder, Encoder};
 use runner::Session;
 
 const ROM_EXTS: &[&str] = &[
-    "zip", "nes", "smc", "sfc", "gb", "gba", "md", "n64", "rom", "bin", "iso", "cue", "chd", "pbp",
+    "zip", "nes", "smc", "sfc", "gb", "gba", "md", "n64", "rom", "bin", "iso", "img", "cue", "chd",
+    "pbp", "m3u",
 ];
 const BOXART_NAMES: &[&str] = &["boxart.png", "boxart.jpg", "boxart.jpeg"];
 const SCAN_TTL: Duration = Duration::from_secs(60);
@@ -566,7 +569,8 @@ fn scan(base: &Path) -> Vec<Value> {
         }
         let system_name = entry.file_name().to_string_lossy().to_string();
         let mut games = Vec::new();
-        flat_games(&path, &system_name, &mut games);
+        let mut seen: HashSet<String> = HashSet::new();
+        flat_games(&path, &system_name, &mut games, &mut seen);
         if let Ok(game_dirs) = std::fs::read_dir(&path) {
             let mut game_dirs: Vec<_> = game_dirs.flatten().collect();
             game_dirs.sort_by_key(|entry| entry.path());
@@ -583,13 +587,17 @@ fn scan(base: &Path) -> Vec<Value> {
                     .map(|name| game_path.join(name))
                     .find(|candidate| candidate.is_file())
                     .map(|candidate| candidate.to_string_lossy().to_string());
-                games.push(json!({
-                    "name": game_dir.file_name().to_string_lossy(),
-                    "rom": rom.to_string_lossy(),
-                    "boxart": boxart,
-                    "rel": format!("{system_name}/{}", game_dir.file_name().to_string_lossy()),
-                    "system": system_name,
-                }));
+                let name = game_dir.file_name().to_string_lossy().to_string();
+                let rel = format!("{system_name}/{name}");
+                if seen.insert(rel.clone()) {
+                    games.push(json!({
+                        "name": name,
+                        "rom": rom.to_string_lossy(),
+                        "boxart": boxart,
+                        "rel": rel,
+                        "system": system_name,
+                    }));
+                }
             }
         }
         if !games.is_empty() {
@@ -599,39 +607,186 @@ fn scan(base: &Path) -> Vec<Value> {
     systems
 }
 
-fn flat_games(directory: &Path, system: &str, games: &mut Vec<Value>) {
+/// Prioridad del archivo primario cuando un juego tiene varios (cue+bin,
+/// multi-track, multi-disco). Menor gana.
+fn extension_rank(extension: &str) -> u8 {
+    match extension {
+        "m3u" => 0,
+        "cue" => 1,
+        "chd" => 2,
+        "pbp" => 3,
+        "iso" => 4,
+        "img" => 5,
+        "bin" => 6,
+        _ => 7,
+    }
+}
+
+fn file_extension(path: &Path) -> String {
+    path.extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("")
+        .to_lowercase()
+}
+
+/// Quita un marcador de pista final: `(Track 1)`, `[Track 02]`, `- Track 1`.
+/// No toca marcadores de disco: cada disco sigue siendo un juego distinto.
+fn strip_track_marker(stem: &str) -> String {
+    let lower = stem.to_ascii_lowercase();
+    let markers = [
+        "(track", "[track", " - track", " -track", "_track", "(tr.", "[tr.", " tr.", " track",
+    ];
+    for marker in markers {
+        let Some(position) = lower.rfind(marker) else {
+            continue;
+        };
+        let after = lower[position + marker.len()..].trim_start();
+        let digits: String = after
+            .chars()
+            .take_while(|character| character.is_ascii_digit())
+            .collect();
+        if digits.is_empty() {
+            continue;
+        }
+        let rest = after[digits.len()..].trim_start();
+        let closes = rest.is_empty()
+            || rest.starts_with(')')
+            || rest.starts_with(']')
+            || rest.starts_with('}');
+        if !closes {
+            continue;
+        }
+        let cut = stem[..position]
+            .trim_end_matches(|character: char| {
+                character.is_whitespace()
+                    || character == '-'
+                    || character == '_'
+                    || character == '.'
+            })
+            .trim();
+        if !cut.is_empty() {
+            return cut.to_string();
+        }
+    }
+    stem.to_string()
+}
+
+fn normalized(path: &Path) -> PathBuf {
+    path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
+}
+
+/// Archivos referenciados por un `.m3u` (multi-disco): no se listan aparte.
+fn m3u_references(files: &[PathBuf]) -> HashSet<PathBuf> {
+    let mut referenced = HashSet::new();
+    for playlist in files.iter().filter(|path| file_extension(path) == "m3u") {
+        let Ok(text) = std::fs::read_to_string(playlist) else {
+            continue;
+        };
+        let parent = playlist.parent().unwrap_or(Path::new("."));
+        for line in text.lines() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') || line.contains("://") {
+                continue;
+            }
+            let candidate = Path::new(line);
+            let path = if candidate.is_absolute() {
+                candidate.to_path_buf()
+            } else {
+                parent.join(candidate)
+            };
+            referenced.insert(normalized(&path));
+        }
+    }
+    referenced
+}
+
+fn boxart_for(directory: &Path, name: &str, rom: &Path) -> Option<String> {
+    ["png", "jpg", "jpeg"]
+        .iter()
+        .flat_map(|extension| {
+            [
+                directory.join(format!("{name}.{extension}")),
+                rom.with_extension(extension),
+            ]
+        })
+        .find(|candidate| candidate.is_file())
+        .map(|candidate| candidate.to_string_lossy().to_string())
+}
+
+fn flat_games(directory: &Path, system: &str, games: &mut Vec<Value>, seen: &mut HashSet<String>) {
     let Ok(entries) = std::fs::read_dir(directory) else {
         return;
     };
-    let mut entries: Vec<_> = entries.flatten().collect();
-    entries.sort_by_key(|entry| entry.path());
-    for entry in entries {
-        let path = entry.path();
-        if !path.is_file() {
-            continue;
-        }
-        let extension = path
-            .extension()
-            .and_then(|value| value.to_str())
-            .unwrap_or("")
-            .to_lowercase();
+    let mut files: Vec<PathBuf> = entries
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| path.is_file())
+        .collect();
+    files.sort();
+    let referenced = m3u_references(&files);
+    // Un disco referenciado en el m3u arrastra sus bins con el mismo nombre.
+    let referenced_keys: HashSet<String> = referenced
+        .iter()
+        .filter(|path| matches!(file_extension(path).as_str(), "cue" | "chd" | "pbp"))
+        .filter_map(|path| {
+            path.file_stem()
+                .map(|stem| strip_track_marker(&stem.to_string_lossy()))
+        })
+        .collect();
+
+    struct Pick {
+        rank: u8,
+        had_marker: bool,
+        path: PathBuf,
+    }
+    // Clave = nombre sin marcador de pista. Agrupa cue+bin y bins multi-track.
+    let mut groups: BTreeMap<String, Pick> = BTreeMap::new();
+    for path in &files {
+        let extension = file_extension(path);
         if !ROM_EXTS.contains(&extension.as_str()) {
             continue;
         }
-        let name = path
+        let stem = path
             .file_stem()
             .map(|value| value.to_string_lossy().to_string())
             .unwrap_or_default();
-        let boxart = ["png", "jpg", "jpeg"]
-            .iter()
-            .map(|ext| path.with_extension(ext))
-            .find(|candidate| candidate.is_file())
-            .map(|candidate| candidate.to_string_lossy().to_string());
+        let key = strip_track_marker(&stem);
+        if referenced.contains(&normalized(path)) || referenced_keys.contains(&key) {
+            continue;
+        }
+        if key.is_empty() {
+            continue;
+        }
+        let rank = extension_rank(&extension);
+        let had_marker = key != stem;
+        let replace = match groups.get(&key) {
+            None => true,
+            Some(current) => {
+                rank < current.rank || (rank == current.rank && !had_marker && current.had_marker)
+            }
+        };
+        if replace {
+            groups.insert(
+                key,
+                Pick {
+                    rank,
+                    had_marker,
+                    path: path.clone(),
+                },
+            );
+        }
+    }
+
+    for (name, pick) in groups {
+        let rel = format!("{system}/{name}");
+        if !seen.insert(rel.clone()) {
+            continue;
+        }
         games.push(json!({
             "name": name,
-            "rom": path.to_string_lossy(),
-            "boxart": boxart,
-            "rel": format!("{system}/{name}"),
+            "rom": pick.path.to_string_lossy(),
+            "boxart": boxart_for(directory, &name, &pick.path),
+            "rel": rel,
             "system": system,
         }));
     }
@@ -639,17 +794,134 @@ fn flat_games(directory: &Path, system: &str, games: &mut Vec<Value>) {
 
 fn find_rom(directory: &Path) -> Option<PathBuf> {
     let entries = std::fs::read_dir(directory).ok()?;
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_file()
-            && path
-                .extension()
-                .and_then(|value| value.to_str())
-                .map(|value| ROM_EXTS.contains(&value.to_lowercase().as_str()))
-                .unwrap_or(false)
-        {
-            return Some(path);
-        }
+    let mut files: Vec<PathBuf> = entries
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| path.is_file())
+        .collect();
+    files.sort();
+    files
+        .into_iter()
+        .filter_map(|path| {
+            let extension = file_extension(&path);
+            ROM_EXTS
+                .contains(&extension.as_str())
+                .then(|| (extension_rank(&extension), path))
+        })
+        .min_by(|left, right| left.0.cmp(&right.0).then_with(|| left.1.cmp(&right.1)))
+        .map(|(_, path)| path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn workdir(tag: &str) -> PathBuf {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let base = std::env::temp_dir().join(format!("catodo-arcade-{tag}-{unique}"));
+        std::fs::create_dir_all(base.join("psx")).unwrap();
+        base
     }
-    None
+
+    fn write(path: &Path, contents: &[u8]) {
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, contents).unwrap();
+    }
+
+    fn games(base: &Path) -> Vec<Value> {
+        scan(base)
+            .into_iter()
+            .find(|system| system["name"] == "psx")
+            .and_then(|system| system["games"].as_array().cloned())
+            .unwrap_or_default()
+    }
+
+    #[test]
+    fn cue_and_tracks_collapse_to_one_game() {
+        let base = workdir("cue");
+        let psx = base.join("psx");
+        write(&psx.join("Final Fantasy VII.cue"), b"FILE \"x.bin\" BINARY");
+        write(&psx.join("Final Fantasy VII (Track 1).bin"), b"1");
+        write(&psx.join("Final Fantasy VII (Track 2).bin"), b"2");
+        write(&psx.join("Final Fantasy VII.png"), b"png");
+
+        let games = games(&base);
+        assert_eq!(games.len(), 1);
+        assert_eq!(games[0]["name"], "Final Fantasy VII");
+        assert!(games[0]["rom"].as_str().unwrap().ends_with(".cue"));
+    }
+
+    #[test]
+    fn multiple_bin_tracks_collapse_to_one_game() {
+        let base = workdir("bins");
+        let psx = base.join("psx");
+        write(&psx.join("Crash Bandicoot (Track 1).bin"), b"1");
+        write(&psx.join("Crash Bandicoot (Track 2).bin"), b"2");
+
+        let games = games(&base);
+        assert_eq!(games.len(), 1);
+        assert_eq!(games[0]["name"], "Crash Bandicoot");
+    }
+
+    #[test]
+    fn multi_disc_without_m3u_stays_separate() {
+        let base = workdir("discs");
+        let psx = base.join("psx");
+        for disc in 1..=2 {
+            write(
+                &psx.join(format!("Metal Gear Solid (Disc {disc}).cue")),
+                b"cue",
+            );
+            write(
+                &psx.join(format!("Metal Gear Solid (Disc {disc}) (Track 1).bin")),
+                b"bin",
+            );
+        }
+
+        let games = games(&base);
+        assert_eq!(games.len(), 2);
+        assert!(games
+            .iter()
+            .all(|game| game["rom"].as_str().unwrap().ends_with(".cue")));
+    }
+
+    #[test]
+    fn m3u_hides_referenced_discs() {
+        let base = workdir("m3u");
+        let psx = base.join("psx");
+        write(
+            &psx.join("Final Fantasy VIII.m3u"),
+            b"Final Fantasy VIII (Disc 1).cue\nFinal Fantasy VIII (Disc 2).cue\n",
+        );
+        for disc in 1..=2 {
+            write(
+                &psx.join(format!("Final Fantasy VIII (Disc {disc}).cue")),
+                b"cue",
+            );
+            write(
+                &psx.join(format!("Final Fantasy VIII (Disc {disc}).bin")),
+                b"bin",
+            );
+        }
+
+        let games = games(&base);
+        assert_eq!(games.len(), 1);
+        assert_eq!(games[0]["name"], "Final Fantasy VIII");
+        assert!(games[0]["rom"].as_str().unwrap().ends_with(".m3u"));
+    }
+
+    #[test]
+    fn nested_game_folder_prefers_cue() {
+        let base = workdir("nested");
+        let game = base.join("psx").join("Chrono Cross");
+        write(&game.join("Chrono Cross.bin"), b"bin");
+        write(&game.join("Chrono Cross.cue"), b"cue");
+
+        let games = games(&base);
+        assert_eq!(games.len(), 1);
+        assert!(games[0]["rom"].as_str().unwrap().ends_with(".cue"));
+    }
 }

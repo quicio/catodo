@@ -1,0 +1,13 @@
+{
+  "id": "disneyplus",
+  "name": "Disney+",
+  "version": "1.0.0",
+  "type": "web",
+  "icon": "play",
+  "color": "#113ccf",
+  "url": "https://www.disneyplus.com",
+  "user_agent": "chrome",
+  "partition": "persist:disneyplus",
+  "order": 12,
+  "drm": true
+}

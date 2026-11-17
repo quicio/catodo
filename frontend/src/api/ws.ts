@@ -125,8 +125,11 @@ export function applyEvent(state: AppState, event: { event: string; [k: string]:
         },
       };
     case "boxart_fetched":
+      // La carátula se parchea localmente en ArcadeLauncher vía el evento
+      // `catodo:arcade_boxart`; no hace falta recargar todo el estado.
+      return state;
     case "boxarts_synced":
-      // Nueva carátula descargada → la grilla del Arcade se refresca.
+      // Fin del lote de sincronización → refrescar la grilla una sola vez.
       return {
         ...state,
         arcade: {

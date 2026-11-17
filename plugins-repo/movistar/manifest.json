@@ -1,0 +1,20 @@
+{
+  "id": "movistar",
+  "name": "Movistar TV",
+  "version": "1.0.0",
+  "type": "web",
+  "icon": "tv",
+  "color": "#4d7cff",
+  "url": "https://www.movistartv.cl",
+  "user_agent": "chrome",
+  "partition": "persist:movistar",
+  "order": 13,
+  "drm": true,
+  "media_keys": {
+    "playpause": "space",
+    "next": "MediaNextTrack",
+    "prev": "MediaPreviousTrack",
+    "rewind": "arrowleft",
+    "forward": "arrowright"
+  }
+}

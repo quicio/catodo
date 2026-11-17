@@ -1,6 +1,6 @@
 //! Channel registry: built-in placeholders plus declarative web plugins.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -111,6 +111,8 @@ struct Manifest {
     config_key: Option<String>,
     #[serde(default)]
     media_keys: Option<Value>,
+    #[serde(default)]
+    drm: bool,
 }
 
 fn valid_manifest(manifest: &Manifest) -> bool {
@@ -201,7 +203,11 @@ impl Channel for WebChannel {
                 self.manifest.icon.clone()
             },
             channel_type: self.manifest.channel_type.clone(),
-            capabilities: Vec::new(),
+            capabilities: if self.manifest.drm {
+                vec!["drm".to_string()]
+            } else {
+                Vec::new()
+            },
             order: self.manifest.order,
             color: if self.manifest.color.is_empty() {
                 None
@@ -243,6 +249,9 @@ impl Channel for WebChannel {
         match command {
             "set_url" => {
                 if let Some(url) = args.get("url").and_then(Value::as_str) {
+                    if !url.is_empty() && !crate::config::valid_channel_url(url) {
+                        anyhow::bail!("invalid channel url");
+                    }
                     self.config
                         .set(&format!("channel_{}_url", self.manifest.id), json!(url))
                         .await?;
@@ -344,9 +353,9 @@ fn read_manifests(dir: &Path, manifests: &mut HashMap<String, Manifest>) {
 
 pub async fn build_default_channels(
     config: &RuntimeConfig,
-    plugins_repo: &Path,
     data_dir: &Path,
     broker: &EventBroker,
+    enabled: &HashSet<String>,
 ) -> Vec<Arc<dyn Channel>> {
     let mut channels: Vec<Arc<dyn Channel>> = Vec::new();
     if let Some(client) = default_client() {
@@ -366,12 +375,14 @@ pub async fn build_default_channels(
             .with_icon("cast")
             .with_order(100),
     )));
+    // Sólo los plugins instalados en el data dir y habilitados. El repo es
+    // catálogo/siembra, no runtime: así `bundled: false` no aparece solo.
     let mut manifests: HashMap<String, Manifest> = HashMap::new();
-    read_manifests(plugins_repo, &mut manifests);
     read_manifests(&data_dir.join("plugins"), &mut manifests);
 
     let mut plugin_channels: Vec<Arc<dyn Channel>> = manifests
         .into_values()
+        .filter(|manifest| enabled.contains(&manifest.id))
         .map(|manifest| Arc::new(WebChannel::new(manifest, config.clone())) as Arc<dyn Channel>)
         .collect();
     plugin_channels.sort_by_key(|channel| {
@@ -390,12 +401,88 @@ pub fn channel_from_manifest(
     manifest_path: &Path,
     config: &RuntimeConfig,
 ) -> Option<Arc<dyn Channel>> {
-    let text = std::fs::read_to_string(manifest_path).ok()?;
-    let manifest = serde_json::from_str::<Manifest>(&text).ok()?;
-    valid_manifest(&manifest)
-        .then(|| Arc::new(WebChannel::new(manifest, config.clone())) as Arc<dyn Channel>)
+    let manifest = read_manifest(manifest_path)?;
+    Some(Arc::new(WebChannel::new(manifest, config.clone())) as Arc<dyn Channel>)
 }
 
-pub fn default_plugins_repo() -> PathBuf {
-    catodo_platform::plugins_repo()
+/// Valida un manifest sin construir el canal (para instalar sin dejar basura).
+pub fn manifest_is_valid(manifest_path: &Path) -> bool {
+    read_manifest(manifest_path).is_some()
+}
+
+fn read_manifest(manifest_path: &Path) -> Option<Manifest> {
+    let text = std::fs::read_to_string(manifest_path).ok()?;
+    let manifest = serde_json::from_str::<Manifest>(&text).ok()?;
+    valid_manifest(&manifest).then_some(manifest)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[tokio::test]
+    async fn only_enabled_installed_plugins_are_built() {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let data_dir = std::env::temp_dir().join(format!("catodo-enabled-{unique}"));
+        for (id, order) in [("foo", 1), ("bar", 2)] {
+            let dir = data_dir.join("plugins").join(id);
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(
+                dir.join("manifest.json"),
+                format!(
+                    r#"{{"id":"{id}","name":"{id}","version":"1.0.0","type":"web","url":"https://example.com","order":{order}}}"#
+                ),
+            )
+            .unwrap();
+        }
+        let config = RuntimeConfig::new(data_dir.clone());
+        let broker = EventBroker::new();
+        let enabled: HashSet<String> = ["foo".to_string()].into_iter().collect();
+        let channels = build_default_channels(&config, &data_dir, &broker, &enabled).await;
+        let ids: Vec<String> = channels.iter().map(|channel| channel.info().id).collect();
+        assert!(ids.iter().any(|id| id == "foo"));
+        assert!(!ids.iter().any(|id| id == "bar"));
+
+        let none = build_default_channels(&config, &data_dir, &broker, &HashSet::new()).await;
+        assert!(!none
+            .iter()
+            .any(|channel| channel.info().id == "foo" || channel.info().id == "bar"));
+    }
+
+    #[tokio::test]
+    async fn set_url_rejects_invalid_schemes() {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let config =
+            RuntimeConfig::new(std::env::temp_dir().join(format!("catodo-channel-{unique}")));
+        let manifest: Manifest = serde_json::from_value(json!({
+            "id": "foo",
+            "name": "Foo",
+            "version": "1.0.0",
+            "type": "web",
+            "url": "https://example.com",
+            "partition": "persist:foo"
+        }))
+        .unwrap();
+        let channel = WebChannel::new(manifest, config);
+
+        let mut args = Map::new();
+        args.insert("url".to_string(), json!("javascript:alert(1)"));
+        assert!(channel.command("set_url", args).await.is_err());
+        assert_eq!(channel.configured_url().await, "https://example.com");
+
+        let mut args = Map::new();
+        args.insert("url".to_string(), json!("https://example.org/regional"));
+        channel.command("set_url", args).await.unwrap();
+        assert_eq!(
+            channel.configured_url().await,
+            "https://example.org/regional"
+        );
+    }
 }
