@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.1](https://github.com/quicio/catodo/compare/v0.13.0...v0.13.1) (2026-11-18)
+
+
+### Bug Fixes
+
+* **macos:** usar el logo de Cátodo en el Dock ([0b15ec0](https://github.com/quicio/catodo/commit/0b15ec069be1f7299658c72a1b90cc0d04897975))
+
 ## [0.13.0](https://github.com/quicio/catodo/compare/v0.12.0...v0.13.0) (2026-11-18)
 
 
