@@ -676,6 +676,15 @@ app.whenReady().then(async () => {
     widevineReady,
     new Promise((resolve) => setTimeout(resolve, 3000)),
   ]);
+  // En macOS el icono del Dock se toma del bundle al empaquetar; en dev
+  // Electron muestra el suyo. Forzamos el logo de Cátodo también en dev.
+  if (process.platform === "darwin" && fs.existsSync(APP_ICON)) {
+    try {
+      app.dock.setIcon(APP_ICON);
+    } catch {
+      // Best effort: si el Dock no está disponible, seguimos sin icono.
+    }
+  }
   createWindow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
