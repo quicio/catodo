@@ -1,0 +1,18 @@
+{
+  "detector": {
+    "ignoreRules": [
+      "repeating-stripes-gradient",
+      "dark-glow",
+      "ai-color-palette"
+    ],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "space grotesk",
+        "createdAt": "2026-11-18T18:23:44.393Z",
+        "reason": "Cátodo brand font"
+      }
+    ]
+  }
+}
