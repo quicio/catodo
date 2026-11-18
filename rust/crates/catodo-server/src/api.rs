@@ -92,7 +92,10 @@ pub fn router(state: ServerState) -> Router {
                 .layer(DefaultBodyLimit::max(10 * 1024 * 1024)),
         )
         .route("/api/libraries", get(libraries::list).post(libraries::add))
-        .route("/api/libraries/{library_id}", delete(libraries::remove))
+        .route(
+            "/api/libraries/{library_id}",
+            delete(libraries::remove).patch(libraries::update),
+        )
         .route("/api/tunnel/providers", get(tunnel::providers))
         .route("/api/tunnel/status", get(tunnel::status))
         .route("/api/tunnel/health", get(tunnel::health))

@@ -95,6 +95,16 @@ export interface PairDevice {
   expires?: number | null;
 }
 
+export interface LibraryInfo {
+  id: string;
+  name: string;
+  path: string;
+  kind: "series" | "videos";
+  icon?: string;
+  color?: string | null;
+  order?: number;
+}
+
 export interface PluginInfo {
   id: string;
   name: string;
@@ -122,6 +132,38 @@ export const api = {
   revokeDevice: (id: string) =>
     request<{ ok: boolean }>(`/api/pair/devices/${id}`, { method: "DELETE" }),
   channels: () => request<ChannelInfo[]>("/api/channels"),
+  libraries: () => request<LibraryInfo[]>("/api/libraries"),
+  addLibrary: (body: {
+    name: string;
+    path: string;
+    kind: "series" | "videos";
+    icon?: string;
+    color?: string | null;
+    order?: number;
+  }) =>
+    request<{ ok: boolean; id: string }>("/api/libraries", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateLibrary: (
+    id: string,
+    body: Partial<{
+      name: string;
+      path: string;
+      kind: "series" | "videos";
+      icon: string;
+      color: string | null;
+      order: number;
+    }>
+  ) =>
+    request<{ ok: boolean; id: string }>(`/api/libraries/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  removeLibrary: (id: string) =>
+    request<{ ok: boolean; id: string }>(`/api/libraries/${id}`, {
+      method: "DELETE",
+    }),
   plugins: () => request<PluginInfo[]>("/api/plugins"),
   catalog: () => request<PluginInfo[]>("/api/plugins/catalog"),
   installPlugin: (id: string) =>

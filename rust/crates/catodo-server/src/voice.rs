@@ -63,12 +63,10 @@ fn match_verb(text: &str) -> Option<&'static str> {
 
 fn match_channel<'a>(text: &str, channels: &'a [Value]) -> Option<&'a str> {
     let text = normalize(text);
-    for (index, channel) in channels.iter().enumerate() {
+    for channel in channels.iter() {
         let name = normalize(channel.get("name").and_then(Value::as_str).unwrap_or(""));
         if !name.is_empty() && text.contains(&name) {
-            return channel.get("id").and_then(Value::as_str).or(Some(
-                ["spotify", "youtube", "anime", "arcade", "tv"][index.min(4)],
-            ));
+            return channel.get("id").and_then(Value::as_str);
         }
     }
     let words = [

@@ -52,12 +52,16 @@ En esta máquina (macOS arm64) se desarrolla el target Linux (`systemd/`,
   bibliotecas, túnel, MQTT y tokens no se pueden cambiar desde el remote. La
   falta de `ConnectInfo` se trata como request externa (fail-closed). Los ids de
   plugin se validan como slug antes de tocar el filesystem.
-- Canales: `plugins-repo/` es catálogo (`bundled` se siembra; el resto se
-  instala on-demand desde Ajustes → Canales o `/api/plugins/catalog`). Instalar
-  registra el canal sin reiniciar, desinstalar lo quita y el orden se puede
-  overridear por plugin. La URL de cada canal web se ajusta con
-  `channel_<id>_url` (local-only). El arranque registra sólo plugins instalados
-  y habilitados.
+- Canales: `plugins-repo/` es catálogo; sólo YouTube es bundled. TV,
+  Crunchyroll, Max y proveedores se instalan on-demand desde Ajustes → Canales o
+  `/api/plugins/catalog`. Instalar registra el canal sin reiniciar, desinstalar
+  lo quita y el orden se puede overridear por plugin. La URL de cada canal web
+  se ajusta con `channel_<id>_url` (local-only). El arranque registra sólo
+  plugins instalados y habilitados.
+- Canales de emisión: `libraries` define canales de medios con nombre, carpeta,
+  modo `series`/`videos`, icono, color y orden (CRUD en Ajustes → Emisión,
+  local-only). No hay Anime builtin; `anime_dir`/`anime_progress` quedan
+  inertes. La barra y Home usan los metadatos de cada canal.
 - Los remotos se listan sin token y se revocan desde Ajustes
   (`GET/DELETE /api/pair/devices`, local-only). Los tokens vencen a los 30 días
   por defecto (`pair_token_ttl_days`; `0` = sin vencimiento) y los vencidos se

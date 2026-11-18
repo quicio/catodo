@@ -12,6 +12,24 @@ const CHANNEL_ICONS: Record<string, IconName> = {
   arcade: "gamepad",
 };
 
+const VALID_ICONS = new Set<string>([
+  "music",
+  "monitor-play",
+  "clapperboard",
+  "tv",
+  "play",
+  "pause",
+  "skip-back",
+  "skip-forward",
+  "gamepad",
+  "thumbs-up",
+  "thumbs-down",
+  "check",
+  "x",
+  "settings",
+  "smartphone",
+]);
+
 const COLORS: Record<string, string> = {
   spotify: "var(--ch-spotify)",
   youtube: "var(--ch-youtube)",
@@ -40,7 +58,9 @@ export function ChannelGrid({ channels, onPick }: Pick<HomeSlotProps, "channels"
       }}
     >
       {channels.map((c: ChannelInfo, i) => {
-        const iconName = CHANNEL_ICONS[c.id] || (c.type === "web" ? "monitor-play" : "tv");
+        const iconName = (VALID_ICONS.has(c.icon)
+          ? c.icon
+          : CHANNEL_ICONS[c.id] || (c.type === "web" ? "monitor-play" : "tv")) as IconName;
         const color = c.color || COLORS[c.id] || "var(--text)";
         const isHover = hovered === c.id;
         const tint = (percent: number) =>

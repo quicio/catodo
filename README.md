@@ -4,16 +4,18 @@ A multimedia shell for Linux, inspired by old CRT TVs. Turn any monitor into a "
 
 ## Channels
 
-- **Ch1 — Spotify** — Desktop Spotify controlled via MPRIS, with now-playing display and synced lyrics.
-- **Ch2 — YouTube** — YouTube TV interface in an in-app webview (Android TV user agent, custom URL via backend config).
-- **Ch3 — Anime** — Local video player scanning `~/Anime`; grouped by series, with CRT/VHS/4K effects. Es una **biblioteca local configurable** (ver [Bibliotecas de medios](#bibliotecas-de-medios)).
-- **Ch4 — TV** — Movistar TV (or any provider URL, configurable) in an in-app webview with Widevine DRM.
-- **Ch5 — Crunchyroll** — crunchyroll.com in an in-app webview (desktop Chrome user agent; requires Widevine for playback).
+- **Spotify** — Desktop Spotify controlled via MPRIS, with now-playing display and synced lyrics.
+- **YouTube** — YouTube TV interface in an in-app webview (plugin bundled, Android TV user agent).
+- **Arcade** — Local game library with an embedded libretro player.
+- **IPTV** — M3U/M3U8 live TV with zapping.
+- **Screen Cast** — Receives a cast session from the remote.
+- **Canales de emisión** — Bibliotecas locales configurables (series/temporadas o videos planos), creadas desde Ajustes → Emisión. No hay un canal Anime implícito.
+- **TV, Crunchyroll, Max y proveedores** — Plugins del catálogo; se instalan desde Ajustes → Canales.
 
-Los canales `web` (YouTube, TV, Crunchyroll) son **plugins declarativos**: se definen
-con un `manifest.json` y se gestionan con el CLI (ver [Plugins](#plugins)).
+Los canales `web` son **plugins declarativos**: se definen con un `manifest.json`
+y se gestionan desde Ajustes o por API (ver [Plugins](#plugins)).
 
-Hotkeys `1`–`5` switch channels (`6` is reserved). The channel bar auto-hides after 8s of inactivity.
+Hotkeys `1`–`6` switch the first six channels in the current order. The channel bar auto-hides after 8s of inactivity.
 
 ## Architecture
 
@@ -25,7 +27,7 @@ frontend/   Electron app (Chromium) — dev en :8765, release con sidecar
 
 - **Backend**: Rust (axum) handles channels + state + wallpapers + lyrics. Serves the built frontend as static files at `/`. User data lives at `~/.local/share/catodo/`.
 - **Frontend**: React + Vite, built into static HTML/JS, served by the backend.
-- **Shell**: Electron opens a frameless, fullscreen, kiosk window. En dev apunta al backend en `:8765`; la app macOS empaquetada incluye el backend en `Contents/Resources/backend/`, lo lanza como sidecar en un puerto libre y lo apaga al salir. In-app `<webview>` tags handle YouTube and TV.
+- **Shell**: Electron opens a frameless, fullscreen, kiosk window. En dev apunta al backend en `:8765`; la app macOS empaquetada incluye el backend en `Contents/Resources/backend/`, lo lanza como sidecar en un puerto libre y lo apaga al salir. In-app `<webview>` tags handle the installed web channels.
 
 **DRM note**: The TV channel (Movistar) requires Widevine. Cátodo corre sobre Electron for Content Security (castLabs), que instala el CDM de Widevine en runtime, así que dev, la app macOS y el AppImage reproducen contenido DRM. El CDM se descarga al primer arranque; sin red en ese momento los canales DRM no reproducen.
 
@@ -125,7 +127,7 @@ curl http://127.0.0.1:8767/api/version
 
 ## macOS (Apple Silicon)
 
-Cátodo corre de forma nativa en macOS Apple Silicon con la misma experiencia que en Linux. El backend, los canales web (YouTube, Crunchyroll, TV), Anime, Arcade, remote, screencast y los 10 temas funcionan sin cambios. Hay algunas diferencias que conviene conocer.
+Cátodo corre de forma nativa en macOS Apple Silicon con la misma experiencia que en Linux. El backend, YouTube, los canales de emisión, Arcade, IPTV, remote, screencast y los 10 temas funcionan sin cambios. Hay algunas diferencias que conviene conocer.
 
 ### Requisitos
 
@@ -242,23 +244,30 @@ publicados.
 
 ## Bibliotecas de medios
 
-El canal Anime es un caso particular de **bibliotecas locales configurables**: cada
-biblioteca (Anime, Series, Películas…) es un canal propio que escanea una carpeta.
+Cada **canal de emisión** es una biblioteca local configurable que escanea una
+carpeta y se registra como canal propio. Se administra desde **Ajustes → Emisión**
+o por API.
 
-- `kind: series` → agrupa por serie + temporada (anime/series).
-- `kind: movies` → lista plana de películas.
-- Progreso/resume por biblioteca (se retoma donde quedaste).
-- La biblioteca `anime` es built-in (usa `anime_dir`); las demás se agregan desde
-  **Settings** del remote o por API:
+- `kind: series` → agrupa por serie + temporada.
+- `kind: videos` → lista plana de videos (acepta `movies` legacy).
+- Nombre, carpeta, icono, color y orden configurables.
+- Progreso/resume aislado por canal.
+- No hay un canal Anime built-in: si querés Anime, creá un canal apuntando a
+  `~/Anime`. `anime_dir` queda como clave legacy sin efecto.
 
 ```bash
-# agregar una biblioteca (aparece como canal al instante)
+# agregar un canal de emisión (aparece al instante)
 curl -X POST http://127.0.0.1:8765/api/libraries \
   -H 'Content-Type: application/json' \
-  -d '{"id":"series","name":"Series","path":"~/Series","kind":"series"}'
+  -d '{"name":"Saint Seiya","path":"/media/Saint Seiya","kind":"series","icon":"clapperboard","color":"#ffcc00","order":20}'
 
-curl -X DELETE http://127.0.0.1:8765/api/libraries/series
-```
+# editar (nombre, ruta, modo, icono, color u orden)
+curl -X PATCH http://127.0.0.1:8765/api/libraries/saint-seiya \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Saint Seiya Clásico","kind":"series"}'
+
+curl -X DELETE http://127.0.0.1:8765/api/libraries/saint-seiya
+``````
 
 La lista vive en `~/.local/share/catodo/config.json` → `libraries`.
 
@@ -591,10 +600,10 @@ mqtt:
 Cátodo tiene un sistema de plugins declarativos inspirado en los addons de Kodi:
 un plugin es una carpeta `plugins/<id>/` con un `manifest.json` que describe un
 canal `web` (URL + user-agent + partition + color), sin código. El repo
-(`plugins-repo/`) es el **catálogo**: los `bundled: true` se auto-instalan al
-arrancar (YouTube, TV, Crunchyroll, Max) y los `bundled: false` se instalan desde
-la pestaña **Ajustes → Canales** o por API (Netflix, Disney+, Movistar TV, Claro
-TV, Apple TV+, Paramount+, Pluto TV).
+(`plugins-repo/`) es el **catálogo**: sólo YouTube es `bundled: true` y se
+autoinstala. TV, Crunchyroll, Max, Netflix, Disney+, Movistar, Claro, Apple TV+,
+Paramount+ y Pluto TV son `bundled: false` y se instalan desde **Ajustes →
+Canales** o por API.
 
 ```json
 // manifest.json de un plugin web
@@ -665,8 +674,8 @@ curl -X DELETE http://127.0.0.1:8767/api/plugins/netflix
 | POST   | `/api/channels/{id}/command`    | Channel command (play, pause, ...) |
 | POST   | `/api/channels/next`            | Next channel (cyclic)              |
 | POST   | `/api/channels/previous`        | Previous channel (cyclic)          |
-| GET    | `/api/channels/{id}/episodes`   | Channel episodes (Anime)           |
-| GET    | `/api/channels/{id}/stream`     | Episode file stream (Anime)        |
+| GET    | `/api/channels/{id}/episodes`   | Channel episodes (emisión)         |
+| GET    | `/api/channels/{id}/stream`     | Episode file stream (emisión)      |
 | GET    | `/api/channels/{id}/boxart`     | Boxart image (Arcade)              |
 | GET    | `/api/channels/{id}/history`    | Channel history (Spotify)          |
 | POST   | `/api/volume?level=N\|+\|-`     | Set/adjust volume                  |

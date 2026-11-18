@@ -86,6 +86,11 @@ impl ChannelInfo {
         self
     }
 
+    pub fn with_color(mut self, color: Option<String>) -> Self {
+        self.color = color;
+        self
+    }
+
     pub fn with_capabilities(mut self, capabilities: impl IntoIterator<Item = String>) -> Self {
         self.capabilities = capabilities.into_iter().collect();
         self

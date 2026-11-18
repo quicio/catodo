@@ -30,10 +30,12 @@ import { Icon, PACKS } from "../icons";
 import { TunnelSection } from "./TunnelSection";
 import ChannelSettings from "./ChannelSettings";
 import ArcadeSettings from "./ArcadeSettings";
+import EmissionSettings from "./EmissionSettings";
 
 type TabId =
   | "general"
   | "canales"
+  | "emision"
   | "modos"
   | "arcade"
   | "apariencia"
@@ -44,6 +46,7 @@ type TabId =
 const TABS: { id: TabId; label: string }[] = [
   { id: "general", label: "General" },
   { id: "canales", label: "Canales" },
+  { id: "emision", label: "Emisión" },
   { id: "modos", label: "Modos" },
   { id: "arcade", label: "Arcade" },
   { id: "apariencia", label: "Apariencia" },
@@ -462,6 +465,9 @@ export default function AppearanceSettings({
 
       {/* ==== CANALES ==== */}
       {tab === "canales" && <ChannelSettings />}
+
+      {/* ==== EMISIÓN ==== */}
+      {tab === "emision" && <EmissionSettings />}
 
       {/* ==== ARCADE ==== */}
       {tab === "arcade" && <ArcadeSettings />}

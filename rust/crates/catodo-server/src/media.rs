@@ -45,6 +45,8 @@ struct Library {
     name: String,
     path: PathBuf,
     kind: String,
+    icon: String,
+    color: Option<String>,
     order: i64,
 }
 
@@ -62,15 +64,16 @@ pub struct MediaChannel {
 
 impl MediaChannel {
     fn new(library: Library, broker: EventBroker, data_dir: impl Into<PathBuf>) -> Self {
-        let progress_key = if library.id == "anime" {
-            "anime_progress".to_string()
-        } else {
-            format!("media_progress_{}", library.id)
-        };
+        let progress_key = format!("media_progress_{}", library.id);
         Self {
             info: ChannelInfo::new(&library.id, &library.name, "app")
-                .with_icon("tv")
-                .with_order(library.order),
+                .with_icon(if library.icon.is_empty() {
+                    "clapperboard"
+                } else {
+                    &library.icon
+                })
+                .with_order(library.order)
+                .with_color(library.color.clone()),
             library,
             episodes: RwLock::new(Vec::new()),
             current: RwLock::new(None),
@@ -332,12 +335,12 @@ fn walk(base: &Path, dir: &Path, kind: &str, episodes: &mut Vec<Episode>) {
             .unwrap_or_default();
         let series = if parts.len() > 1 {
             parts[0].clone()
-        } else if kind == "movies" {
-            "Películas".to_string()
+        } else if kind == "videos" {
+            "Videos".to_string()
         } else {
             "Sin serie".to_string()
         };
-        let season = if kind != "movies" && parts.len() > 2 {
+        let season = if kind == "series" && parts.len() > 2 {
             parts[1].clone()
         } else {
             String::new()
@@ -352,26 +355,56 @@ fn walk(base: &Path, dir: &Path, kind: &str, episodes: &mut Vec<Episode>) {
     }
 }
 
+fn library_from_entry(entry: &Value, index: usize) -> Option<Library> {
+    let id = entry.get("id").and_then(Value::as_str)?.to_string();
+    let path = entry.get("path").and_then(Value::as_str).unwrap_or("");
+    if path.is_empty() {
+        return None;
+    }
+    let name = entry
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or(&id)
+        .to_string();
+    let kind = match entry.get("kind").and_then(Value::as_str) {
+        Some("videos" | "movies") => "videos",
+        _ => "series",
+    }
+    .to_string();
+    let icon = entry
+        .get("icon")
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("clapperboard")
+        .to_string();
+    let color = entry
+        .get("color")
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+    let order = entry
+        .get("order")
+        .and_then(Value::as_i64)
+        .unwrap_or(6 + index as i64);
+    Some(Library {
+        id,
+        name,
+        path: PathBuf::from(path),
+        kind,
+        icon,
+        color,
+        order,
+    })
+}
+
 pub fn channel_from_config_entry(
     entry: &Value,
     broker: &EventBroker,
     data_dir: &Path,
 ) -> Option<Arc<dyn Channel>> {
-    let id = entry.get("id").and_then(Value::as_str)?;
-    let name = entry.get("name").and_then(Value::as_str).unwrap_or(id);
-    let path = entry.get("path").and_then(Value::as_str)?;
-    let kind = entry
-        .get("kind")
-        .and_then(Value::as_str)
-        .unwrap_or("series");
+    let library = library_from_entry(entry, 0)?;
     Some(Arc::new(MediaChannel::new(
-        Library {
-            id: id.to_string(),
-            name: name.to_string(),
-            path: PathBuf::from(path),
-            kind: if kind == "movies" { "movies" } else { "series" }.to_string(),
-            order: 6,
-        },
+        library,
         broker.clone(),
         data_dir.to_path_buf(),
     )) as Arc<dyn Channel>)
@@ -382,42 +415,14 @@ pub async fn build_media_channels(
     broker: &EventBroker,
     data_dir: &Path,
 ) -> Vec<Arc<dyn Channel>> {
-    let mut libraries = Vec::new();
-    let anime_dir = config
-        .get_string("anime_dir")
+    config
+        .get("libraries")
         .await
-        .unwrap_or_else(|| format!("{}/Anime", std::env::var("HOME").unwrap_or_default()));
-    libraries.push(Library {
-        id: "anime".to_string(),
-        name: "Anime".to_string(),
-        path: PathBuf::from(anime_dir),
-        kind: "series".to_string(),
-        order: 2,
-    });
-
-    if let Some(entries) = config.get("libraries").await.as_array().cloned() {
-        for (index, entry) in entries.iter().enumerate() {
-            let Some(id) = entry.get("id").and_then(Value::as_str) else {
-                continue;
-            };
-            let name = entry.get("name").and_then(Value::as_str).unwrap_or(id);
-            let path = entry.get("path").and_then(Value::as_str).unwrap_or("");
-            let kind = entry
-                .get("kind")
-                .and_then(Value::as_str)
-                .unwrap_or("series");
-            libraries.push(Library {
-                id: id.to_string(),
-                name: name.to_string(),
-                path: PathBuf::from(path),
-                kind: if kind == "movies" { "movies" } else { "series" }.to_string(),
-                order: 6 + index as i64,
-            });
-        }
-    }
-
-    libraries
+        .as_array()
         .into_iter()
+        .flatten()
+        .enumerate()
+        .filter_map(|(index, entry)| library_from_entry(entry, index))
         .map(|library| {
             Arc::new(MediaChannel::new(
                 library,
@@ -426,4 +431,62 @@ pub async fn build_media_channels(
             )) as Arc<dyn Channel>
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn workdir(tag: &str) -> PathBuf {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("catodo-media-{tag}-{unique}"));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn scan_series_groups_by_season() {
+        let base = workdir("series");
+        let season = base.join("Show").join("Season 1");
+        std::fs::create_dir_all(&season).unwrap();
+        std::fs::write(season.join("Ep 1.mp4"), b"x").unwrap();
+        std::fs::write(season.join("Ep 2.mkv"), b"x").unwrap();
+
+        let episodes = scan(&base, "series");
+        assert_eq!(episodes.len(), 2);
+        assert!(episodes.iter().all(|episode| episode.series == "Show"));
+        assert!(episodes.iter().all(|episode| episode.season == "Season 1"));
+    }
+
+    #[test]
+    fn scan_videos_uses_flat_group() {
+        let base = workdir("videos");
+        std::fs::write(base.join("Movie.mp4"), b"x").unwrap();
+
+        let episodes = scan(&base, "videos");
+        assert_eq!(episodes.len(), 1);
+        assert_eq!(episodes[0].series, "Videos");
+        assert_eq!(episodes[0].season, "");
+    }
+
+    #[test]
+    fn library_entry_reads_metadata_and_normalizes_kind() {
+        let entry = json!({
+            "id": "sci-fi",
+            "name": "Sci-fi",
+            "path": "/tmp/sci-fi",
+            "kind": "movies",
+            "icon": "clapperboard",
+            "color": "#00ffcc",
+            "order": 12
+        });
+        let library = library_from_entry(&entry, 0).expect("library");
+        assert_eq!(library.kind, "videos");
+        assert_eq!(library.icon, "clapperboard");
+        assert_eq!(library.color.as_deref(), Some("#00ffcc"));
+        assert_eq!(library.order, 12);
+    }
 }

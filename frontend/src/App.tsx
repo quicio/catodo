@@ -140,6 +140,17 @@ export default function App() {
           }),
         );
       }
+      // Bibliotecas de emisión (alta/edición/borrado): refrescar canales y UI.
+      if (event.event === "libraries_changed") {
+        window.dispatchEvent(new CustomEvent("catodo:libraries_changed"));
+        api
+          .channels()
+          .then((list) => {
+            setChannels(list);
+            dispatch({ event: "_channels_loaded", channels: list });
+          })
+          .catch(() => {});
+      }
       // Wallpapers cambiaron en el backend (descarga de artista terminó, etc.)
       // → NowPlaying re-consulta los wallpapers del artista actual.
       if (event.event === "wallpapers_changed") {

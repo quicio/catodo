@@ -7,34 +7,42 @@
       "bundled": true,
       "origin": "bundled",
       "path": "youtube",
-      "requires_catodo": { "min": "0.1.0" }
+      "requires_catodo": {
+        "min": "0.1.0"
+      }
     },
     {
       "id": "tv",
       "name": "TV",
       "version": "1.0.0",
-      "bundled": true,
-      "origin": "bundled",
+      "bundled": false,
+      "origin": "repo",
       "path": "tv",
-      "requires_catodo": { "min": "0.1.0" }
+      "requires_catodo": {
+        "min": "0.1.0"
+      }
     },
     {
       "id": "crunchyroll",
       "name": "Crunchyroll",
       "version": "1.0.1",
-      "bundled": true,
-      "origin": "bundled",
+      "bundled": false,
+      "origin": "repo",
       "path": "crunchyroll",
-      "requires_catodo": { "min": "0.1.0" }
+      "requires_catodo": {
+        "min": "0.1.0"
+      }
     },
     {
       "id": "hbomax",
       "name": "Max",
       "version": "1.1.0",
-      "bundled": true,
-      "origin": "bundled",
+      "bundled": false,
+      "origin": "repo",
       "path": "hbomax",
-      "requires_catodo": { "min": "0.1.0" }
+      "requires_catodo": {
+        "min": "0.1.0"
+      }
     },
     {
       "id": "netflix",
@@ -43,7 +51,9 @@
       "bundled": false,
       "origin": "repo",
       "path": "netflix",
-      "requires_catodo": { "min": "0.12.0" }
+      "requires_catodo": {
+        "min": "0.12.0"
+      }
     },
     {
       "id": "disneyplus",
@@ -52,7 +62,9 @@
       "bundled": false,
       "origin": "repo",
       "path": "disneyplus",
-      "requires_catodo": { "min": "0.12.0" }
+      "requires_catodo": {
+        "min": "0.12.0"
+      }
     },
     {
       "id": "movistar",
@@ -61,7 +73,9 @@
       "bundled": false,
       "origin": "repo",
       "path": "movistar",
-      "requires_catodo": { "min": "0.12.0" }
+      "requires_catodo": {
+        "min": "0.12.0"
+      }
     },
     {
       "id": "claro",
@@ -70,7 +84,9 @@
       "bundled": false,
       "origin": "repo",
       "path": "claro",
-      "requires_catodo": { "min": "0.12.0" }
+      "requires_catodo": {
+        "min": "0.12.0"
+      }
     },
     {
       "id": "appletv",
@@ -79,7 +95,9 @@
       "bundled": false,
       "origin": "repo",
       "path": "appletv",
-      "requires_catodo": { "min": "0.12.0" }
+      "requires_catodo": {
+        "min": "0.12.0"
+      }
     },
     {
       "id": "paramount",
@@ -88,7 +106,9 @@
       "bundled": false,
       "origin": "repo",
       "path": "paramount",
-      "requires_catodo": { "min": "0.12.0" }
+      "requires_catodo": {
+        "min": "0.12.0"
+      }
     },
     {
       "id": "pluto",
@@ -97,7 +117,9 @@
       "bundled": false,
       "origin": "repo",
       "path": "pluto",
-      "requires_catodo": { "min": "0.12.0" }
+      "requires_catodo": {
+        "min": "0.12.0"
+      }
     }
   ]
 }

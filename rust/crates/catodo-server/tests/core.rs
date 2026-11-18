@@ -11,7 +11,7 @@ use catodo_server::events::EventBroker;
 use catodo_server::manager::ChannelManager;
 use catodo_server::{router, ServerState};
 use http_body_util::BodyExt;
-use serde_json::Value;
+use serde_json::{json, Value};
 use tower::ServiceExt;
 
 static APP_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -24,6 +24,19 @@ async fn app() -> (axum::Router, Arc<ChannelManager>) {
         ^ u128::from(APP_COUNTER.fetch_add(1, Ordering::SeqCst));
     let dir = std::env::temp_dir().join(format!("catodo-rs-core-{unique}"));
     let config = RuntimeConfig::new(dir.clone());
+    config
+        .set(
+            "libraries",
+            json!([{
+                "id": "test-lib",
+                "name": "Test Lib",
+                "path": dir.join("media").to_string_lossy(),
+                "kind": "series",
+                "order": 2
+            }]),
+        )
+        .await
+        .unwrap();
     let broker = EventBroker::new();
     let manager = Arc::new(ChannelManager::new(broker.clone(), dir.clone()));
     manager.init().await;
@@ -57,6 +70,21 @@ async fn get(router: axum::Router, uri: &str) -> axum::response::Response {
 
 async fn post_json(router: axum::Router, uri: &str, body: &str) -> axum::response::Response {
     post_json_addr(router, uri, body, "127.0.0.1:5000", None).await
+}
+
+async fn patch_json(router: axum::Router, uri: &str, body: &str) -> axum::response::Response {
+    router
+        .oneshot(with_client(
+            Request::builder()
+                .method("PATCH")
+                .uri(uri)
+                .header("content-type", "application/json")
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+            "127.0.0.1:5000",
+        ))
+        .await
+        .unwrap()
 }
 
 async fn delete(router: axum::Router, uri: &str) -> axum::response::Response {
@@ -173,9 +201,10 @@ async fn channels_include_builtins_and_plugins() {
         .iter()
         .filter_map(|channel| channel.get("id").and_then(Value::as_str))
         .collect();
-    assert!(ids.contains(&"anime"));
+    assert!(ids.contains(&"test-lib"));
     assert!(ids.contains(&"youtube"));
-    assert!(ids.contains(&"tv"));
+    assert!(!ids.contains(&"anime"));
+    assert!(!ids.contains(&"tv"));
     let youtube = channels
         .iter()
         .find(|channel| channel.get("id").and_then(Value::as_str) == Some("youtube"))
@@ -232,9 +261,9 @@ async fn open_close_and_next_channel() {
 
     let response = post_json(app.clone(), "/api/channels/next", "").await;
     assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(manager.current().await.as_deref(), Some("anime"));
+    assert_eq!(manager.current().await.as_deref(), Some("test-lib"));
 
-    let response = post_json(app.clone(), "/api/channels/anime/close", "").await;
+    let response = post_json(app.clone(), "/api/channels/test-lib/close", "").await;
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(manager.current().await, None);
 
@@ -388,12 +417,71 @@ async fn external_cannot_mutate_libraries() {
     let local = post_json_addr(
         app,
         "/api/libraries",
-        r#"{"id":"local-media","path":"/tmp","kind":"series"}"#,
+        r#"{"id":"local-media","name":"Local Media","path":"/tmp","kind":"series"}"#,
         "127.0.0.1:5000",
         None,
     )
     .await;
     assert_eq!(local.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn libraries_crud_and_metadata() {
+    let (app, _) = app().await;
+    let libraries = body_json(get(app.clone(), "/api/libraries").await).await;
+    assert!(libraries
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|entry| entry["id"] == "test-lib"));
+
+    let response = post_json(
+        app.clone(),
+        "/api/libraries",
+        r#"{"name":"Sci Fi","path":"/tmp/sci","kind":"videos"}"#,
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let id = body_json(response).await["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(id, "sci-fi");
+
+    let channels = body_json(get(app.clone(), "/api/channels").await).await;
+    let channel = channels
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|channel| channel["id"] == id.as_str())
+        .expect("emission channel");
+    assert_eq!(channel["name"], "Sci Fi");
+    assert_eq!(channel["type"], "app");
+    assert_eq!(channel["icon"], "clapperboard");
+
+    let response = patch_json(
+        app.clone(),
+        &format!("/api/libraries/{id}"),
+        r##"{"name":"Sci-Fi Movies","color":"#00ffcc","order":1,"kind":"videos"}"##,
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let channels = body_json(get(app.clone(), "/api/channels").await).await;
+    let channel = channels
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|channel| channel["id"] == id.as_str())
+        .expect("updated emission channel");
+    assert_eq!(channel["name"], "Sci-Fi Movies");
+    assert_eq!(channel["color"], "#00ffcc");
+    assert_eq!(channel["order"], 1);
+
+    let response = delete(app.clone(), &format!("/api/libraries/{id}")).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(!channel_ids(&app).await.contains(&id));
+    let response = delete(app, &format!("/api/libraries/{id}")).await;
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
@@ -422,6 +510,14 @@ async fn catalog_separates_available_from_installed() {
     assert_eq!(youtube["installed"], true);
     assert_eq!(youtube["bundled"], true);
     assert_eq!(youtube["enabled"], true);
+    for id in ["tv", "crunchyroll", "hbomax"] {
+        let entry = entries
+            .iter()
+            .find(|entry| entry.get("id").and_then(Value::as_str) == Some(id))
+            .expect("provider in catalog");
+        assert_eq!(entry["installed"], false, "{id} no debe estar instalado");
+        assert_eq!(entry["bundled"], false, "{id} no debe ser bundled");
+    }
 }
 
 #[tokio::test]
