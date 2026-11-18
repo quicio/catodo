@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cátodo — Tu monitor vuelve a ser una TV</title>
+  <meta name="description" content="Cátodo es un kiosko multimedia para Linux y macOS: canales para Spotify, YouTube, Arcade, IPTV y tus bibliotecas locales. Sin escritorio, sin cuenta, sin telemetría.">
+  <meta name="theme-color" content="#08090a">
+  <link rel="icon" href="assets/catodo-icon.png" type="image/png">
+  <link rel="apple-touch-icon" href="assets/catodo-icon.png">
+  <link rel="preload" href="assets/fonts/space-grotesk-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="assets/fonts/space-grotesk-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="assets/fonts/jetbrains-mono-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="canonical" href="https://quicio.github.io/catodo/">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Cátodo — Tu monitor vuelve a ser una TV">
+  <meta property="og:description" content="Canales reales, arcade embebido y tus bibliotecas locales. Un kiosko multimedia sin escritorio y sin cuenta.">
+  <meta property="og:url" content="https://quicio.github.io/catodo/">
+  <meta property="og:image" content="https://quicio.github.io/catodo/assets/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <script defer src="main.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#contenido">Saltar al contenido</a>
+
+  <header class="site-header">
+    <a class="brand" href="#inicio" aria-label="Cátodo, inicio">
+      <img src="assets/catodo-icon.png" alt="" width="30" height="30">
+      <span>Cátodo</span>
+    </a>
+    <nav class="site-nav" aria-label="Principal">
+      <a href="#canales">Canales</a>
+      <a href="#arcade">Arcade</a>
+      <a href="#remoto">Remoto</a>
+      <a href="#actualizaciones">Actualizaciones</a>
+    </nav>
+    <a class="button button-small" href="#descargar">Descargar</a>
+  </header>
+
+  <main id="contenido">
+    <section class="hero" id="inicio" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <p class="eyebrow">Kiosko multimedia · Linux + macOS</p>
+        <h1 id="hero-title">Tu monitor vuelve<br>a ser <span class="accent">una TV.</span></h1>
+        <p class="lede">Cátodo convierte la pantalla en un kiosko de canales: Spotify, YouTube, Arcade, IPTV y tus propias bibliotecas. Sin escritorio, sin cuenta y sin telemetría.</p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="#descargar" data-primary-download>Descargar Cátodo <span class="button-note" data-platform-label>para tu sistema</span></a>
+          <a class="text-link" href="https://github.com/quicio/catodo">Ver el código <span class="arrow" aria-hidden="true"></span></a>
+        </div>
+        <ul class="hero-facts" aria-label="Principios del producto">
+          <li>Sin cuenta</li>
+          <li>Sin telemetría</li>
+          <li>Datos locales</li>
+          <li>Rust + Electron</li>
+        </ul>
+      </div>
+
+      <figure class="hero-plate">
+        <div class="crt crt-hero">
+          <div class="crt-screen">
+            <div class="home-mock">
+              <div class="home-top">
+                <span class="home-clock">23:14</span>
+                <span class="home-date">SÁBADO 18 NOV</span>
+              </div>
+              <div class="home-grid">
+                <div class="home-channel ch-spotify"><span class="dot"></span><span>Spotify</span></div>
+                <div class="home-channel ch-youtube"><span class="dot"></span><span>YouTube</span></div>
+                <div class="home-channel ch-arcade"><span class="dot"></span><span>Arcade</span></div>
+                <div class="home-channel ch-iptv"><span class="dot"></span><span>IPTV</span></div>
+                <div class="home-channel ch-emision"><span class="dot"></span><span>Emisión</span></div>
+                <div class="home-channel ch-cast"><span class="dot"></span><span>Pantalla</span></div>
+              </div>
+              <div class="home-hint">FLECHAS · ENTER · ESC</div>
+            </div>
+          </div>
+          <img class="crt-frame" src="assets/vintage-crt.webp" alt="Marco de televisor CRT de Cátodo con la grilla de canales en pantalla." width="1647" height="955">
+        </div>
+        <figcaption>El Home de Cátodo dentro del marco CRT del player de Arcade.</figcaption>
+      </figure>
+    </section>
+
+    <section class="manifesto" id="canales" aria-labelledby="manifesto-title">
+      <div class="manifesto-copy">
+        <h2 id="manifesto-title">Una TV,<br>no un dashboard.</h2>
+        <p>Cátodo no muestra un escritorio con apps. Muestra canales. Cada canal ocupa la pantalla completa, se abre con un número, una flecha o un mando, y vuelve al Home cuando terminás.</p>
+        <p>El backend es Rust y la interfaz corre en un Electron en kiosko. Los canales web son plugins declarativos: se instalan desde Ajustes y no ejecutan código de terceros. Los proveedores no vienen impuestos; la instalación arranca limpia.</p>
+      </div>
+      <aside class="margin-note">
+        <span class="margin-rule" aria-hidden="true"></span>
+        <p>El monitor no muestra un escritorio. Muestra Cátodo.</p>
+      </aside>
+    </section>
+
+    <section class="features" aria-labelledby="features-title">
+      <div class="section-head">
+        <h2 id="features-title">Canales que se sienten como canales.</h2>
+        <p>Sin pestañas, sin ventanas y sin un launcher de apps. La tele vuelve a comportarse como una tele.</p>
+      </div>
+
+      <article class="feature">
+        <div class="feature-copy">
+          <h3>Cada app es un canal</h3>
+          <p>Spotify con letras sincronizadas, YouTube TV en un webview, IPTV con zapping y un Home que se navega con flechas, teclado o gamepad. La barra de canales aparece cuando la necesitás y se esconde sola.</p>
+          <p class="feature-note">Los canales web se instalan desde Ajustes → Canales. YouTube es el único bundled; TV, Crunchyroll, Max y el resto son opt-in.</p>
+        </div>
+        <figure class="feature-plate plate-rail">
+          <div class="rail">
+            <span class="rail-label">CANALES</span>
+            <span class="rail-pill active">01 Spotify</span>
+            <span class="rail-pill">02 YouTube</span>
+            <span class="rail-pill">03 Arcade</span>
+            <span class="rail-pill">04 IPTV</span>
+            <span class="rail-pill">05 Emisión</span>
+          </div>
+          <div class="rail-now">
+            <span class="rail-eq" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+            <div><strong>Nocturne in C-sharp minor</strong><small>Chopin · Spotify</small></div>
+          </div>
+          <figcaption>Barra de canales y now playing · navegación con flechas o mando.</figcaption>
+        </figure>
+      </article>
+
+      <article class="feature feature-reverse" id="arcade">
+        <div class="feature-copy">
+          <h3>Arcade sin salir del kiosko</h3>
+          <p>El canal Arcade escanea tu carpeta de juegos, muestra carátulas y corre libretro embebido: video RGB565 y audio PCM por WebSocket, sin abrir otro programa. Cualquier juego puede esperar en la grilla mientras el resto del kiosko sigue vivo.</p>
+          <p class="feature-note">El player tiene marco CRT, curvatura, borde y HUD configurables en vivo con F1. También acepta un frame de imagen con la pantalla transparente.</p>
+        </div>
+        <figure class="feature-plate plate-arcade">
+          <div class="crt crt-arcade">
+            <div class="crt-screen">
+              <div class="arcade-mock">
+                <span class="arcade-hud">SNES9X · 256×224 · 60.0 fps</span>
+                <span class="arcade-big">GAME<br>OVER</span>
+                <span class="arcade-controls">F1 AJUSTES · ESC SALIR</span>
+              </div>
+            </div>
+            <img class="crt-frame" src="assets/vintage-crt.webp" alt="Marco CRT del player de Arcade con un mock de juego." width="1647" height="955">
+          </div>
+          <figcaption>Player embebido · marco vintage, curvatura y HUD auto-ocultable.</figcaption>
+        </figure>
+      </article>
+
+      <article class="feature" id="remoto">
+        <div class="feature-copy">
+          <h3>El control vive en tu teléfono</h3>
+          <p>El remote es una PWA: la abrís desde un QR, emparejás el dispositivo y tenés D-pad, volumen, play/pause y un teclado para los webviews. El túnel HTTPS permite controlar el kiosko desde fuera de la LAN sin abrir puertos.</p>
+          <p class="feature-note">Pairing de un solo uso, tokens por dispositivo y revocación desde Ajustes. La administración sensible queda local-only.</p>
+        </div>
+        <figure class="feature-plate plate-remote">
+          <div class="phone">
+            <div class="phone-notch"></div>
+            <div class="phone-screen">
+              <span class="phone-label">CÁTODO REMOTE</span>
+              <div class="phone-dpad" aria-hidden="true"><i></i><i></i><i></i><i></i><b></b></div>
+              <div class="phone-row"><span>VOL −</span><span>OK</span><span>VOL +</span></div>
+              <div class="phone-keys"><span>⌂</span><span>▶</span><span>⌨</span></div>
+            </div>
+          </div>
+          <figcaption>Remote PWA · pairing por QR, LAN o túnel.</figcaption>
+        </figure>
+      </article>
+
+      <article class="feature feature-reverse">
+        <div class="feature-copy">
+          <h3>Un motor de emisión, infinitos canales</h3>
+          <p>Anime no es un caso especial: es un canal de emisión. Creá “Saint Seiya”, “Sci-fi Movies” o “Documentales” apuntando a una carpeta, elegí series con temporadas o videos planos, y Cátodo guarda el progreso de cada canal por separado.</p>
+          <p class="feature-note">Nombre, carpeta, modo, icono, color y orden se editan en Ajustes → Emisión. Sin código, sin rebuild y sin tocar la base de datos.</p>
+        </div>
+        <figure class="feature-plate plate-library">
+          <div class="library">
+            <span class="library-label">EMISIÓN</span>
+            <div class="library-card">
+              <span class="library-badge">SERIES</span>
+              <strong>Saint Seiya</strong>
+              <small>114 episodios · 3 temporadas</small>
+              <span class="progress"><i style="width:62%"></i></span>
+            </div>
+            <div class="library-card">
+              <span class="library-badge">VIDEOS</span>
+              <strong>Sci-fi Movies</strong>
+              <small>38 películas · 2 sin terminar</small>
+              <span class="progress"><i style="width:24%"></i></span>
+            </div>
+            <div class="library-card">
+              <span class="library-badge">SERIES</span>
+              <strong>Anime</strong>
+              <small>~/Anime · reanudar donde quedaste</small>
+              <span class="progress"><i style="width:81%"></i></span>
+            </div>
+          </div>
+          <figcaption>Canales de emisión · la misma biblioteca, otro nombre y otra carpeta.</figcaption>
+        </figure>
+      </article>
+    </section>
+
+    <section class="ledger" aria-labelledby="ledger-title">
+      <div class="ledger-intro">
+        <h2 id="ledger-title">Debajo del vidrio.</h2>
+        <p>Un kiosko hecho con las piezas justas.</p>
+      </div>
+      <dl class="ledger-list">
+        <div><dt>Backend</dt><dd>Rust · axum + tokio</dd></div>
+        <div><dt>Interfaz</dt><dd>React + Vite en Electron kiosko</dd></div>
+        <div><dt>Canales</dt><dd>Nativos + plugins web declarativos</dd></div>
+        <div><dt>Arcade</dt><dd>libretro embebido · video y audio por WS</dd></div>
+        <div><dt>Datos</dt><dd>Todo en <code>~/.local/share/catodo</code></dd></div>
+        <div><dt>Online</dt><dd>Sin cuenta ni telemetría</dd></div>
+        <div><dt>Plataformas</dt><dd>Linux · macOS Apple Silicon</dd></div>
+      </dl>
+    </section>
+
+    <section class="updates" id="actualizaciones" aria-labelledby="updates-title">
+      <div class="section-head updates-head">
+        <h2 id="updates-title">Actualizaciones</h2>
+        <p>Las versiones las publica GitHub Releases. Descargás, verificás el SHA-256 y decidís cuándo actualizar.</p>
+      </div>
+      <div class="release-meta">
+        <span>Última versión <strong data-version>disponible</strong></span>
+        <span data-release-date>Consulta las novedades en GitHub</span>
+        <a class="text-link" href="https://github.com/quicio/catodo/releases">Todas las versiones <span class="arrow" aria-hidden="true"></span></a>
+      </div>
+      <ol class="release-list" id="release-list" aria-live="polite">
+        <li class="release-placeholder">Cargando las últimas versiones…</li>
+      </ol>
+      <noscript><p class="small-note">Las notas de versión están en <a href="https://github.com/quicio/catodo/releases">GitHub Releases</a>.</p></noscript>
+    </section>
+
+    <section class="download" id="descargar" aria-labelledby="download-title">
+      <div class="download-copy">
+        <h2 id="download-title">Descargar Cátodo</h2>
+        <p>Elegí tu sistema. Las descargas apuntan siempre a la última release publicada.</p>
+        <p class="download-version">Versión <strong data-version>disponible</strong> · <a href="https://github.com/quicio/catodo/releases/latest/download/SHA256SUMS.txt">SHA-256</a></p>
+      </div>
+      <div class="download-list">
+        <a class="download-row" data-download="mac-arm" href="https://github.com/quicio/catodo/releases/latest/download/Catodo-mac-arm64.zip">
+          <span><strong>macOS · Apple Silicon</strong><small>M1 en adelante · .zip · o <code>brew install --cask quicio/tap/catodo</code></small></span>
+          <span class="download-arrow" aria-hidden="true"></span>
+        </a>
+        <a class="download-row" data-download="linux" href="https://github.com/quicio/catodo/releases/latest">
+          <span><strong>Linux</strong><small>x86_64 · AppImage, deb, rpm o paquete Arch</small></span>
+          <span class="download-arrow" aria-hidden="true"></span>
+        </a>
+        <a class="download-row" data-download="source" href="https://github.com/quicio/catodo/releases/latest">
+          <span><strong>Código fuente</strong><small>tarball + instrucciones en el README</small></span>
+          <span class="download-arrow" aria-hidden="true"></span>
+        </a>
+      </div>
+      <details class="linux-options">
+        <summary>Paquetes de Linux</summary>
+        <div class="linux-grid">
+          <div><p class="detail-label">AppImage</p><a data-linux-link="appimage" href="https://github.com/quicio/catodo/releases/latest">Catodo-x86_64.AppImage</a></div>
+          <div><p class="detail-label">Debian / Ubuntu</p><a data-linux-link="deb" href="https://github.com/quicio/catodo/releases/latest">Catodo-amd64.deb</a></div>
+          <div><p class="detail-label">Fedora / RPM</p><a data-linux-link="rpm" href="https://github.com/quicio/catodo/releases/latest">catodo-x86_64.rpm</a></div>
+          <div><p class="detail-label">Arch Linux</p><a data-linux-link="arch" href="https://github.com/quicio/catodo/releases/latest">catodo-x86_64.pkg.tar.zst</a></div>
+        </div>
+        <p class="small-note">También podés instalar con el script del repo: <a href="https://github.com/quicio/catodo/blob/main/install.sh">install.sh</a>.</p>
+      </details>
+      <p class="small-note">macOS no está notarizado por Apple: la primera vez, abrí Cátodo con clic derecho → Abrir.</p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-brand">
+      <img src="assets/catodo-icon.png" alt="" width="26" height="26">
+      <span>Cátodo</span>
+    </div>
+    <p class="footer-line">Tu monitor vuelve a ser una TV. Hecho con Rust, Electron y demasiado cariño por el CRT.</p>
+    <nav aria-label="Enlaces del proyecto">
+      <a href="https://github.com/quicio/catodo">GitHub</a>
+      <a href="https://github.com/quicio/catodo/releases">Releases</a>
+      <a href="https://github.com/quicio/catodo/blob/main/docs/HANDOFF.md">Documentación</a>
+      <a href="https://github.com/quicio/catodo/blob/main/LICENSE">MIT</a>
+    </nav>
+    <p class="footer-fine">Esta página no usa cookies, analítica ni fuentes externas.</p>
+  </footer>
+</body>
+</html>

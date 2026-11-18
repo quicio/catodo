@@ -1,129 +1,108 @@
+<p align="center">
+  <img src="catodo.png" width="96" alt="Icono de Cátodo">
+</p>
+
 # Cátodo
 
-A multimedia shell for Linux, inspired by old CRT TVs. Turn any monitor into a "smart TV" you control via HTTP.
+**Tu monitor vuelve a ser una TV.**
 
-## Channels
+Kiosko multimedia para Linux y macOS inspirado en los televisores CRT. Canales
+de pantalla completa, arcade con libretro embebido y bibliotecas locales, sobre
+un backend Rust y un shell Electron en kiosko. Sin escritorio, sin cuenta y sin
+telemetría.
 
-- **Spotify** — Desktop Spotify controlled via MPRIS, with now-playing display and synced lyrics.
-- **YouTube** — YouTube TV interface in an in-app webview (plugin bundled, Android TV user agent).
-- **Arcade** — Local game library with an embedded libretro player.
-- **IPTV** — M3U/M3U8 live TV with zapping.
-- **Screen Cast** — Receives a cast session from the remote.
+El repo es un monorepo: el backend vive en `rust/`, la app Electron/React en
+`frontend/`, los estáticos en `backend/static/` y los canales web declarativos en
+`plugins-repo/`.
+
+## Web
+
+Landing y descargas: **[quicio.github.io/catodo](https://quicio.github.io/catodo/)**.
+El sitio vive en `site/` y se publica con GitHub Pages desde `main`.
+
+## Documentación
+
+| documento | contenido |
+|---|---|
+| [`AGENTS.md`](AGENTS.md) | comandos y reglas duras para agentes |
+| [`docs/HANDOFF.md`](docs/HANDOFF.md) | estado, invariantes y verificación |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | milestones y criterios de salida |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | capas, contrato `Channel`, plugins y puertos |
+| [`docs/adr/`](docs/adr/) | decisiones con contexto y alternativas |
+| [`openspec/specs/`](openspec/specs/) | specs vigentes por capacidad |
+| [`openspec/changes/`](openspec/changes/) | cambios en curso y archivados |
+
+## Uso
+
+### Canales
+
+- **Spotify** — Desktop Spotify controlado por MPRIS, con now-playing y letras sincronizadas.
+- **YouTube** — YouTube TV en un webview (plugin bundled, user-agent Android TV).
+- **Arcade** — Biblioteca local con player libretro embebido y marcos CRT.
+- **IPTV** — TV en vivo por M3U/M3U8 con zapping.
+- **Screen Cast** — Recibe una sesión de proyección desde el remote.
 - **Canales de emisión** — Bibliotecas locales configurables (series/temporadas o videos planos), creadas desde Ajustes → Emisión. No hay un canal Anime implícito.
 - **TV, Crunchyroll, Max y proveedores** — Plugins del catálogo; se instalan desde Ajustes → Canales.
 
 Los canales `web` son **plugins declarativos**: se definen con un `manifest.json`
 y se gestionan desde Ajustes o por API (ver [Plugins](#plugins)).
 
-Hotkeys `1`–`6` switch the first six channels in the current order. The channel bar auto-hides after 8s of inactivity.
+Hotkeys `1`–`6` cambian a los primeros seis canales del orden vigente. La barra
+de canales se auto-oculta a los 8s de inactividad.
 
-## Architecture
+## Instalación
 
-```
-rust/       Backend Rust (axum) — API + static frontend + servicios
-backend/    static/ (frontend compilado + remote PWA) y systemd/
-frontend/   Electron app (Chromium) — dev en :8765, release con sidecar
-```
-
-- **Backend**: Rust (axum) handles channels + state + wallpapers + lyrics. Serves the built frontend as static files at `/`. User data lives at `~/.local/share/catodo/`.
-- **Frontend**: React + Vite, built into static HTML/JS, served by the backend.
-- **Shell**: Electron opens a frameless, fullscreen, kiosk window. En dev apunta al backend en `:8765`; la app macOS empaquetada incluye el backend en `Contents/Resources/backend/`, lo lanza como sidecar en un puerto libre y lo apaga al salir. In-app `<webview>` tags handle the installed web channels.
-
-**DRM note**: The TV channel (Movistar) requires Widevine. Cátodo corre sobre Electron for Content Security (castLabs), que instala el CDM de Widevine en runtime, así que dev, la app macOS y el AppImage reproducen contenido DRM. El CDM se descarga al primer arranque; sin red en ese momento los canales DRM no reproducen.
-
-## Backend Rust
-
-El backend es Rust en todos los modos: `Catodo.app` y el AppImage incluyen
-`Contents/Resources/backend/catodo-backend`, que Electron lanza como sidecar.
-`run-dev.sh` y `run-prod.sh` también usan el mismo binario. No hay runtime ni
-fallback Python. En Linux, el canal Spotify usa MPRIS vía D-Bus del sistema; si
-no está disponible, el backend degrada y reporta el canal sin MPRIS.
-
-```bash
-cd rust
-cargo test --workspace
-CATODO_RS_PORT=8769 cargo run -p catodo-server
-curl http://127.0.0.1:8769/api/health
-```
-
-Los límites de capas (`domain` puro, `platform` sin HTTP, `server` compone) se
-verifican con `./scripts/check-rust-layers.sh`. El plan de migración está en
-`docs/ROADMAP.md`.
-
-## Puertos: dev vs prod
-
-Cátodo usa **dos puertos distintos** según el modo. Así podés tener el daemon
-estable corriendo y abrir el dev sin que se pisen.
-
-| Modo    | Backend     | Frontend          | Cuándo                          |
-| ------- | ----------- | ----------------- | ------------------------------- |
-| Dev     | `:8765`     | Vite `:1420` (HMR)| `./run-dev.sh`                  |
-| Prod    | `:8767`     | bundle (en `backend/static/`) | `./install.sh` + AppImage, o `./run-prod.sh start` |
-
-`./run-dev.sh` arranca/recicla el backend en `:8765` y **no toca** el de `:8767`
-si existe. La heurística para saber si el backend en `:8765` está al día es el
-**start time del proceso vs mtime de `rust/crates/catodo-server/src/main.rs`**:
-si el código se modificó después de que arrancó, se reinicia.
-
-## Quickstart
-
-```bash
-# 1. Backend Rust
-cd rust
-cargo run -p catodo-server       # serves http://127.0.0.1:8769
-
-# 2. Electron app
-cd ../frontend
-npm install
-npm run electron:build:linux    # builds .AppImage + .deb into release/
-./release/catodo-frontend-*.AppImage
-```
-
-Or in dev mode (faster iteration, uses port 8765 so prod at 8767 keeps running):
-
-```bash
-./run-dev.sh    # Vite + Electron + backend-dev auto-recycle
-```
-
-## Releases e instalación
-
-La versión del producto vive en `VERSION` y la maneja release-please con
-Conventional Commits. Cada release publica artefactos versionados y checksums.
-
-### macOS (Homebrew)
+### macOS
 
 ```bash
 brew install --cask quicio/tap/catodo
 ```
 
-Requiere macOS en Apple Silicon. Homebrew 5+ rechaza casks de taps de terceros
-hasta que se confían: si aparece `Refusing to load cask ... from untrusted tap`,
-ejecutar `brew trust quicio/tap` una sola vez.
+O descargar `Catodo-mac-arm64.zip` desde
+[Releases](https://github.com/quicio/catodo/releases/latest), descomprimir y
+arrastrar `Catodo.app` a `/Applications`. La app incluye el backend Rust como
+sidecar y no necesita un servicio aparte. No está notarizada: la primera vez,
+abrir con **clic derecho → Abrir**; si Gatekeeper insiste:
 
-La app incluye el backend en `Catodo.app/Contents/Resources/backend/` y lo lanza
-como sidecar; no hay servicio separado ni `brew services`. Es el mismo tap que
-usa Candil: no hace falta crear otro repo. La app no está notarizada todavía: el
-cask intenta quitar la cuarentena; si Gatekeeper la bloquea, usar
-`xattr -dr com.apple.quarantine /Applications/Catodo.app`.
+```bash
+xattr -dr com.apple.quarantine /Applications/Catodo.app
+```
+
+Homebrew 5+ puede pedir confiar en el tap: `brew trust quicio/tap`.
 
 ### Linux
 
-Descargar `catodo-<version>-src.tar.gz` del release, extraerlo y ejecutar:
+Cada release publica paquetes nativos y un tarball portable:
+
+| asset | instalación |
+|---|---|
+| `Catodo-<ver>-linux-x86_64.AppImage` | `chmod +x` y ejecutar |
+| `Catodo-<ver>-linux-amd64.deb` | `sudo apt install ./Catodo-<ver>-linux-amd64.deb` |
+| `catodo-<ver>-1.x86_64.rpm` | `sudo dnf install ./catodo-<ver>-1.x86_64.rpm` |
+| `catodo-<ver>-1-x86_64.pkg.tar.zst` | `sudo pacman -U catodo-<ver>-1-x86_64.pkg.tar.zst` |
+| `catodo-<ver>-src.tar.gz` | `bash install.sh --check` y `bash install.sh` |
+
+El `install.sh` deja el backend como servicio systemd de usuario y construye la
+AppImage en `frontend/release/`. El tarball ya incluye `backend/static/`.
+
+### Desde el código
 
 ```bash
-bash install.sh --check
-bash install.sh
+cd frontend && npm ci          # una vez; el gate necesita node_modules
+./scripts/check.sh             # tsc + versión + Rust
+./run-dev.sh                   # backend :8765 + Vite :1420 + Electron
 ```
 
-El backend queda como servicio systemd de usuario y la app AppImage se genera en
-`frontend/release/`. El tarball ya incluye `backend/static/` construido.
-
-### Versión
+Backend solo:
 
 ```bash
-catodo --version
-curl http://127.0.0.1:8767/api/version
+cd rust
+cargo run -p catodo-server     # http://127.0.0.1:8769
+cargo test --workspace
 ```
+
+Detalles de empaquetado, permisos TCC y limitaciones de macOS: ver
+[macOS (Apple Silicon)](#macos-apple-silicon).
 
 ## macOS (Apple Silicon)
 
@@ -694,6 +673,7 @@ curl -X DELETE http://127.0.0.1:8767/api/plugins/netflix
 | POST   | `/api/plugins/{id}/order`       | Set per-plugin order override      |
 | GET    | `/api/libraries`                | Media library list                 |
 | POST   | `/api/libraries`                | Add media library (hot channel)    |
+| PATCH  | `/api/libraries/{id}`           | Edit media library (hot)           |
 | DELETE | `/api/libraries/{id}`           | Remove media library (hot)         |
 | GET    | `/api/wallpapers/list`          | Wallpaper file list                |
 | GET    | `/api/wallpapers/count`         | Wallpaper count                    |
@@ -713,3 +693,53 @@ frontend/   React + Vite + Electron (no Tauri)
 Data stored outside the repo at `~/.local/share/catodo/`:
 - `config.json` — runtime overrides (URLs, directories)
 - `wallpapers/` — downloaded wallpapers and artist photos
+
+## Estado
+
+El estado medido, los invariantes y la deuda viven en
+[`docs/HANDOFF.md`](docs/HANDOFF.md). El gate del repo es:
+
+```bash
+./scripts/check.sh        # tsc + versión + Rust (fmt, clippy, tests, capas)
+```
+
+Los releases los publica release-please desde `main`; cada tag `vX.Y.Z` dispara
+los artefactos de macOS y Linux. El detalle está en
+[`docs/ROADMAP.md`](docs/ROADMAP.md).
+
+## Capturas
+
+La landing con los mockups del Home, Arcade, remote y canales de emisión está en
+**[quicio.github.io/catodo](https://quicio.github.io/catodo/)**. El código del
+sitio vive en [`site/`](site/).
+
+## Limitaciones conocidas
+
+- **macOS**: sólo Apple Silicon y sin notarización de Apple. La primera apertura
+  requiere clic derecho → Abrir o quitar la cuarentena.
+- **DRM**: los proveedores con Widevine (Movistar, Max, Netflix, Disney+, etc.)
+  dependen del runtime ECS y de lo que permita cada cuenta; no hay garantía de
+  reproducción.
+- **Plataformas**: hay builds de macOS arm64 y Linux x86_64; no hay Windows ni
+  macOS Intel publicados.
+- **Remoto**: la administración sensible (rutas, túneles, tokens, emuladores)
+  queda local-only por diseño (ADR-0012).
+
+## Roadmap
+
+El backlog operativo vive en [`openspec/changes/`](openspec/changes/) y el orden
+de ataque en [`docs/ROADMAP.md`](docs/ROADMAP.md). Regla del repo: un change de
+OpenSpec, un milestone y un commit lógico.
+
+## Privacidad
+
+Cátodo no usa cuentas, cookies, analítica ni telemetría. La configuración,
+bibliotecas, wallpapers, plugins y progreso viven en
+`~/.local/share/catodo/`. Las funciones online (túnel, MQTT, búsqueda de letras,
+wallpapers) son opt-in y se configuran desde Ajustes o el archivo de config.
+
+Esta página del repo no usa cookies, analítica ni fuentes externas.
+
+## Licencia
+
+MIT. Ver [`LICENSE`](LICENSE).
