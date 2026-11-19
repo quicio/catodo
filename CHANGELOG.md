@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.0](https://github.com/quicio/catodo/compare/v0.13.1...v0.14.0) (2026-11-19)
+
+
+### Features
+
+* menú de canales, atajos y audio en segundo plano ([1f54326](https://github.com/quicio/catodo/commit/1f543265c273974f26a97a0454a3d306c05da742))
+
 ## [0.13.1](https://github.com/quicio/catodo/compare/v0.13.0...v0.13.1) (2026-11-18)
 
 
