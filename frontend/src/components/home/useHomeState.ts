@@ -184,6 +184,13 @@ export function useHomeState(state: AppState): SharedHomeState {
   }, []);
   const closePair = useCallback(() => setShowPair(false), []);
 
+  // Un atajo personalizado puede pedir "Ajustes" desde cualquier canal.
+  useEffect(() => {
+    const openSettings = () => setShowConfig(true);
+    window.addEventListener("catodo:open-settings", openSettings);
+    return () => window.removeEventListener("catodo:open-settings", openSettings);
+  }, []);
+
   // Atajos de teclado: `c` (o `C`) toggle config, `Esc` la cierra.
   // Ignora cuando el foco está en un input/textarea/contenteditable para no
   // pisar escritura normal.

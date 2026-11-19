@@ -38,6 +38,7 @@ export default function Home({
   layout = DEFAULT_LAYOUT,
   layoutId = "default",
   onLayoutChange,
+  jumpCombo = "Alt+C",
 }: {
   channels: ChannelInfo[];
   onPick: (id: string) => void;
@@ -45,6 +46,7 @@ export default function Home({
   layout?: HomeLayout;
   layoutId?: string;
   onLayoutChange?: (id: string) => void;
+  jumpCombo?: string;
 }) {
   const homeState = useHomeState(state);
 
@@ -92,7 +94,7 @@ export default function Home({
           zIndex: 2,
         }}
       >
-        1–8 CANALES · C AJUSTES · CLICK PARA ENTRAR
+        TAB MENÚ · {jumpCombo} + N · C AJUSTES
       </div>
 
 {overlayComponents.map((c) => (

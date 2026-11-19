@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld("catodo", {
   mediaKey: (key) => ipcRenderer.send("media-key", key),
   insertText: (text) => ipcRenderer.send("insert-text", text),
   setActiveChannel: (channelId) => ipcRenderer.send("set-active-channel", channelId),
+  setJumpMode: (active) => ipcRenderer.send("set-jump-mode", active),
   retryBackend: () => ipcRenderer.send("retry-backend"),
   requestQuit: () => ipcRenderer.send("request-quit"),
 });

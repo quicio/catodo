@@ -62,12 +62,14 @@ export default function WebChannel({ channelId, active = true }: { channelId: st
   // canal pasa a segundo plano, pausamos los medios para que el video quede
   // exactamente donde estaba (sin audio mezclado) al volver.
   useEffect(() => {
-    if (active) return;
     const wv = webviewRef.current as unknown as {
       executeJavaScript: (code: string, userGesture?: boolean) => Promise<unknown>;
+      setAudioMuted?: (muted: boolean) => void;
     } | null;
     if (!wv) return;
     try {
+      wv.setAudioMuted?.(!active);
+      if (active) return;
       wv
         .executeJavaScript(`(() => {
           for (const el of document.querySelectorAll('video, audio')) el.pause();

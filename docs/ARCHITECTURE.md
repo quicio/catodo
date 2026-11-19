@@ -95,7 +95,7 @@ de plugins (ADR-0011).
 
 ## Frontend
 
-- React + Vite; `App.tsx` compone canales, temas y barra de canales.
+- React + Vite; `App.tsx` compone canales, temas y el menú vertical de canales (Tab).
 - `webgl/` para los efectos CRT/VHS/4K; `cast/` para proyección; `components/` y
   `theme.ts` para el sistema de temas v2.
 - Regla: la UI **no** implementa canales ni habla con servicios externos; pide
@@ -105,7 +105,7 @@ de plugins (ADR-0011).
 
 | modo | backend | UI | notas |
 |---|---|---|---|
-| dev | `:8765` | Vite `:1420` con HMR | `./run-dev.sh` recicla el backend si `main.rs` es más nuevo que el proceso |
+| dev | `:8765` o siguiente libre | Vite `:1420` o siguiente libre con HMR | `./run-dev.sh` elige puertos libres y reusa backend/Vite sanos por checkout |
 | prod | `:8767` | estáticos en `backend/static/` | `./run-prod.sh`, AppImage, `systemd/` |
 | app macOS | puerto libre | bundle embebido | `Catodo.app` lanza el binario Rust como sidecar |
 

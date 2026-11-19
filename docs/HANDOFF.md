@@ -61,7 +61,10 @@ En esta máquina (macOS arm64) se desarrolla el target Linux (`systemd/`,
 - Canales de emisión: `libraries` define canales de medios con nombre, carpeta,
   modo `series`/`videos`, icono, color y orden (CRUD en Ajustes → Emisión,
   local-only). No hay Anime builtin; `anime_dir`/`anime_progress` quedan
-  inertes. La barra y Home usan los metadatos de cada canal.
+  inertes. El menú (Tab) y Home usan los metadatos de cada canal.
+- Atajos: `Tab` menú vertical, `Alt+C` + número para salto
+  arbitrario, y combos personalizados en Ajustes → Atajos. Persisten en
+  `channel_jump_combo`/`shortcuts`; los webviews reenvían Alt+tecla y dígitos.
 - Los remotos se listan sin token y se revocan desde Ajustes
   (`GET/DELETE /api/pair/devices`, local-only). Los tokens vencen a los 30 días
   por defecto (`pair_token_ttl_days`; `0` = sin vencimiento) y los vencidos se
@@ -95,7 +98,7 @@ cd frontend && npm ci                 # crea node_modules (necesario para el gat
 ./scripts/check.sh                 # gate: tsc + version + Rust
 ./scripts/check-rust.sh            # fmt + clippy + tests + límites de capas
 ./scripts/check-version.sh         # VERSION vs manifests (Node)
-./run-dev.sh                       # backend :8765 + Vite :1420 (HMR)
+./run-dev.sh                       # backend/Vite libres (HMR); imprime puertos
 ./run-prod.sh start                # backend :8767 + bundle estático
 cd rust && cargo run -p catodo-server      # backend Rust (default)
 cd frontend && npm run electron:build:linux
@@ -106,13 +109,18 @@ cd rust && CATODO_RS_PORT=8769 cargo run -p catodo-server   # puerto alternativo
 
 | modo | backend | frontend | entrada |
 |---|---|---|---|
-| dev | `:8765` | Vite `:1420` | `./run-dev.sh` |
+| dev | `:8765` (o el siguiente libre) | Vite `:1420` (o el siguiente libre) | `./run-dev.sh` |
 | prod | `:8767` | bundle en `backend/static/` | `./run-prod.sh`, AppImage |
 | alternativo | `:8769` | — | `cd rust && cargo run -p catodo-server` |
 | app macOS | puerto libre | bundle embebido | cask `catodo` |
 
-Los modos pueden convivir: dev **no toca** el daemon de prod. La heurística de
-reciclado compara el start time del proceso contra el mtime de
+Los modos pueden convivir: dev **no toca** el daemon de prod. `run-dev.sh`
+elige backend (8765→8799, sin `8767`) y Vite (1420→1460) libres, y guarda
+puertos/PIDs por checkout en `/tmp/catodo-dev-<hash>.env` para reusar
+backend/Vite sanos. `--force-new` ignora el estado, `--no-reuse` no reusa y
+`--dry-run` sólo imprime los puertos. El cleanup mata únicamente los procesos
+de esa corrida (nada de `pkill` globales). La heurística de reciclado compara el
+start time del proceso contra el mtime de
 `rust/crates/catodo-server/src/main.rs`.
 
 ## Mapa de módulos

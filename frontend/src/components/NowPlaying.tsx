@@ -218,7 +218,7 @@ export default function NowPlaying({ state }: { state: AppState }) {
   const album = compact ? { ...albumStyle, marginTop: 8 } : albumStyle;
   const statusRow = compact ? { ...statusRowStyle, marginBottom: 12 } : statusRowStyle;
   const bottomBar = compact
-    ? { ...bottomBarStyle, padding: "0 24px 10px", bottom: "calc(var(--channel-bar-height) - 10px)" }
+    ? { ...bottomBarStyle, padding: "0 24px 10px", bottom: 0 }
     : bottomBarStyle;
 
   if (!np) {
@@ -737,7 +737,7 @@ const bottomBarStyle: React.CSSProperties = {
   position: "absolute",
   left: 0,
   right: 0,
-  bottom: "var(--channel-bar-height)",
+  bottom: 0,
   zIndex: 2,
   padding: "0 64px 28px",
   display: "flex",

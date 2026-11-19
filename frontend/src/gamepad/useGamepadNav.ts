@@ -14,7 +14,7 @@ import { api } from "../api/client";
  * montado.
  */
 
-/** Evento que despierta la barra de canales y el screensaver. */
+/** Evento que despierta el screensaver. */
 export const GAMEPAD_ACTIVITY_EVENT = "catodo:gamepad-activity";
 
 const AXIS_DEADZONE = 0.5;
@@ -86,15 +86,11 @@ function clearRing() {
 
 /** Centro del elemento más cercano al centro de la pantalla. */
 function firstFocusable(items: HTMLElement[]): HTMLElement {
-  // La barra de canales es un overlay fijo en el borde inferior: no debe
-  // ganarle al contenido principal cuando todavía no hay foco.
-  const preferred = items.filter((item) => !item.closest(".channel-bar"));
-  const pool = preferred.length > 0 ? preferred : items;
   const cx = window.innerWidth / 2;
   const cy = window.innerHeight / 2;
-  let best = pool[0];
+  let best = items[0];
   let bestDistance = Infinity;
-  for (const item of pool) {
+  for (const item of items) {
     const rect = item.getBoundingClientRect();
     const distance = Math.hypot(
       rect.left + rect.width / 2 - cx,

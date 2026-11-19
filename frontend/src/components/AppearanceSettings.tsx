@@ -31,11 +31,13 @@ import { TunnelSection } from "./TunnelSection";
 import ChannelSettings from "./ChannelSettings";
 import ArcadeSettings from "./ArcadeSettings";
 import EmissionSettings from "./EmissionSettings";
+import ShortcutSettings from "./ShortcutSettings";
 
 type TabId =
   | "general"
   | "canales"
   | "emision"
+  | "atajos"
   | "modos"
   | "arcade"
   | "apariencia"
@@ -47,6 +49,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "general", label: "General" },
   { id: "canales", label: "Canales" },
   { id: "emision", label: "Emisión" },
+  { id: "atajos", label: "Atajos" },
   { id: "modos", label: "Modos" },
   { id: "arcade", label: "Arcade" },
   { id: "apariencia", label: "Apariencia" },
@@ -468,6 +471,9 @@ export default function AppearanceSettings({
 
       {/* ==== EMISIÓN ==== */}
       {tab === "emision" && <EmissionSettings />}
+
+      {/* ==== ATAJOS ==== */}
+      {tab === "atajos" && <ShortcutSettings />}
 
       {/* ==== ARCADE ==== */}
       {tab === "arcade" && <ArcadeSettings />}

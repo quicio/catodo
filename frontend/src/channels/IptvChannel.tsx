@@ -343,7 +343,7 @@ const containerStyle: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   gap: 16,
-  padding: "28px 36px calc(var(--channel-bar-height) + 8px)",
+  padding: "28px 36px 36px",
   background: "var(--bg)",
   color: "var(--text)",
   fontFamily: "var(--font-display)",

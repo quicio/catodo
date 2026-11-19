@@ -24,10 +24,6 @@
   --radius-lg: 16px;
   --font-size-base: 16px;
   --space-scale: 1;
-  /* Altura reservada para la barra de canales fija abajo. Se usa como
-     padding-bottom en vistas que tienen UI propia cerca del borde
-     (ej. NowPlaying de Spotify) para que no se superpongan. */
-  --channel-bar-height: calc(32px * var(--space-scale) + 24px * var(--space-scale) + 40px);
   color-scheme: dark;
   font-family: var(--font-display);
   background: var(--bg);
@@ -143,6 +139,39 @@ html, body, #root {
   100% { opacity: 0; }
 }
 
+/* === Channel jump HUD === */
+.channel-jump {
+  position: fixed;
+  top: 24px;
+  left: 24px;
+  z-index: 9997;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 16px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  font-family: var(--font-mono);
+  color: var(--text);
+  animation: hud-in 0.2s ease-out;
+}
+
+.channel-jump-label {
+  font-size: 11px;
+  letter-spacing: 3px;
+  color: var(--text-dim);
+}
+
+.channel-jump-num {
+  font-size: 34px;
+  line-height: 1;
+  letter-spacing: 1px;
+  color: var(--accent);
+  text-shadow: 0 0 18px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
 /* === Volume HUD === */
 .vol-hud {
   position: fixed;
@@ -195,114 +224,146 @@ html, body, #root {
   text-align: right;
 }
 
-/* === Channel bar === */
-.channel-bar {
+/* === Channel menu (Tab) === */
+.channel-menu-backdrop {
   position: fixed;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: 0;
-  padding: calc(32px * var(--space-scale)) calc(20px * var(--space-scale)) calc(24px * var(--space-scale));
-  display: flex;
-  gap: calc(10px * var(--space-scale));
-  align-items: center;
-  background: transparent;
+  inset: 0;
   z-index: 9999;
-  transition: opacity 0.6s ease, transform 0.6s ease;
-  max-width: calc(100vw - calc(48px * var(--space-scale)));
+  display: grid;
+  place-items: center start;
+  padding: clamp(16px, 3vw, 40px);
+  background: color-mix(in srgb, var(--bg-deep) 62%, transparent);
+  backdrop-filter: blur(7px);
+  animation: channel-menu-fade 160ms ease-out;
 }
 
-.channel-bar.hidden {
-  opacity: 0;
-  transform: translate(-50%, 20px);
-  pointer-events: none;
+.channel-menu {
+  width: min(340px, 90vw);
+  max-height: min(80vh, 640px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.6);
+  outline: none;
+  animation: channel-menu-in 200ms var(--ease, ease-out);
 }
 
-/* El player embebido del arcade tiene sus propios controles: la barra global
-   de canales los taparía. */
-.arcade-player-open .channel-bar {
-  visibility: hidden;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.channel-bar-label {
+.channel-menu-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
   font-family: var(--font-mono);
-  font-size: 12px;
-  letter-spacing: 3px;
+  font-size: 11px;
+  letter-spacing: 2px;
   color: var(--text-dim);
-  margin-right: 8px;
 }
 
-/* Píldoras minimalistas: paneles delgados y transparentes con borde fino.
-   El activo resalta con el accent del theme (borde + línea inferior). */
-.channel-pill {
-  position: relative;
+.channel-menu-hint {
+  font-size: 10px;
+  letter-spacing: 1px;
+  opacity: 0.7;
+}
+
+.channel-menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  overflow-y: auto;
+}
+
+.channel-menu-item {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: calc(8px * var(--space-scale)) calc(16px * var(--space-scale));
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-dim);
-  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  font-size: var(--font-size-base);
   font-family: var(--font-display);
-  font-weight: 500;
-  letter-spacing: 0.5px;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: left;
   cursor: pointer;
-  transition: border-color 0.2s ease, color 0.2s ease, text-shadow 0.2s ease;
-  white-space: nowrap;
+  outline: none;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.channel-menu-item.is-focused,
+.channel-menu-item:hover {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--channel-color) 45%, transparent);
+  background: color-mix(in srgb, var(--channel-color) 10%, transparent);
+}
+
+.channel-menu-item.is-current {
+  color: var(--text);
+}
+
+.channel-menu-num {
+  width: 24px;
   flex-shrink: 0;
-}
-
-.channel-pill:hover {
-  background: transparent;
-  border-color: color-mix(in srgb, var(--text-dim) 75%, transparent);
-  color: var(--text);
-  text-shadow: 0 0 12px color-mix(in srgb, var(--text) 22%, transparent);
-}
-
-.channel-pill:active {
-  background: transparent;
-}
-
-.channel-pill.active {
-  background: transparent;
-  color: var(--text);
-  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
-  font-weight: 600;
-  text-shadow: none;
-}
-
-.channel-pill.active::after {
-  content: "";
-  position: absolute;
-  left: 14%;
-  right: 14%;
-  bottom: -2px;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--accent);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 55%, transparent);
-}
-
-.channel-pill-num {
   font-family: var(--font-mono);
-  font-size: 13px;
-  font-weight: 600;
-  opacity: 0.85;
-  background: transparent;
-  padding: 0;
-  transition: opacity 0.2s ease, color 0.2s ease;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--channel-color);
+  opacity: 0.9;
 }
 
-.channel-pill:hover .channel-pill-num {
-  opacity: 0.95;
+.channel-menu-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.channel-pill.active .channel-pill-num {
-  color: var(--accent);
-  opacity: 1;
+.channel-menu-now {
+  flex-shrink: 0;
+  padding: 2px 6px;
+  border: 1px solid color-mix(in srgb, var(--channel-color) 55%, transparent);
+  border-radius: 999px;
+  color: var(--channel-color);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 400;
+  letter-spacing: 1px;
+}
+
+.channel-menu-foot {
+  padding: 10px 16px calc(10px + 2px);
+  border-top: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  opacity: 0.75;
+}
+
+.channel-menu-empty {
+  margin: 0;
+  padding: 18px 12px;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+@keyframes channel-menu-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes channel-menu-in {
+  from { opacity: 0; transform: translateX(-12px); }
+  to { opacity: 1; transform: translateX(0); }
 }
 
 /* === Channel view === */
@@ -899,9 +960,8 @@ html, body, #root {
 }
 
 /* === Glow (html[data-glow="on"]) === */
-html[data-glow="on"] .channel-pill.active {
-  box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 55%, transparent);
-  text-shadow: 0 0 8px color-mix(in srgb, var(--accent-soft) 80%, transparent);
+html[data-glow="on"] .channel-menu-item.is-current {
+  box-shadow: 0 0 18px color-mix(in srgb, var(--channel-color) 24%, transparent);
 }
 html[data-glow="on"] .ch-flash-num {
   text-shadow: 0 0 24px var(--accent), 0 0 60px var(--accent-soft);
@@ -910,25 +970,6 @@ html[data-glow="on"] .vol-hud {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 20px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
-
-/* En pantallas angostas, la barra de canales no debe desbordar. */
-@media (max-width: 1100px) {
-  .channel-bar {
-    gap: 6px;
-    padding-left: 12px;
-    padding-right: 12px;
-  }
-
-  .channel-pill {
-    gap: 6px;
-    padding: 7px 10px;
-    font-size: 13px;
-  }
-
-  .channel-pill-num {
-    font-size: 11px;
-  }
-}
 
 /* La textura CRT es intencional; el movimiento decorativo no lo es. */
 @media (prefers-reduced-motion: reduce) {

@@ -260,6 +260,37 @@ const CHROME_UA =
 let activeWebview = null;
 const webviewsByChannel = new Map();
 let activeChannelId = null;
+// Mientras el renderer está en modo salto (Alt+C + número), los dígitos se
+// consumen en el kiosko. Fuera de ese modo el webview los recibe normal.
+let jumpModeActive = false;
+
+const PAUSE_MEDIA_JS = `(() => {
+  for (const el of document.querySelectorAll('video, audio')) {
+    try { el.pause(); } catch {}
+  }
+})()`;
+
+// Pausa el media del frame y de sus iframes (Pluto y otros players suelen
+// vivir dentro de iframes cross-origin). El mute central es el seguro.
+function pauseWebviewMedia(contents) {
+  const pause = (frame) => {
+    try {
+      frame.executeJavaScript(PAUSE_MEDIA_JS, false).catch(() => {});
+      const children = Array.isArray(frame.frames) ? frame.frames : [];
+      for (const child of children) pause(child);
+    } catch {}
+  };
+  try {
+    pause(contents.mainFrame);
+  } catch {}
+}
+
+function setWebviewAudio(contents, active) {
+  try {
+    contents.setAudioMuted(!active);
+  } catch {}
+  if (!active) pauseWebviewMedia(contents);
+}
 
 // Reproducción o interacción dentro del webview cuenta como actividad: se
 // avisa al backend para que no active el screensaver mientras hay contenido
@@ -403,9 +434,19 @@ function createWindow() {
   // Los dígitos solo se reenvían cuando el webview NO tiene un campo editable
   // enfocado: así un código/contraseña se puede tipear sin cambiar de canal.
   const forwardKey = (input) => {
-    win.webContents.sendInputEvent({ type: "keyDown", keyCode: input.key });
-    win.webContents.sendInputEvent({ type: "char", keyCode: input.key });
-    win.webContents.sendInputEvent({ type: "keyUp", keyCode: input.key });
+    const modifiers = [];
+    if (input.control) modifiers.push("control");
+    if (input.alt) modifiers.push("alt");
+    if (input.shift) modifiers.push("shift");
+    if (input.meta) modifiers.push("meta");
+    const code = input.code || "";
+    let keyCode = input.key;
+    let match = /^Key([A-Z])$/.exec(code);
+    if (match) keyCode = match[1];
+    else if ((match = /^Digit([0-9])$/.exec(code))) keyCode = match[1];
+    else if ((match = /^F([1-9]|1[0-2])$/.exec(code))) keyCode = `F${match[1]}`;
+    win.webContents.sendInputEvent({ type: "keyDown", keyCode, modifiers });
+    win.webContents.sendInputEvent({ type: "keyUp", keyCode, modifiers });
   };
   const forwardKeys = (contents) => {
     const trackEditable = () => {
@@ -428,16 +469,24 @@ function createWindow() {
     contents.on("before-input-event", (event, input) => {
       try {
         if (input.type !== "keyDown") return;
-        if (input.key === "F11" || input.key === "Escape") {
+        const code = input.code || "";
+        const altShortcut =
+          input.alt &&
+          (/^(Key[A-Z]|Digit[0-9]|F([1-9]|1[0-2]))$/.test(code) ||
+            /^([a-zA-Z0-9]|F([1-9]|1[0-2]))$/i.test(input.key));
+        const digit =
+          /^[0-9]$/.test(input.key) || /^Digit[0-9]$/.test(code);
+        if (input.key === "F11" || input.key === "Escape" || input.key === "Tab") {
           event.preventDefault();
           forwardKey(input);
-        } else if (/^[1-6]$/.test(input.key)) {
-          // No hacer preventDefault: si es editable, la tecla tipea normal en el
-          // webview. Si NO es editable, se reenvía para cambiar de canal.
-          contents
-            .executeJavaScript("window.__catodoEditable === false")
-            .then((notEditable) => { if (notEditable) forwardKey(input); })
-            .catch(() => {});
+        } else if (altShortcut) {
+          // Atajos y salto de canal (Alt+C…): el guest no los ve.
+          event.preventDefault();
+          forwardKey(input);
+        } else if (digit && jumpModeActive) {
+          // Sólo en modo salto: los dígitos son del kiosko, no del guest.
+          event.preventDefault();
+          forwardKey(input);
         }
       } catch (e) {
         fs.appendFileSync("/tmp/catodo-dev.log", "\n[KEY-ERR] " + e + "\n");
@@ -457,6 +506,23 @@ function createWindow() {
       if (channelId) {
         webviewsByChannel.set(channelId, contents);
         if (channelId === activeChannelId) activeWebview = contents;
+        setWebviewAudio(contents, channelId === activeChannelId);
+        contents.on("dom-ready", () => {
+          setWebviewAudio(contents, channelId === activeChannelId);
+        });
+        contents.on("did-navigate", () => {
+          setWebviewAudio(contents, channelId === activeChannelId);
+        });
+        contents.on("did-finish-load", () => {
+          const isActive = channelId === activeChannelId;
+          setWebviewAudio(contents, isActive);
+          if (!isActive) {
+            // Algunos players autoplay después del load; segundo pase.
+            setTimeout(() => {
+              if (channelId !== activeChannelId) pauseWebviewMedia(contents);
+            }, 1200);
+          }
+        });
         contents.on("destroyed", () => {
           webviewsByChannel.delete(channelId);
           if (activeWebview === contents) activeWebview = null;
@@ -563,9 +629,18 @@ ipcMain.on("retry-backend", (event) => {
   }
 });
 
+ipcMain.on("set-jump-mode", (_event, active) => {
+  jumpModeActive = Boolean(active);
+});
+
 ipcMain.on("set-active-channel", (_event, channelId) => {
   try {
     activeChannelId = channelId ? String(channelId) : null;
+    jumpModeActive = false;
+    for (const [id, contents] of webviewsByChannel) {
+      if (!contents || contents.isDestroyed()) continue;
+      setWebviewAudio(contents, id === activeChannelId);
+    }
     const contents = activeChannelId ? webviewsByChannel.get(activeChannelId) : null;
     activeWebview = contents && !contents.isDestroyed() ? contents : null;
   } catch (e) {

@@ -740,10 +740,8 @@ function EmbeddedPlayer({ data, onStop }: { data: ArcadeData; onStop: () => void
   // de canales también se oculta: pisaría los controles del player.
   useEffect(() => {
     setGamepadNavSuspended(true);
-    document.body.classList.add("arcade-player-open");
     return () => {
       setGamepadNavSuspended(false);
-      document.body.classList.remove("arcade-player-open");
     };
   }, []);
 

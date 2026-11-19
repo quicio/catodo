@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 
 const BACKEND =
   process.env.CATODO_BACKEND_URL || `http://${process.env.CATODO_HOST || "127.0.0.1"}:${process.env.CATODO_PORT || "8765"}`;
+const DEV_PORT = Number(process.env.CATODO_VITE_PORT) || 1420;
 
 export default defineConfig({
   plugins: [react()],
@@ -12,7 +13,7 @@ export default defineConfig({
   },
   server: {
     host: "127.0.0.1",
-    port: 1420,
+    port: DEV_PORT,
     strictPort: true,
     proxy: {
       "/api": {

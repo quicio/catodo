@@ -2,7 +2,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { api, type AppState, type ChannelInfo } from "./api/client";
 import { useWebSocket, applyEvent, createInitialState } from "./api/ws";
 import ChannelView from "./components/ChannelView";
-import ChannelBar from "./components/ChannelBar";
+import ChannelMenu from "./components/ChannelMenu";
 import Home from "./components/Home.tsx";
 import WebChannel from "./channels/WebChannel";
 import { getLayout } from "./components/home/index";
@@ -11,6 +11,13 @@ import IdleScreensaver from "./components/IdleScreensaver";
 import { RemotePWAInstaller } from "./components/RemotePWAInstaller";
 import { CastProvider } from "./cast/CastContext";
 import { GAMEPAD_ACTIVITY_EVENT, useGamepadNav } from "./gamepad/useGamepadNav";
+import {
+  DEFAULT_JUMP_COMBO,
+  jumpComboOr,
+  matchesCombo,
+  sanitizeShortcuts,
+  type CustomShortcut,
+} from "./shortcuts";
 import {
   ThemeContext,
   UiScaleContext,
@@ -23,18 +30,23 @@ import {
   type ThemeState,
 } from "./theme";
 
-const HOTKEYS = ["1", "2", "3", "4", "5", "6"];
+const JUMP_TIMEOUT_MS = 1200;
 
 export default function App() {
   const [state, dispatch] = useReducer(applyEvent, [] as ChannelInfo[], createInitialState);
   const [channels, setChannels] = useState<ChannelInfo[]>([]);
-  const [barVisible, setBarVisible] = useState(true);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuIndex, setMenuIndex] = useState(0);
   const [idleState, setIdleState] = useState<"active" | "screensaver" | "sleep">("active");
   const [voiceFeedback, setVoiceFeedback] = useState<{ text: string; recognized: boolean } | null>(null);
   const [themeState, setThemeState] = useState<ThemeState | null>(null);
   const [homeLayoutId, setHomeLayoutId] = useState<string>("default");
   const [uiScale, setUiScale] = useState<number>(1);
   const [gamepadNotice, setGamepadNotice] = useState<string | null>(null);
+  const [jumpCombo, setJumpCombo] = useState(DEFAULT_JUMP_COMBO);
+  const [shortcuts, setShortcuts] = useState<CustomShortcut[]>([]);
+  const [jumpActive, setJumpActive] = useState(false);
+  const [jumpBuffer, setJumpBuffer] = useState("");
   const padName = useGamepadNav();
 
   const uiScaleRef = useRef(uiScale);
@@ -55,6 +67,19 @@ export default function App() {
   const stateRef = useRef<AppState>(state);
   const channelsRef = useRef<ChannelInfo[]>([]);
   const idleRef = useRef(idleState);
+  const menuOpenRef = useRef(menuOpen);
+  const menuIndexRef = useRef(menuIndex);
+  const jumpComboRef = useRef(jumpCombo);
+  const shortcutsRef = useRef(shortcuts);
+  const jumpActiveRef = useRef(jumpActive);
+  const jumpBufferRef = useRef(jumpBuffer);
+  const jumpTimerRef = useRef<number | null>(null);
+  menuOpenRef.current = menuOpen;
+  menuIndexRef.current = menuIndex;
+  jumpComboRef.current = jumpCombo;
+  shortcutsRef.current = shortcuts;
+  jumpActiveRef.current = jumpActive;
+  jumpBufferRef.current = jumpBuffer;
   const resumeDoneRef = useRef(false);
   stateRef.current = state;
   channelsRef.current = channels;
@@ -132,6 +157,12 @@ export default function App() {
         }
         if (key === "ui_scale" && typeof event.value === "number") {
           setUiScale(event.value);
+        }
+        if (key === "channel_jump_combo") {
+          setJumpCombo(jumpComboOr(event.value));
+        }
+        if (key === "shortcuts") {
+          setShortcuts(sanitizeShortcuts(event.value));
         }
         // Broadcast genérico para subscriptores (ej. NowPlaying del Spotify).
         window.dispatchEvent(
@@ -240,30 +271,6 @@ export default function App() {
     return () => clearTimeout(id);
   }, [padName]);
 
-  useEffect(() => {
-    let timer: number | null = null;
-    const HIDE_AFTER_MS = 8000;
-    const wake = () => {
-      setBarVisible(true);
-      if (timer !== null) clearTimeout(timer);
-      timer = window.setTimeout(() => setBarVisible(false), HIDE_AFTER_MS);
-    };
-    wake();
-    window.addEventListener("mousemove", wake);
-    window.addEventListener("mousedown", wake);
-    window.addEventListener("keydown", wake);
-    window.addEventListener("touchstart", wake);
-    window.addEventListener(GAMEPAD_ACTIVITY_EVENT, wake);
-    return () => {
-      if (timer !== null) clearTimeout(timer);
-      window.removeEventListener("mousemove", wake);
-      window.removeEventListener("mousedown", wake);
-      window.removeEventListener("keydown", wake);
-      window.removeEventListener("touchstart", wake);
-      window.removeEventListener(GAMEPAD_ACTIVITY_EVENT, wake);
-    };
-  }, []);
-
   const switchChannel = (id: string) => {
     api.open(id).catch(console.warn);
   };
@@ -271,6 +278,114 @@ export default function App() {
   const goHome = () => {
     dispatch({ event: "channel_changed", channel_id: null });
   };
+
+  const setNativeJumpMode = useCallback((active: boolean) => {
+    try {
+      (
+        window as unknown as {
+          catodo?: { setJumpMode?: (active: boolean) => void };
+        }
+      ).catodo?.setJumpMode?.(active);
+    } catch {}
+  }, []);
+
+  const clearJumpTimer = useCallback(() => {
+    if (jumpTimerRef.current !== null) {
+      window.clearTimeout(jumpTimerRef.current);
+      jumpTimerRef.current = null;
+    }
+  }, []);
+
+  const cancelJump = useCallback(() => {
+    clearJumpTimer();
+    jumpBufferRef.current = "";
+    jumpActiveRef.current = false;
+    setNativeJumpMode(false);
+    setJumpActive(false);
+    setJumpBuffer("");
+  }, [clearJumpTimer, setNativeJumpMode]);
+
+  const openChannelNumber = useCallback(
+    (digits: string) => {
+      clearJumpTimer();
+      jumpBufferRef.current = "";
+      jumpActiveRef.current = false;
+      setNativeJumpMode(false);
+      setJumpActive(false);
+      setJumpBuffer("");
+      const number = Number.parseInt(digits, 10);
+      const list = channelsRef.current;
+      if (Number.isInteger(number) && number >= 1 && number <= list.length) {
+        api.open(list[number - 1].id).catch(console.warn);
+      }
+    },
+    [clearJumpTimer],
+  );
+
+  const armJumpTimer = useCallback(
+    (digits: string) => {
+      clearJumpTimer();
+      jumpTimerRef.current = window.setTimeout(
+        () => openChannelNumber(digits),
+        JUMP_TIMEOUT_MS,
+      );
+    },
+    [clearJumpTimer, openChannelNumber],
+  );
+
+  const startJump = useCallback(() => {
+    clearJumpTimer();
+    jumpBufferRef.current = "";
+    jumpActiveRef.current = true;
+    setNativeJumpMode(true);
+    setJumpActive(true);
+    setJumpBuffer("");
+    armJumpTimer("");
+  }, [armJumpTimer, clearJumpTimer]);
+
+  const runShortcut = useCallback((shortcut: CustomShortcut) => {
+    switch (shortcut.action) {
+      case "channel":
+        if (shortcut.channel) api.open(shortcut.channel).catch(console.warn);
+        break;
+      case "home":
+        setMenuOpen(false);
+        dispatch({ event: "channel_changed", channel_id: null });
+        break;
+      case "settings":
+        setMenuOpen(false);
+        dispatch({ event: "channel_changed", channel_id: null });
+        window.setTimeout(() => {
+          window.dispatchEvent(new Event("catodo:open-settings"));
+        }, 0);
+        break;
+      case "menu": {
+        const list = channelsRef.current;
+        const index = list.findIndex(
+          (channel) => channel.id === stateRef.current.current_channel_id,
+        );
+        setMenuIndex(index >= 0 ? index : 0);
+        setMenuOpen(true);
+        break;
+      }
+      case "volume_up":
+        api.volume("+").catch(console.warn);
+        break;
+      case "volume_down":
+        api.volume("-").catch(console.warn);
+        break;
+      case "next":
+        api.next().catch(console.warn);
+        break;
+      case "previous":
+        api.previous().catch(console.warn);
+        break;
+      case "fullscreen":
+        if (document.fullscreenElement) document.exitFullscreen();
+        else document.documentElement.requestFullscreen();
+        break;
+    }
+  }, []);
 
   useEffect(() => {
     (window as unknown as { __catodoSwitch?: (id: string) => void }).__catodoSwitch = switchChannel;
@@ -336,6 +451,8 @@ export default function App() {
         applyTheme(next.theme, next.overrides);
         if (typeof cfg.home_layout_id === "string") setHomeLayoutId(cfg.home_layout_id);
         if (typeof cfg.ui_scale === "number") setUiScale(cfg.ui_scale);
+        setJumpCombo(jumpComboOr(cfg.channel_jump_combo));
+        setShortcuts(sanitizeShortcuts(cfg.shortcuts));
       } catch {
         if (!alive) return;
         const next = resolveTheme({});
@@ -365,6 +482,102 @@ export default function App() {
       ) {
         return;
       }
+      if (
+        (window as unknown as { __catodoCapturingShortcut?: boolean })
+          .__catodoCapturingShortcut
+      ) {
+        return;
+      }
+      // Modo salto: Alt+C + dígitos. Enter o el timeout abren el canal.
+      if (jumpActiveRef.current) {
+        if (/^[0-9]$/.test(e.key)) {
+          e.preventDefault();
+          const next = `${jumpBufferRef.current}${e.key}`.slice(0, 3);
+          jumpBufferRef.current = next;
+          setJumpBuffer(next);
+          armJumpTimer(next);
+          return;
+        }
+        if (e.key === "Enter") {
+          e.preventDefault();
+          openChannelNumber(jumpBufferRef.current);
+          return;
+        }
+        if (e.key === "Tab") {
+          e.preventDefault();
+          cancelJump();
+          return;
+        }
+        if (e.key === "Backspace") {
+          e.preventDefault();
+          const next = jumpBufferRef.current.slice(0, -1);
+          jumpBufferRef.current = next;
+          setJumpBuffer(next);
+          armJumpTimer(next);
+          return;
+        }
+        if (e.key === "Escape") {
+          e.preventDefault();
+          cancelJump();
+          return;
+        }
+        if (matchesCombo(e, jumpComboRef.current)) {
+          e.preventDefault();
+          cancelJump();
+        }
+        return;
+      }
+      // Tab abre/cierra el menú vertical de canales. Mientras está abierto,
+      // las flechas y Enter son del menú; el resto de hotkeys queda bloqueado.
+      if (e.key === "Tab") {
+        e.preventDefault();
+        if (menuOpenRef.current) {
+          setMenuOpen(false);
+        } else {
+          const list = channelsRef.current;
+          const index = list.findIndex(
+            (channel) => channel.id === stateRef.current.current_channel_id,
+          );
+          setMenuIndex(index >= 0 ? index : 0);
+          setMenuOpen(true);
+        }
+        return;
+      }
+      if (menuOpenRef.current) {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          setMenuOpen(false);
+        } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+          e.preventDefault();
+          const delta = e.key === "ArrowDown" ? 1 : -1;
+          setMenuIndex((index) =>
+            Math.max(0, Math.min(channelsRef.current.length - 1, index + delta)),
+          );
+        } else if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          const target = channelsRef.current[menuIndexRef.current];
+          if (target) {
+            api.open(target.id).catch(console.warn);
+            setMenuOpen(false);
+          }
+        }
+        return;
+      }
+      // Atajos personalizados (todos exigen Alt para atravesar webviews).
+      const customShortcut = shortcutsRef.current.find((shortcut) =>
+        matchesCombo(e, shortcut.combo),
+      );
+      if (customShortcut) {
+        e.preventDefault();
+        runShortcut(customShortcut);
+        return;
+      }
+      // Prefijo de salto (default Alt+C).
+      if (matchesCombo(e, jumpComboRef.current)) {
+        e.preventDefault();
+        startJump();
+        return;
+      }
       const ch = channelsRef.current;
       // El canal IPTV usa ↑↓/←→ para grupos y zapping; el volumen queda en +/-
       // y en el remote.
@@ -372,14 +585,7 @@ export default function App() {
         (channel) => channel.id === stateRef.current.current_channel_id,
       )?.type;
       const arrowsBelongToChannel = activeType === "iptv";
-      if (HOTKEYS.includes(e.key)) {
-        const idx = Number(e.key) - 1;
-        const target = ch[idx];
-        if (target) {
-          e.preventDefault();
-          api.open(target.id).catch(console.warn);
-        }
-      } else if (e.key === "F11") {
+      if (e.key === "F11") {
         e.preventDefault();
         if (document.fullscreenElement) document.exitFullscreen();
         else document.documentElement.requestFullscreen();
@@ -408,10 +614,8 @@ export default function App() {
         api.volume("-").catch(console.warn);
       }
     };
-    document.addEventListener("keydown", onKey, true);
     window.addEventListener("keydown", onKey, true);
     return () => {
-      document.removeEventListener("keydown", onKey, true);
       window.removeEventListener("keydown", onKey, true);
     };
   }, []);
@@ -541,17 +745,30 @@ export default function App() {
           layout={getLayout(homeLayoutId)}
           layoutId={homeLayoutId}
           onLayoutChange={setHomeLayoutId}
+          jumpCombo={jumpCombo}
         />
       )}
-      <ChannelBar
+      <ChannelMenu
         channels={channels}
         current={state.current_channel_id}
-        visible={barVisible}
-        onPick={switchChannel}
+        open={menuOpen}
+        index={menuIndex}
+        onHover={setMenuIndex}
+        onPick={(id) => {
+          switchChannel(id);
+          setMenuOpen(false);
+        }}
+        onClose={() => setMenuOpen(false)}
       />
     </CrtShell>
     <IdleScreensaver state={idleState} />
     <RemotePWAInstaller />
+    {jumpActive && (
+      <div className="channel-jump" role="status" aria-live="polite">
+        <span className="channel-jump-label">CANAL</span>
+        <strong className="channel-jump-num">{jumpBuffer || "—"}</strong>
+      </div>
+    )}
     {voiceFeedback && (
       <div
         style={{

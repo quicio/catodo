@@ -55,3 +55,54 @@ backend_stale() {
     [ -z "$start_epoch" ] && return 0
     [ "$start_epoch" -lt "$src_mtime" ]
 }
+# ---------------------------------------------------------------------------
+# port_in_use PORT
+#   Devuelve 0 (true) si hay un proceso escuchando en PORT.
+# ---------------------------------------------------------------------------
+port_in_use() {
+    [ -n "$(current_pid "$1")" ]
+}
+
+# ---------------------------------------------------------------------------
+# free_port START END [EXCLUDE...]
+#   Imprime el primer puerto libre en el rango, saltando los EXCLUDE.
+#   Devuelve 1 si no encuentra ninguno.
+# ---------------------------------------------------------------------------
+free_port() {
+    local start="$1"
+    local end="$2"
+    shift 2
+    local port excluded skip
+    for ((port = start; port <= end; port++)); do
+        skip=0
+        for excluded in "$@"; do
+            if [ "$port" = "$excluded" ]; then
+                skip=1
+                break
+            fi
+        done
+        [ "$skip" -eq 1 ] && continue
+        if ! port_in_use "$port"; then
+            echo "$port"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# ---------------------------------------------------------------------------
+# kill_tree PID [SIGNAL]
+#   Mata el proceso y todos sus descendientes (default TERM). No toca otros
+#   procesos del sistema: evita los pkill -f globales.
+# ---------------------------------------------------------------------------
+kill_tree() {
+    local pid="$1"
+    local signal="${2:-TERM}"
+    [ -z "$pid" ] && return 0
+    local children child
+    children=$(pgrep -P "$pid" 2>/dev/null || true)
+    for child in $children; do
+        kill_tree "$child" "$signal"
+    done
+    kill -"$signal" "$pid" 2>/dev/null || true
+}

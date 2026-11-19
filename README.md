@@ -47,8 +47,9 @@ El sitio vive en `site/` y se publica con GitHub Pages desde `main`.
 Los canales `web` son **plugins declarativos**: se definen con un `manifest.json`
 y se gestionan desde Ajustes o por API (ver [Plugins](#plugins)).
 
-Hotkeys `1`–`6` cambian a los primeros seis canales del orden vigente. La barra
-de canales se auto-oculta a los 8s de inactividad.
+No hay atajos numéricos directos: chocarían con los formularios de los
+canales. **Tab** abre/cierra el menú vertical de canales y **Alt+C** + número
+salta a cualquier canal; el OSD superior muestra el número al cambiar.
 
 ## Instalación
 
@@ -90,7 +91,7 @@ AppImage en `frontend/release/`. El tarball ya incluye `backend/static/`.
 ```bash
 cd frontend && npm ci          # una vez; el gate necesita node_modules
 ./scripts/check.sh             # tsc + versión + Rust
-./run-dev.sh                   # backend :8765 + Vite :1420 + Electron
+./run-dev.sh                   # backend + Vite libres + Electron
 ```
 
 Backend solo:
@@ -124,10 +125,10 @@ Cátodo corre de forma nativa en macOS Apple Silicon con la misma experiencia qu
 git clone <repo> ~/catodo && cd ~/catodo
 bash install.sh --check       # verifica requisitos (sin modificar el sistema)
 bash install.sh               # compila backend + frontend (sin sudo)
-./run-dev.sh                  # vite + backend + Electron
+./run-dev.sh                  # puertos libres + backend + Vite + Electron
 ```
 
-`./run-dev.sh` arranca backend (puerto `:8765`), Vite (`:1420`) y Electron apuntando a Vite. El Electron de `node_modules` es el build de castLabs (ECS) con Widevine; `npm ci` descarga el binario y el CDM se instala al primer arranque.
+`./run-dev.sh` elige puertos libres para el backend (8765→8799, saltando prod `:8767`) y Vite (1420→1460), y lanza Electron apuntando a Vite. Reusa el backend/Vite de este checkout si siguen sanos. Para una segunda instancia del mismo checkout: `./run-dev.sh --force-new`; para no reusar: `--no-reuse`; para sólo ver los puertos: `--dry-run`. El Electron de `node_modules` es el build de castLabs (ECS) con Widevine; `npm ci` descarga el binario y el CDM se instala al primer arranque.
 
 ### Empaquetado
 
@@ -216,10 +217,16 @@ publicados.
 
 ## Hotkeys (inside the Cátodo window)
 
-- `1`–`4` — switch channels (Ch1–Ch4)
-- `+` / `-` / `ArrowUp` / `ArrowDown` — volume up/down
-- `F11` — toggle fullscreen
-- `Esc` — exit fullscreen / return to Home
+- `Tab` — abre/cierra el menú vertical de canales
+- `Alt+C` + número — salto directo a cualquier canal (ej. `Alt+C`, `1`, `1` → canal 11); Enter o espera corta
+- `+` / `-` / `ArrowUp` / `ArrowDown` — volumen (las flechas no aplican en IPTV)
+- `F11` — pantalla completa
+- `Esc` — salir de pantalla completa / volver al Home
+
+Los atajos personalizados se crean en **Ajustes → Atajos**: combos `Alt+…` para
+abrir un canal, Home, el menú, Ajustes, volumen, canal siguiente/anterior o
+pantalla completa. También se puede cambiar el prefijo del salto (`channel_jump_combo`).
+Las claves `channel_jump_combo` y `shortcuts` viven en el runtime config.
 
 ## Bibliotecas de medios
 
@@ -596,7 +603,7 @@ Canales** o por API.
   "url": "https://ejemplo.com",
   "user_agent": "default",          // default | chrome | android-tv
   "partition": "persist:mi-canal",
-  "order": 6,                       // posición en la barra (opcional)
+  "order": 6,                       // posición en el menú (opcional)
   "drm": true,                      // requiere Widevine (aviso en la UI)
   "config_key": "mi_canal_url",     // override legacy de URL (opcional)
   "requires_catodo": { "min": "0.1.0" },
