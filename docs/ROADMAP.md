@@ -25,7 +25,7 @@ milestones y el criterio de salida de cada uno.
 
 | Prioridad | Tema | Detalle |
 |---|---|---|
-| 1 | Validación Linux | `install.sh --check`, idempotencia con systemd y AppImage (con Widevine) en una máquina limpia |
+| 1 | Validación Linux | `install-local.sh --check`, idempotencia con systemd y AppImage (con Widevine) en una máquina limpia |
 | 2 | Canal IPTV | Implementado en Rust (parser, zapping, proxy ffmpeg); falta validarlo con una playlist real |
 | 3 | Releases sin pasos manuales | Resuelto con `secrets.RELEASE_PAT`: release-please crea el Release como usuario y `release: published` dispara `release.yml` |
 | 4 | Notarización Apple / auto-update | Requiere Developer ID; hoy se compensa con el `xattr` del cask |
@@ -47,7 +47,7 @@ Changes archivados el 2026-11-12 (specs sincronizadas): `spotify-on-macos`,
 
 ## Orden de ataque
 
-1. **Validación Linux**: `install.sh`, systemd y AppImage (con Widevine) en limpio.
+1. **Validación Linux**: `install-local.sh`, systemd y AppImage (con Widevine) en limpio.
 2. **IPTV** en Rust: parser M3U, proxy `ffmpeg` y vista con zapping.
 3. **Releases automáticos** (PAT o `workflow_run`) y notarización cuando haya
    Apple Developer ID.

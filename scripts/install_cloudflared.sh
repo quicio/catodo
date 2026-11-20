@@ -10,7 +10,7 @@
 #
 # El binario queda en $DATA_DIR/bin/cloudflared (default:
 # ~/.local/share/catodo/bin/cloudflared). El servicio systemd de Cátodo agrega
-# ese dir a PATH vía Environment=PATH=... (ver install.sh).
+# ese dir a PATH vía Environment=PATH=... (ver install-local.sh).
 set -euo pipefail
 
 REPO="cloudflare/cloudflared"

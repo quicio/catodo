@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Cátodo — helpers para registrar la app en el menú del usuario.
 #
-# Lo sourcean `install.sh` (build desde el repo) y `scripts/install-prebuilt.sh`
-# (paquete de release). No ejecutar directo.
+# Lo sourcean `install-local.sh` (build desde el repo) e `install.sh`
+# (paquete de release; la copia publicada lo lleva inlineado). No ejecutar
+# directo.
 #
 # El layout es fijo e idéntico en los dos caminos, así una reinstalación
 # actualiza la misma entrada en lugar de dejar duplicados en el launcher:

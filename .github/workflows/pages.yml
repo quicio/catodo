@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - "site/**"
+      - "install.sh"
+      - "scripts/_desktop.sh"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -29,9 +31,9 @@ jobs:
         with:
           enablement: true
       - name: Build installer
-        # Un solo fuente de verdad: el instalador publicado es el helper de
-        # menú (scripts/_desktop.sh) + el instalador binario.
-        run: cat scripts/_desktop.sh scripts/install-prebuilt.sh > site/install.sh
+        # El comando de la web es `.../install.sh`: se publica el helper de
+        # menú + el instalador de release, con una sola fuente de verdad.
+        run: cat scripts/_desktop.sh install.sh > site/install.sh
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site

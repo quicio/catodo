@@ -23,7 +23,7 @@ The service SHALL start the resolved Rust binary from the project directory, bou
 
 ### Requirement: Install script
 
-The project SHALL provide an `install.sh` script that:
+The project SHALL provide an `install-local.sh` script that:
 - Detects the OS/distro and installs or verifies system dependencies.
 - Builds the Rust backend (`cargo build --release -p catodo-server`).
 - Builds the Electron frontend.
@@ -32,11 +32,11 @@ The project SHALL provide an `install.sh` script that:
 
 #### Scenario: Install script execution
 
-- **WHEN** `bash install.sh` is run from the project root
+- **WHEN** `bash install-local.sh` is run from the project root
 - **THEN** the backend is installed and running, and the Electron AppImage is built, on any supported distro.
 
 #### Scenario: Install script from any location
 
-- **WHEN** `bash /path/to/catodo/install.sh` is run from outside the repository
+- **WHEN** `bash /path/to/catodo/install-local.sh` is run from outside the repository
 - **THEN** the script resolves the project root from its own location and installs successfully.
 

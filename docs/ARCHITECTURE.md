@@ -154,6 +154,6 @@ fallback.
 
 ## Deuda deliberada
 
-- Validar `install.sh`, systemd y el AppImage en un Linux limpio.
+- Validar `install-local.sh`, systemd y el AppImage en un Linux limpio.
 - El typecheck del frontend depende de `node_modules` presente.
 - El tray client (`clients/tray/`) no se empaqueta ni distribuye.

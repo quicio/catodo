@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Levanta el backend de Cátodo como daemon estable. Pensado para usar después
-# de ./install.sh + systemctl (o corriendo este script como servicio).
+# de ./install-local.sh + systemctl (o corriendo este script como servicio).
 # - NO toca Vite ni Electron (eso es dev).
 # - NO reinicia si ya hay un backend sirviendo el código actual.
 # - Si hay uno viejo, lo recicla.

@@ -53,17 +53,50 @@ salta a cualquier canal; el OSD superior muestra el número al cambiar.
 
 ## Instalación
 
-### macOS
+Tres caminos, del más fácil al de más control:
+
+| modo | comando | cuándo |
+|---|---|---|
+| **Release** (recomendado) | `curl -fsSL https://quicio.github.io/catodo/install.sh \| bash` | usar la última versión sin compilar |
+| **Compilado local** | `./install-local.sh` | clonar el repo y compilar tu propia build |
+| **Desarrollo** | `./run-dev.sh` | tocar código con Vite + Electron (HMR) |
+
+### Release: un comando (Linux y macOS)
 
 ```bash
-brew install --cask quicio/tap/catodo
+curl -fsSL https://quicio.github.io/catodo/install.sh | bash
 ```
 
-O descargar `Catodo-mac-arm64.zip` desde
-[Releases](https://github.com/quicio/catodo/releases/latest), descomprimir y
-arrastrar `Catodo.app` a `/Applications`. La app incluye el backend Rust como
-sidecar y no necesita un servicio aparte. No está notarizada: la primera vez,
-abrir con **clic derecho → Abrir**; si Gatekeeper insiste:
+El script detecta el sistema y elige solo:
+
+- **Linux**: instala el paquete del gestor de la distro (`.pkg.tar.zst` con
+  pacman, `.deb` con apt, `.rpm` con dnf/zypper) o, si no hay gestor, la
+  AppImage. Verifica el SHA-256 contra `SHA256SUMS.txt` y aborta si no coincide.
+  Registra Cátodo en el menú y retira instalaciones viejas de
+  `~/.local/opt/Catodo`.
+- **macOS**: usa Homebrew (`brew install --cask quicio/tap/catodo`) si está
+  instalado; si no, baja el `.zip`, lo copia a `/Applications` y quita la
+  cuarentena de Gatekeeper.
+
+Variantes:
+
+```bash
+# macOS con Homebrew, directo
+brew install --cask quicio/tap/catodo
+
+# fijar versión
+curl -fsSL https://quicio.github.io/catodo/install.sh | bash -s -- --version v0.14.0
+# sin sudo: AppImage en ~/.local / .app en ~/Applications
+curl -fsSL https://quicio.github.io/catodo/install.sh | bash -s -- --user
+# ver sistema, método y asset elegido, sin descargar
+curl -fsSL https://quicio.github.io/catodo/install.sh | bash -s -- --check
+# desinstalar (los datos de ~/.local/share/catodo se conservan)
+curl -fsSL https://quicio.github.io/catodo/install.sh | bash -s -- --uninstall
+```
+
+El backend Rust viaja como sidecar dentro de la app: no hay servicio systemd
+que configurar ni pasos extra. En macOS la app no está notarizada; el
+instalador limpia la cuarentena, pero si Gatekeeper insiste:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/Catodo.app
@@ -71,31 +104,6 @@ xattr -dr com.apple.quarantine /Applications/Catodo.app
 
 Homebrew 5+ puede pedir confiar en el tap: `brew trust quicio/tap`.
 
-### Linux
-
-Un solo comando. Baja el paquete de la última release, verifica `SHA256SUMS` y
-lo instala con el gestor de tu distro (no compila ni necesita Rust/Node):
-
-```bash
-curl -fsSL https://quicio.github.io/catodo/install.sh | bash
-```
-
-Variantes:
-
-```bash
-# fijar versión
-curl -fsSL https://quicio.github.io/catodo/install.sh | bash -s -- --version v0.14.0
-# sin sudo: AppImage en ~/.local, con entrada de menú y comando `catodo`
-curl -fsSL https://quicio.github.io/catodo/install.sh | bash -s -- --user
-# ver entorno y asset elegido, sin descargar
-curl -fsSL https://quicio.github.io/catodo/install.sh | bash -s -- --check
-# desinstalar (los datos de ~/.local/share/catodo se conservan)
-curl -fsSL https://quicio.github.io/catodo/install.sh | bash -s -- --uninstall
-```
-
-El backend Rust viaja como sidecar dentro de la app: no crea servicio systemd.
-La entrada del menú se reescribe en cada instalación para apuntar a la build
-recién instalada (y retira extracciones viejas tipo `~/.local/opt/Catodo`).
 Para revisar el script antes de ejecutarlo:
 
 ```bash
@@ -103,7 +111,7 @@ curl -fsSL https://quicio.github.io/catodo/install.sh -o install.sh
 less install.sh && bash install.sh
 ```
 
-Alternativa manual — cada release publica paquetes nativos y un tarball portable:
+Alternativa manual — cada release publica los paquetes y el tarball:
 
 | asset | instalación |
 |---|---|
@@ -111,13 +119,25 @@ Alternativa manual — cada release publica paquetes nativos y un tarball portab
 | `Catodo-<ver>-linux-amd64.deb` | `sudo apt install ./Catodo-<ver>-linux-amd64.deb` |
 | `catodo-<ver>-1.x86_64.rpm` | `sudo dnf install ./catodo-<ver>-1.x86_64.rpm` |
 | `catodo-<ver>-1-x86_64.pkg.tar.zst` | `sudo pacman -U catodo-<ver>-1-x86_64.pkg.tar.zst` |
-| `catodo-<ver>-src.tar.gz` | `bash install.sh --check` y `bash install.sh` |
+| `Catodo-<ver>-mac-arm64.zip` | descomprimir y arrastrar `Catodo.app` a `/Applications` |
+| `catodo-<ver>-src.tar.gz` | `./install-local.sh --check` y `./install-local.sh` |
 
-`bash install.sh` (sin `--prebuilt`) compila desde el repo: deja el backend
-como servicio systemd de usuario, construye la AppImage en `frontend/release/`
-y la registra en el menú. El tarball ya incluye `backend/static/`.
+### Compilado local (desde el código)
 
-### Desde el código
+```bash
+bash install-local.sh --check    # valida requisitos, sin modificar el sistema
+bash install-local.sh            # compila e instala
+```
+
+Compila el backend Rust + frontend + AppImage. En Linux deja el backend como
+servicio systemd de usuario y registra la app en el menú; en macOS el backend
+corre como sidecar de la app. La AppImage queda en `frontend/release/` y se
+copia a `~/.local/opt/catodo/Catodo.AppImage` (nombre estable) para el menú.
+
+Flags: `--yes` (instala dependencias sin confirmar), `--autostart` (arranque al
+login), `--no-cloudflared`.
+
+### Desarrollo
 
 ```bash
 cd frontend && npm ci          # una vez; el gate necesita node_modules
@@ -154,8 +174,8 @@ Cátodo corre de forma nativa en macOS Apple Silicon con la misma experiencia qu
 
 ```bash
 git clone <repo> ~/catodo && cd ~/catodo
-bash install.sh --check       # verifica requisitos (sin modificar el sistema)
-bash install.sh               # compila backend + frontend (sin sudo)
+bash install-local.sh --check  # verifica requisitos (sin modificar el sistema)
+bash install-local.sh          # compila backend + frontend (sin sudo)
 ./run-dev.sh                  # puertos libres + backend + Vite + Electron
 ```
 
@@ -216,14 +236,14 @@ Desde el código:
 
 ```bash
 # Verificar requisitos sin modificar el sistema (recomendado primero)
-bash install.sh --check
+bash install-local.sh --check
 
 # Instalación completa (detección de distro + deps del sistema + service + AppImage)
-bash install.sh
+bash install-local.sh
 
 # Opciones
-bash install.sh --autostart   # habilita arranque automático del backend al login
-bash install.sh --yes         # instala deps del sistema sin confirmar
+bash install-local.sh --autostart   # habilita arranque automático del backend al login
+bash install-local.sh --yes         # instala deps del sistema sin confirmar
 ```
 
 Esto detecta la distro (`/etc/os-release`) y el gestor de paquetes (`pacman` /
@@ -421,7 +441,7 @@ app queda instalada como PWA fullscreen. `/cast` también funciona sobre el
 dominio público sin pedirte que aceptes un cert self-signed.
 
 El binario `cloudflared` se descarga solo la primera vez (`scripts/install_cloudflared.sh`,
-incluido por defecto en `install.sh` — usá `--no-cloudflared` para omitirlo).
+incluido por defecto en `install-local.sh` — usá `--no-cloudflared` para omitirlo).
 
 ### Alternativa sin dominio propio: Tailscale Funnel
 

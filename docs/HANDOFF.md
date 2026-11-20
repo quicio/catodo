@@ -15,7 +15,7 @@ estático; frontend React; shell Electron en kiosko fullscreen. Cada app es un
 **canal** (Spotify, YouTube, Anime, TV, Crunchyroll).
 
 En esta máquina (macOS arm64) se desarrolla el target Linux (`systemd/`,
-`install.sh`, AppImage). No queda backend Python.
+`install-local.sh`, AppImage). No queda backend Python.
 
 ## Estado medido (2026-11-14)
 
@@ -82,8 +82,8 @@ ECS con Widevine (ADR-0007). Con `RELEASE_PAT`, release-please crea el Release
 como usuario y `release: published` dispara `release.yml` sin aprobación manual
 de workflows.
 
-Pendiente de validación externa (no bloquea el código): probar
-`install.sh`/AppImage en un Linux limpio.
+Pendiente de validación externa (no bloquea el código): probar el one-liner
+(`install.sh`) en un Linux limpio y en macOS sin Homebrew.
 
 ## Instalación en un clone nuevo
 
@@ -193,7 +193,7 @@ navegador o Electron. Documentar cualquier atajo nuevo acá.
 | tray client | `clients/tray/` (Tauri) no se compila ni distribuye | integrarlo al pipeline o archivar el change |
 | cores libretro | buildbot publica sólo `latest`; el pin es por contenido | si cambia el nightly, regenerar `cores.lock.json` y publicar release |
 | plataformas de cores | sólo `apple/osx/arm64` y `linux/x86_64` | agregar al lock con `scripts/update-cores.sh <plataforma>` |
-| Linux release autocontenido | `install.sh` + deps del sistema | validar en una máquina limpia |
+| Linux release autocontenido | `install.sh` (one-liner, sin deps ni compilar) | validar en una máquina limpia |
 | app macOS sin notarizar | cask incluye caveat de Gatekeeper | notarización pendiente |
 | Widevine empaquetado | ECS 45 con CDM en runtime | falta probar más proveedores con cuenta real |
 | firma VMP | ECS trae VMP de desarrollo | firmar con EVS si un proveedor lo exige |
