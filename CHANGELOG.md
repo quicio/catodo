@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.15.0](https://github.com/quicio/catodo/compare/v0.14.0...v0.15.0) (2026-11-20)
+
+
+### Features
+
+* **home:** paginar la grilla de canales de 3 filas ([e4a248b](https://github.com/quicio/catodo/commit/e4a248b69ffec9b7fadd19d196f386bf4ab6b990))
+* **install:** instalador de un comando y menú siempre apuntando a la build nueva ([63fa0b1](https://github.com/quicio/catodo/commit/63fa0b17ded179d4cce9b255fa8f1dc7c98508f5))
+* **install:** separar release, compilado local y desarrollo ([aa2e703](https://github.com/quicio/catodo/commit/aa2e7032c9e7ac5c474d47b67091c72516205d38))
+
+
+### Bug Fixes
+
+* **home:** adaptar la pantalla de canales a ventana ([0a71b57](https://github.com/quicio/catodo/commit/0a71b57959266f4fd6b9e0391edfeac939804987))
+
 ## [0.14.0](https://github.com/quicio/catodo/compare/v0.13.1...v0.14.0) (2026-11-19)
 
 
