@@ -111,3 +111,22 @@ El Home SHALL seguir siendo usable fuera de fullscreen (ventana en Hyprland/macO
 
 - **WHEN** el operador cambia el zoom con Ctrl +/- o hay `ui_scale` persistido
 - **THEN** la grilla mantiene el margen de la columna de FONDO y no se solapa con los botones de rating
+
+### Requirement: Paginación de canales
+
+Cuando haya más canales que una página (`columnas × 3 filas`: 12 en desktop, 9 en 3 columnas, 6 en 2), la grilla SHALL paginar en lugar de crecer y SHALL mostrar controles de página anterior/siguiente con un indicador `NN / MM`. La numeración `CH NN` y el atajo `Alt+C` + número SHALL seguir siendo globales, no por página. La última página SHALL reservar los slots vacíos para que el paginador y la marca no se muevan al cambiar de página.
+
+#### Scenario: Más de 12 canales
+
+- **WHEN** hay 13 o más canales en una ventana de 4 columnas
+- **THEN** la primera página muestra los canales 1–12 y el paginador permite ir a la página 2 con los restantes
+
+#### Scenario: Salto directo
+
+- **WHEN** el canal 13 está en la página 2 y el operador usa `Alt+C` + `1` `3`
+- **THEN** el canal se abre sin necesidad de cambiar de página antes
+
+#### Scenario: Cambio de tamaño de ventana
+
+- **WHEN** la ventana pasa de 4 a 3 columnas
+- **THEN** el tamaño de página pasa de 12 a 9 y la página actual se mantiene dentro de rango

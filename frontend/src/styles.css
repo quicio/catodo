@@ -1046,6 +1046,29 @@ html[data-glow="on"] .vol-hud {
   opacity: 0.7;
 }
 
+.home-channels {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(8px, 1.4vh, 14px);
+  position: relative;
+  z-index: 2;
+  width: 100%;
+}
+
+.home-channels.is-paged {
+  gap: clamp(6px, 1.2vh, 12px);
+}
+
+/* Con paginador hay una fila más de chrome: las cards ceden unos px para que
+   la marca y el reloj sigan entrando. Sólo en ventanas medianas/altas; las
+   cards compactas de <=520px ya están al mínimo. */
+@media (min-height: 521px) {
+  .home-channels.is-paged .home-card {
+    padding-block: clamp(12px, 2.1vh, 22px);
+  }
+}
+
 .home-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1066,6 +1089,18 @@ html[data-glow="on"] .vol-hud {
   border-radius: var(--radius-lg);
   cursor: pointer;
   color: var(--text);
+}
+
+.home-card-placeholder {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Mismo box que una card real (border 1px en card e ícono) para que la
+   última página no cambie el alto de la grilla ni mueva el paginador. */
+.home-card-placeholder,
+.home-card-placeholder .home-card-icon {
+  border: 1px solid transparent;
 }
 
 .home-card-icon {
@@ -1095,6 +1130,46 @@ html[data-glow="on"] .vol-hud {
   font-size: clamp(9px, 1.4vh, 12px);
   letter-spacing: 2px;
   color: var(--text-dim);
+}
+
+.home-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(10px, 1.6vw, 18px);
+  font-family: var(--font-mono);
+  font-size: clamp(9px, 1.3vh, 11px);
+  letter-spacing: 2px;
+  color: var(--text-dim);
+}
+
+.home-pager-btn {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.home-pager-btn:hover:not(:disabled) {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.home-pager-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.home-pager-label {
+  min-width: 6ch;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Ventana angosta: menos columnas antes que nombres ilegibles. */
@@ -1151,6 +1226,54 @@ html[data-glow="on"] .vol-hud {
   .home-card-icon svg {
     width: 17px;
     height: 17px;
+  }
+}
+
+/* Ventana mínima (tiling agresivo): el paginador tiene que seguir entrando. */
+@media (max-height: 460px) {
+  .home-root {
+    gap: 8px;
+    padding: 10px 16px;
+  }
+
+  .home-grid {
+    gap: 6px;
+  }
+
+  .home-card {
+    padding: 6px clamp(8px, 1.6vw, 20px);
+    gap: 2px;
+  }
+
+  .home-card-icon {
+    width: 26px;
+    height: 26px;
+  }
+
+  .home-card-icon svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .home-card-name {
+    font-size: 12px;
+  }
+
+  .home-card-ch {
+    font-size: 8px;
+    letter-spacing: 1px;
+  }
+
+  .home-channels.is-paged {
+    gap: 4px;
+  }
+
+  .home-pager {
+    font-size: 9px;
+  }
+
+  .home-pager-btn {
+    padding: 2px 8px;
   }
 }
 
