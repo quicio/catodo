@@ -34,14 +34,18 @@ cd frontend && npm run electron:build:linux
   `BREAKING CHANGE:`.
 - **`VERSION` es la fuente única** de la versión del producto. No editar a mano
   los manifests: release-please los actualiza en el PR de release.
-- **release-please** corre en push a `main`, abre el PR de release y, al
-  mergearlo, crea el tag `vX.Y.Z` y el GitHub Release.
+- **release-please** corre en push a `main` y abre el PR de release. Ese PR se
+  mergea solo cuando `ci` pasa (`release-automerge.yml`) y recién ahí crea el
+  tag `vX.Y.Z` y el GitHub Release. Para frenarlo, quitá el label
+  `autorelease: pending` del PR o deshabilitá ese workflow.
 - **Release pipeline**: `.github/workflows/release.yml` construye los artefactos
   por plataforma; el cask estático de `quicio/homebrew-tap` apunta a `latest/download`
   y no se actualiza por release.
 - **Publicación automática**: `release-please` usa `secrets.RELEASE_PAT`
   (fallback a `GITHUB_TOKEN`). Con el PAT, el PR y el Release los crea un usuario
-  y `release: published` dispara `release.yml` sin pasos manuales.
+  y `release: published` dispara `release.yml` sin pasos manuales. El merge del
+  PR también va con el PAT: con `GITHUB_TOKEN` el push a `main` no dispararía
+  release-please.
   `release-auto.yml` queda como fallback cuando no hay PAT: se salta si
   `RELEASE_PAT` está configurado, y `--force` reconstruye los assets a mano.
 - Para un release manual de prueba, usar un tag `vX.Y.Z-rc.N` en una rama.

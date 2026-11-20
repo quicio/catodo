@@ -80,7 +80,9 @@ alias estable `Catodo-mac-arm64.zip`), Linux (AppImage, deb, rpm,
 quicio/tap/catodo` se verificó en macOS arm64. Los artefactos incluyen Electron
 ECS con Widevine (ADR-0007). Con `RELEASE_PAT`, release-please crea el Release
 como usuario y `release: published` dispara `release.yml` sin aprobación manual
-de workflows.
+de workflows. `release-automerge.yml` mergea el PR de release cuando `ci` pasa,
+así que publicar no requiere tocar GitHub (para frenarlo, se quita el label
+`autorelease: pending`).
 
 Pendiente de validación externa (no bloquea el código): probar el one-liner
 (`install.sh`) en un Linux limpio y en macOS sin Homebrew.
@@ -188,6 +190,7 @@ navegador o Electron. Documentar cualquier atajo nuevo acá.
 | tap Homebrew | `Casks/catodo.rb` en `quicio/homebrew-tap`; cask estático | Homebrew 5+ requiere `brew trust quicio/tap`; no usa token |
 | runners macOS en CI | se usa `macos-15` | no volver a `macos-14` |
 | release-please | habilitado con `RELEASE_PAT` | el Release lo crea un usuario y dispara `release.yml`; `release-auto.yml` queda como fallback sin PAT |
+| auto-merge del release | `release-automerge.yml` con `RELEASE_PAT` tras `ci` verde | sin PAT no mergea; `GITHUB_TOKEN` no dispararía release-please |
 | publish con `--clobber` | si el job falla a mitad quedan assets faltando | desde el fix sólo se suben archivos |
 | salida del kiosko | `⌘⇧Q` con confirmación + botón en Ajustes | no romper esos dos caminos |
 | tray client | `clients/tray/` (Tauri) no se compila ni distribuye | integrarlo al pipeline o archivar el change |

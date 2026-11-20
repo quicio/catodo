@@ -1,0 +1,73 @@
+name: release-automerge
+
+# Mergea solo el PR de release-please cuando `ci` termina verde, para que el
+# tag y los assets salgan sin intervención manual.
+#
+# Por qué `workflow_run` y no auto-merge de GitHub: el repo no tiene auto-merge
+# habilitado, y además el merge tiene que hacerlo `RELEASE_PAT` (no
+# `GITHUB_TOKEN`): un push de GITHUB_TOKEN no dispara release-please ni
+# release.yml.
+#
+# Para frenar un release (ej. esperar una validación manual) quitá el label
+# `autorelease: pending` del PR o deshabilitá este workflow.
+
+on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+
+concurrency:
+  group: release-automerge
+  cancel-in-progress: false
+
+jobs:
+  merge-release-pr:
+    name: Mergear PR de release
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'pull_request' &&
+       github.event.workflow_run.head_branch == 'release-please--branches--main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Mergear si corresponde
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
+          REPO: ${{ github.repository }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::warning::RELEASE_PAT no configurado: no mergeo, porque el push no dispararía release-please."
+            exit 0
+          fi
+
+          pr="$(gh pr list --repo "$REPO" \
+                  --head release-please--branches--main \
+                  --label 'autorelease: pending' \
+                  --state open \
+                  --json number --jq '.[0].number // empty')"
+          if [ -z "$pr" ]; then
+            echo "No hay PR de release pendiente."
+            exit 0
+          fi
+
+          # Si el PR avanzó después del run de CI, esperamos al próximo run:
+          # mergear un commit sin CI sería justo lo que queremos evitar.
+          pr_sha="$(gh pr view "$pr" --repo "$REPO" --json headRefOid --jq '.headRefOid')"
+          if [ -n "${RUN_SHA:-}" ] && [ "$pr_sha" != "$RUN_SHA" ]; then
+            echo "PR #$pr está en ${pr_sha:0:7}, el CI fue de ${RUN_SHA:0:7}; espero al próximo run."
+            exit 0
+          fi
+
+          echo "CI verde para PR #$pr (${pr_sha:0:7}); mergeando."
+          gh pr merge "$pr" --repo "$REPO" --merge
+          echo "Listo. release-please va a crear el tag y release.yml los assets."
