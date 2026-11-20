@@ -86,3 +86,41 @@ Ejecutar el instalador dos veces sobre el mismo repositorio SHALL producir el mi
 - **WHEN** `install.sh` se ejecuta dos veces seguidas
 - **THEN** ambas terminan con éxito y el servicio queda en el mismo estado.
 
+### Requirement: Instalación binaria de un comando
+
+El proyecto SHALL publicar un instalador binario que se pueda ejecutar con `curl -fsSL https://quicio.github.io/catodo/install.sh | bash` en Linux x86_64, sin requerir Rust ni Node. El instalador SHALL resolver la última release (o `--version <tag>`), elegir el asset según el gestor detectado (`.pkg.tar.zst` para pacman, `.deb` para apt, `.rpm` para dnf/zypper, AppImage para el resto), verificar el SHA-256 contra `SHA256SUMS.txt` y abortar si no coincide.
+
+#### Scenario: Distro Arch
+
+- **WHEN** se ejecuta el instalador en una distro basada en Arch
+- **THEN** descarga `catodo-<ver>-1-x86_64.pkg.tar.zst`, verifica el checksum y lo instala con `pacman -U`.
+
+#### Scenario: Checksum inválido
+
+- **WHEN** el asset descargado no coincide con `SHA256SUMS.txt`
+- **THEN** el instalador aborta sin instalar ni modificar el sistema.
+
+#### Scenario: Sin sudo
+
+- **WHEN** se pasa `--user` o no hay `sudo` disponible
+- **THEN** instala la AppImage en `$PREFIX/opt/catodo` (default `~/.local`) y continúa sin privilegios.
+
+### Requirement: Registro en el menú de aplicaciones
+
+El instalador SHALL registrar Cátodo en `share/applications/catodo.desktop` con un `Exec` que apunte a la build recién instalada, un symlink `bin/catodo` y un icono en `hicolor`. La entrada SHALL reescribirse en cada instalación para que el launcher no siga abriendo una versión anterior. Las extracciones viejas en `opt/Catodo` (mayúscula) SHALL retirarse y los autostart que las referencien SHALL repuntarse al binario nuevo.
+
+#### Scenario: Instalación desde el repo
+
+- **WHEN** `install.sh` compila la AppImage de la versión actual
+- **THEN** el menú de aplicaciones abre esa AppImage y no una copia previa en `~/.local/opt/Catodo`.
+
+#### Scenario: Actualización
+
+- **WHEN** se reinstala una versión nueva
+- **THEN** la entrada del menú y el symlink `bin/catodo` apuntan a la versión nueva, y la app instalada reporta la versión nueva en `/api/version`.
+
+#### Scenario: Instalación vieja presente
+
+- **WHEN** existe `~/.local/opt/Catodo` de una instalación anterior
+- **THEN** el instalador la mueve a un `.bak` y deja una sola entrada de Cátodo en el menú.
+

@@ -16,6 +16,7 @@ set -euo pipefail
 # ~/projects/catodo).
 # ---------------------------------------------------------------------------
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VERSION="$(cat "$PROJECT_DIR/VERSION")"
 BACKEND_DIR="$PROJECT_DIR/backend"
 FRONTEND_DIR="$PROJECT_DIR/frontend"
 SERVICE_TEMPLATE="$BACKEND_DIR/systemd/catodo.service.in"
@@ -32,6 +33,25 @@ CHECK_ONLY=0
 ASSUME_YES=0
 AUTOSTART=0
 INSTALL_CLOUDFLARED=1
+# `--prebuilt` delega en el instalador binario: no compila, baja el paquete de
+# la última release y lo instala con el gestor de la distro. Los demás flags se
+# le pasan tal cual (--version, --user, --uninstall, ...).
+PREBUILT=0
+REMAINING=()
+for arg in "$@"; do
+    if [ "$arg" = "--prebuilt" ]; then
+        PREBUILT=1
+    else
+        REMAINING+=("$arg")
+    fi
+done
+if [ "$PREBUILT" -eq 1 ]; then
+    if [ "${#REMAINING[@]}" -gt 0 ]; then
+        exec bash "$PROJECT_DIR/scripts/install-prebuilt.sh" "${REMAINING[@]}"
+    fi
+    exec bash "$PROJECT_DIR/scripts/install-prebuilt.sh"
+fi
+
 for arg in "$@"; do
     case "$arg" in
         --check) CHECK_ONLY=1 ;;
@@ -40,7 +60,9 @@ for arg in "$@"; do
         --no-cloudflared) INSTALL_CLOUDFLARED=0 ;;
         --cloudflared) INSTALL_CLOUDFLARED=1 ;;
         --help|-h)
-            echo "Uso: bash install.sh [--check] [--yes] [--autostart] [--no-cloudflared]"
+            echo "Uso: bash install.sh [--prebuilt [opciones]] [--check] [--yes] [--autostart] [--no-cloudflared]"
+            echo "  --prebuilt         instala el paquete de la última release (sin compilar)"
+            echo "                     opciones: --version vX.Y.Z, --user, --uninstall, --check"
             echo "  --check            solo valida requisitos (sin modificar el sistema)"
             echo "  --yes              instala dependencias del sistema sin confirmar"
             echo "  --autostart        habilita el arranque automático al iniciar sesión"
@@ -315,10 +337,28 @@ if [ "$INSTALL_CLOUDFLARED" -eq 1 ]; then
     bash "$PROJECT_DIR/scripts/install_cloudflared.sh"
 fi
 
-APPIMAGE=$(find "$FRONTEND_DIR/release" -maxdepth 1 -name "*.AppImage" | head -n 1 || true)
+APPIMAGE=""
+shopt -s nullglob
+for f in "$FRONTEND_DIR/release/Catodo-$VERSION-"*.AppImage; do
+    APPIMAGE="$f"
+    break
+done
+shopt -u nullglob
 if [ -n "$APPIMAGE" ]; then
     chmod +x "$APPIMAGE"
     echo "==> AppImage built: $APPIMAGE"
+elif [ "$IS_MACOS" -eq 0 ]; then
+    echo "==> No se encontró la AppImage de la versión $VERSION" >&2
+fi
+
+# El menú de aplicaciones debe apuntar a esta build, no a una copia vieja que
+# haya quedado en ~/.local/opt. Sin esto, el launcher sigue abriendo la versión
+# anterior aunque la instalación haya compilado la nueva.
+if [ -n "$APPIMAGE" ] && [ "$IS_MACOS" -eq 0 ]; then
+    echo "==> Registrando Cátodo en el menú de aplicaciones"
+    # shellcheck source=scripts/_desktop.sh
+    . "$PROJECT_DIR/scripts/_desktop.sh"
+    catodo_install_appimage "$APPIMAGE" "${CATODO_PREFIX:-$HOME/.local}" "$PROJECT_DIR/catodo.png"
 fi
 
 mkdir -p "$DATA_DIR"

@@ -232,6 +232,8 @@
         <h2 id="download-title">Descargar Cátodo</h2>
         <p>Elegí tu sistema. Las descargas apuntan siempre a la última release publicada.</p>
         <p class="download-version">Versión <strong data-version>disponible</strong> · <a href="https://github.com/quicio/catodo/releases/latest/download/SHA256SUMS.txt">SHA-256</a></p>
+        <p class="install-command"><code>curl -fsSL https://quicio.github.io/catodo/install.sh | bash</code></p>
+        <p class="small-note">Detecta tu distro, verifica SHA-256 e instala con el gestor de paquetes. No compila.</p>
       </div>
       <div class="download-list">
         <a class="download-row" data-download="mac-arm" href="https://github.com/quicio/catodo/releases/latest/download/Catodo-mac-arm64.zip">
@@ -255,7 +257,7 @@
           <div><p class="detail-label">Fedora / RPM</p><a data-linux-link="rpm" href="https://github.com/quicio/catodo/releases/latest">catodo-x86_64.rpm</a></div>
           <div><p class="detail-label">Arch Linux</p><a data-linux-link="arch" href="https://github.com/quicio/catodo/releases/latest">catodo-x86_64.pkg.tar.zst</a></div>
         </div>
-        <p class="small-note">También podés instalar con el script del repo: <a href="https://github.com/quicio/catodo/blob/main/install.sh">install.sh</a>.</p>
+        <p class="small-note">Sin sudo: <code>curl -fsSL https://quicio.github.io/catodo/install.sh | bash -s -- --user</code>. Desde un clone del repo: <code>bash install.sh --prebuilt</code>.</p>
       </details>
       <p class="small-note">macOS no está notarizado por Apple: la primera vez, abrí Cátodo con clic derecho → Abrir.</p>
     </section>

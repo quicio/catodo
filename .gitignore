@@ -23,6 +23,7 @@ catodo.log
 *.swp
 .idea/
 .vscode/
+site/install.sh
 release/
 backend/static/*
 !backend/static/remote/

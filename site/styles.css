@@ -1198,6 +1198,23 @@ code {
   color: var(--dim);
 }
 
+.install-command {
+  grid-column: 1 / -1;
+  margin: 0.9rem 0 0;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.02);
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.install-command code {
+  color: var(--fg);
+  font-size: 1em;
+}
+
 /* ---------- Footer ---------- */
 .site-footer {
   display: grid;

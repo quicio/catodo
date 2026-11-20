@@ -73,7 +73,37 @@ Homebrew 5+ puede pedir confiar en el tap: `brew trust quicio/tap`.
 
 ### Linux
 
-Cada release publica paquetes nativos y un tarball portable:
+Un solo comando. Baja el paquete de la última release, verifica `SHA256SUMS` y
+lo instala con el gestor de tu distro (no compila ni necesita Rust/Node):
+
+```bash
+curl -fsSL https://quicio.github.io/catodo/install.sh | bash
+```
+
+Variantes:
+
+```bash
+# fijar versión
+curl -fsSL https://quicio.github.io/catodo/install.sh | bash -s -- --version v0.14.0
+# sin sudo: AppImage en ~/.local, con entrada de menú y comando `catodo`
+curl -fsSL https://quicio.github.io/catodo/install.sh | bash -s -- --user
+# ver entorno y asset elegido, sin descargar
+curl -fsSL https://quicio.github.io/catodo/install.sh | bash -s -- --check
+# desinstalar (los datos de ~/.local/share/catodo se conservan)
+curl -fsSL https://quicio.github.io/catodo/install.sh | bash -s -- --uninstall
+```
+
+El backend Rust viaja como sidecar dentro de la app: no crea servicio systemd.
+La entrada del menú se reescribe en cada instalación para apuntar a la build
+recién instalada (y retira extracciones viejas tipo `~/.local/opt/Catodo`).
+Para revisar el script antes de ejecutarlo:
+
+```bash
+curl -fsSL https://quicio.github.io/catodo/install.sh -o install.sh
+less install.sh && bash install.sh
+```
+
+Alternativa manual — cada release publica paquetes nativos y un tarball portable:
 
 | asset | instalación |
 |---|---|
@@ -83,8 +113,9 @@ Cada release publica paquetes nativos y un tarball portable:
 | `catodo-<ver>-1-x86_64.pkg.tar.zst` | `sudo pacman -U catodo-<ver>-1-x86_64.pkg.tar.zst` |
 | `catodo-<ver>-src.tar.gz` | `bash install.sh --check` y `bash install.sh` |
 
-El `install.sh` deja el backend como servicio systemd de usuario y construye la
-AppImage en `frontend/release/`. El tarball ya incluye `backend/static/`.
+`bash install.sh` (sin `--prebuilt`) compila desde el repo: deja el backend
+como servicio systemd de usuario, construye la AppImage en `frontend/release/`
+y la registra en el menú. El tarball ya incluye `backend/static/`.
 
 ### Desde el código
 

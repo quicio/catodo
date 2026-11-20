@@ -28,6 +28,10 @@ jobs:
       - uses: actions/configure-pages@v5
         with:
           enablement: true
+      - name: Build installer
+        # Un solo fuente de verdad: el instalador publicado es el helper de
+        # menú (scripts/_desktop.sh) + el instalador binario.
+        run: cat scripts/_desktop.sh scripts/install-prebuilt.sh > site/install.sh
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
