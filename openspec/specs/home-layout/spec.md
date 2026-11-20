@@ -87,3 +87,27 @@ La arquitectura SHALL permitir que un futuro componente (p. ej. `ModeManager`) d
 - **WHEN** se inspecciona el código de Home
 - **THEN** no hay referencias a Modes, ModeManager, ni selección de layout desde un store global de modos
 
+
+### Requirement: Home adaptable a ventana
+
+El Home SHALL seguir siendo usable fuera de fullscreen (ventana en Hyprland/macOS): el reloj, la marca, la grilla y la columna de FONDO SHALL NOT superponerse ni recortar canales. Los tamaños SHALL escalar con el alto disponible (`vh` + `clamp`) y el ancho de la grilla SHALL calcularse contra el contenedor, no contra `100vw`, para no romperse con el zoom de UI.
+
+#### Scenario: Ventana 1264×696
+
+- **WHEN** la app corre en una ventana de 1264×696 en lugar de fullscreen
+- **THEN** se ven los 9 canales, el reloj no pisa la grilla y la marca conserva su lugar
+
+#### Scenario: Ventana baja
+
+- **WHEN** el alto disponible baja de 640 px
+- **THEN** la marca y el now-playing ceden su espacio, el reloj entra al flujo del layout y la grilla sigue completa
+
+#### Scenario: Ventana angosta
+
+- **WHEN** el ancho baja de 900 px (y de 640 px)
+- **THEN** la grilla pasa a 3 (y 2) columnas antes que dejar nombres ilegibles
+
+#### Scenario: Zoom de UI
+
+- **WHEN** el operador cambia el zoom con Ctrl +/- o hay `ui_scale` persistido
+- **THEN** la grilla mantiene el margen de la columna de FONDO y no se solapa con los botones de rating

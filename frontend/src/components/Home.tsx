@@ -56,20 +56,7 @@ export default function Home({
   );
 
   return (
-    <div
-      style={{
-        position: "absolute",
-        inset: 0,
-        overflow: "hidden",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 40,
-        color: "var(--text)",
-        padding: 40,
-      }}
-    >
+    <div className="home-root">
       {rootComponents.map((c) => (
         <HomeSlot
           key={c.id}
@@ -84,16 +71,7 @@ export default function Home({
       ))}
 
       {/* Hint inferior (parte del contenedor root para preservar el layout actual) */}
-      <div
-        style={{
-          fontSize: 13,
-          opacity: 0.65,
-          fontFamily: "var(--font-mono)",
-          letterSpacing: 1.5,
-          position: "relative",
-          zIndex: 2,
-        }}
-      >
+      <div className="home-hint">
         TAB MENÚ · {jumpCombo} + N · C AJUSTES
       </div>
 

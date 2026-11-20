@@ -47,16 +47,7 @@ export function ChannelGrid({ channels, onPick }: Pick<HomeSlotProps, "channels"
   const [hovered, setHovered] = useState<string | null>(null);
 
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-        gap: 18,
-        width: "min(960px, calc(100vw - 180px))",
-        position: "relative",
-        zIndex: 2,
-      }}
-    >
+    <div className="home-grid">
       {channels.map((c: ChannelInfo, i) => {
         const iconName = (VALID_ICONS.has(c.icon)
           ? c.icon
@@ -70,36 +61,24 @@ export function ChannelGrid({ channels, onPick }: Pick<HomeSlotProps, "channels"
             key={c.id}
             type="button"
             aria-label={`Abrir ${c.name}, canal ${i + 1}`}
+            className="home-card"
             onClick={() => onPick(c.id)}
             onMouseEnter={() => setHovered(c.id)}
             onMouseLeave={() => setHovered(null)}
             onFocus={() => setHovered(c.id)}
             onBlur={() => setHovered(null)}
             style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 12,
-              padding: "28px 20px",
-              borderRadius: "var(--radius-lg)",
               background: isHover
                 ? "color-mix(in srgb, var(--text) 8%, transparent)"
                 : "color-mix(in srgb, var(--text) 4%, transparent)",
               border: `1px solid ${isHover ? tint(45) : "color-mix(in srgb, var(--text) 10%, transparent)"}`,
-              cursor: "pointer",
-              color: "var(--text)",
               transform: isHover ? "translateY(-6px)" : "translateY(0)",
               transition: "transform 0.15s ease, background 0.15s ease, border 0.15s ease",
             }}
           >
             <div
+              className="home-card-icon"
               style={{
-                width: 56,
-                height: 56,
-                borderRadius: "50%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
                 background: tint(18),
                 color,
                 border: `1px solid ${tint(45)}`,
@@ -114,17 +93,8 @@ export function ChannelGrid({ channels, onPick }: Pick<HomeSlotProps, "channels"
                 color={color}
               />
             </div>
-            <div style={{ fontSize: 18, fontWeight: 700 }}>{c.name}</div>
-            <div
-              style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: 12,
-                color: "var(--text-dim)",
-                letterSpacing: 2,
-              }}
-            >
-              CH {String(i + 1).padStart(2, "0")}
-            </div>
+            <div className="home-card-name">{c.name}</div>
+            <div className="home-card-ch">CH {String(i + 1).padStart(2, "0")}</div>
           </button>
         );
       })}

@@ -12,6 +12,7 @@ export function MiniNowPlaying({ state, homeState }: HomeSlotProps) {
 
   return (
     <div
+      className="home-mini"
       style={{
         position: "absolute",
         top: 32,

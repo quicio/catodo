@@ -19,21 +19,9 @@ export function Clock({ homeState }: HomeSlotProps) {
   const dateLabel = date.charAt(0).toUpperCase() + date.slice(1);
 
   return (
-    <div
-      style={{
-        position: "absolute",
-        top: 32,
-        left: 40,
-        zIndex: 2,
-        fontFamily: "var(--font-mono)",
-      }}
-    >
-      <div style={{ fontSize: 56, fontWeight: 700, lineHeight: 1, letterSpacing: 1 }}>
-        {time}
-      </div>
-      <div style={{ fontSize: 14, opacity: 0.7, marginTop: 6, letterSpacing: 2 }}>
-        {dateLabel}
-      </div>
+    <div className="home-clock">
+      <div className="home-clock-time">{time}</div>
+      <div className="home-clock-date">{dateLabel}</div>
     </div>
   );
 }
