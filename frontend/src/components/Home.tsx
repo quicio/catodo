@@ -18,7 +18,7 @@ import {
  * iterando `layout.components`. Cada componente se resuelve desde `homeSlots`
  * y se monta como `<HomeSlot config={c} homeState={...} />`.
  *
- * El estado compartido (wallpapers/ratings/Spotify bg/reloj/pair/showConfig)
+ * El estado compartido (wallpapers/config de fondo/reloj/pair/showConfig)
  * se encapsula en `useHomeState()` y se pasa como prop a cada slot.
  *
  * El layout activo y el callback para cambiarlo vienen del orquestador superior

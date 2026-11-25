@@ -111,6 +111,41 @@ export function useHomeState(state: AppState): SharedHomeState {
     loadList();
   }, [loadList]);
 
+  // Descargas en background (backend) avisan por WS → App lo re-emite como
+  // evento de window. Refrescamos la lista para que Ajustes → Fondo la vea.
+  useEffect(() => {
+    const onChanged = () => loadList();
+    window.addEventListener("catodo:wallpapers_changed", onChanged);
+    return () => window.removeEventListener("catodo:wallpapers_changed", onChanged);
+  }, [loadList]);
+
+  // Descarga explícita desde Ajustes → Fondo. El backend responde rápido y
+  // sigue bajando en background; la lista se refresca ahora y con el evento
+  // `wallpapers_changed` cuando terminen los archivos nuevos.
+  const requestMoreWallpapers = useCallback(async () => {
+    if (loadingWp) return;
+    setLoadingWp(true);
+    try {
+      await fetch("/api/wallpapers/fetch?n=4", { method: "POST" });
+      await loadList();
+    } catch {
+      // Sin red o backend caído: se mantiene la lista actual.
+    } finally {
+      setLoadingWp(false);
+    }
+  }, [loadingWp, loadList]);
+
+  // Restaura los fondos descartados (ratings "down") sin tocar los "up".
+  const restoreWallpapers = useCallback(() => {
+    setRatings((prev) => {
+      const next = Object.fromEntries(
+        Object.entries(prev).filter(([, rating]) => rating !== "down"),
+      ) as Record<string, Rating>;
+      saveRatings(next);
+      return next;
+    });
+  }, []);
+
   // Auto-descarga si quedan pocos visibles (L142–151).
   useEffect(() => {
     const visible = wallpapers.filter((u) => ratings[wpId(u)] !== "down").length;
@@ -227,6 +262,8 @@ export function useHomeState(state: AppState): SharedHomeState {
     showPair,
     pairInfo,
     onRate,
+    requestMoreWallpapers,
+    restoreWallpapers,
     toggleConfig,
     openPair,
     closePair,

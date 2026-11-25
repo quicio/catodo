@@ -7,7 +7,7 @@ export type HomeComponentId =
   | "mini-now-playing"
   | "brand"
   | "channel-grid"
-  | "ratings-column"
+  | "settings-button"
   | "appearance-settings-popover"
   | "pair-modal";
 
@@ -57,6 +57,8 @@ export interface SharedHomeState {
     primary?: "lan" | "public";
   } | null;
   onRate: (id: string, r: Rating) => void;
+  requestMoreWallpapers: () => Promise<void>;
+  restoreWallpapers: () => void;
   toggleConfig: () => void;
   openPair: () => void;
   closePair: () => void;

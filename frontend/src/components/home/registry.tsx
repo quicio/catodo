@@ -4,7 +4,7 @@ import { Clock } from "./Clock";
 import { MiniNowPlaying } from "./MiniNowPlaying";
 import { Brand } from "./Brand";
 import { ChannelGrid } from "./ChannelGrid";
-import { RatingsColumn } from "./RatingsColumn";
+import { SettingsButton } from "./SettingsButton";
 import { AppearanceSettingsPopover } from "./AppearanceSettingsPopover";
 import { PairModal } from "./PairModal";
 
@@ -18,7 +18,7 @@ export const homeSlots: Record<HomeComponentId, HomeSlot> = {
   "mini-now-playing": MiniNowPlaying,
   "brand": Brand,
   "channel-grid": ChannelGrid,
-  "ratings-column": RatingsColumn,
+  "settings-button": SettingsButton,
   "appearance-settings-popover": AppearanceSettingsPopover,
   "pair-modal": PairModal,
 };

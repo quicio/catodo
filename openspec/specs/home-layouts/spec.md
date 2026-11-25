@@ -18,7 +18,7 @@ El frontend SHALL exponer 6 layouts preset en `LAYOUTS: Record<string, HomeLayou
 #### Scenario: Layout default preservado
 
 - **WHEN** el usuario no configura nada (o configura `home_layout_id: "default"`)
-- **THEN** se aplica exactamente el mismo layout que existía antes del change `home-layout` (8 componentes, mismo orden, dos overlays)
+- **THEN** se aplica exactamente el mismo layout que existía antes del change `home-layout` (6 componentes root, mismo orden, dos overlays montados desde Home)
 
 #### Scenario: Cada layout es distinto
 

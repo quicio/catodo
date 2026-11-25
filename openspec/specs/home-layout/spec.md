@@ -38,7 +38,7 @@ El componente `Home` SHALL recibir `layout: HomeLayout` (con default = `DEFAULT_
 #### Scenario: Default layout reproduce Home actual
 
 - **WHEN** Home se monta sin pasar `layout` explícito
-- **THEN** usa `DEFAULT_LAYOUT` y la composición visible (reloj, brand, grilla, ratings, theme popover, pair modal) es la misma que antes del refactor
+- **THEN** usa `DEFAULT_LAYOUT` y la composición visible (reloj, brand, grilla, botón de ajustes, theme popover, pair modal) es la misma que antes del refactor
 
 #### Scenario: Composición modificable vía configuración
 
@@ -47,7 +47,7 @@ El componente `Home` SHALL recibir `layout: HomeLayout` (con default = `DEFAULT_
 
 ### Requirement: Estado compartido entre slots vía hook
 
-El Home SHALL exponer a los slots un objeto `homeState` (vía hook `useHomeState()` o contexto equivalente) con las piezas de estado que múltiples slots necesitan: `wallpapers`, `ratings`, `wpIndex`, `artistWp`, `coverReady`, `showSpotifyBg`, `now`, `showConfig`, `showPair`, `pairInfo`, y los callbacks `onPick`, `rate`, `toggleConfig`, `openPair`, `closePair`. Cada slot SHALL consumir solo lo que necesita.
+El Home SHALL exponer a los slots un objeto `homeState` (vía hook `useHomeState()` o contexto equivalente) con las piezas de estado que múltiples slots necesitan: `wallpapers`, `ratings`, `wpIndex`, `artistWp`, `coverReady`, `showSpotifyBg`, `now`, `showConfig`, `showPair`, `pairInfo`, y los callbacks `onPick`, `rate`, `requestMoreWallpapers`, `restoreWallpapers`, `toggleConfig`, `openPair`, `closePair`. Cada slot SHALL consumir solo lo que necesita.
 
 #### Scenario: Reactividad compartida
 
@@ -61,12 +61,12 @@ El Home SHALL exponer a los slots un objeto `homeState` (vía hook `useHomeState
 
 ### Requirement: Slots cubren el Home actual como mínimo
 
-El layout `DEFAULT_LAYOUT` SHALL componer al menos los siguientes slots (con sus ids en `homeSlots`): `wallpaper-background`, `clock`, `mini-now-playing`, `brand`, `channel-grid`, `ratings-column`, `appearance-settings-popover`, `pair-modal`. Cada uno SHALL corresponder a una sección actualmente presente en el Home.
+El layout `DEFAULT_LAYOUT` SHALL componer al menos los siguientes slots (con sus ids en `homeSlots`): `wallpaper-background`, `clock`, `mini-now-playing`, `brand`, `channel-grid`, `settings-button`. Los slots `appearance-settings-popover` y `pair-modal` SHALL renderizarse siempre desde `Home`, fuera del layout. Cada uno SHALL corresponder a una sección actualmente presente en el Home.
 
 #### Scenario: Inventario completo
 
 - **WHEN** se enumeran los slots del `DEFAULT_LAYOUT`
-- **THEN** los 8 ids listados están presentes y cada uno tiene un componente renderizable
+- **THEN** los 6 ids root están presentes y cada uno tiene un componente renderizable; los dos overlays se montan desde Home
 
 #### Scenario: Agregar un slot futuro
 
@@ -90,7 +90,7 @@ La arquitectura SHALL permitir que un futuro componente (p. ej. `ModeManager`) d
 
 ### Requirement: Home adaptable a ventana
 
-El Home SHALL seguir siendo usable fuera de fullscreen (ventana en Hyprland/macOS): el reloj, la marca, la grilla y la columna de FONDO SHALL NOT superponerse ni recortar canales. Los tamaños SHALL escalar con el alto disponible (`vh` + `clamp`) y el ancho de la grilla SHALL calcularse contra el contenedor, no contra `100vw`, para no romperse con el zoom de UI.
+El Home SHALL seguir siendo usable fuera de fullscreen (ventana en Hyprland/macOS): el reloj, la marca, la grilla y el botón de ajustes SHALL NOT superponerse ni recortar canales. Los tamaños SHALL escalar con el alto disponible (`vh` + `clamp`) y el ancho de la grilla SHALL calcularse contra el contenedor, no contra `100vw`, para no romperse con el zoom de UI.
 
 #### Scenario: Ventana 1264×696
 
@@ -110,7 +110,7 @@ El Home SHALL seguir siendo usable fuera de fullscreen (ventana en Hyprland/macO
 #### Scenario: Zoom de UI
 
 - **WHEN** el operador cambia el zoom con Ctrl +/- o hay `ui_scale` persistido
-- **THEN** la grilla mantiene el margen de la columna de FONDO y no se solapa con los botones de rating
+- **THEN** la grilla mantiene el margen del botón de ajustes y no se solapa con él
 
 ### Requirement: Paginación de canales
 

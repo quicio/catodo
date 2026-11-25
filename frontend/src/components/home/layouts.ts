@@ -9,7 +9,7 @@ import type { HomeLayout } from "./types";
  *   ├── mini-now-playing         (root, condicional a Spotify)
  *   ├── brand                    (root)
  *   ├── channel-grid             (root)
- *   ├── ratings-column           (root, fixed right)
+ *   ├── settings-button          (root, fixed right)
  *   ├── appearance-settings-popover (overlay)
  *   └── pair-modal               (overlay)
  */
@@ -21,7 +21,7 @@ export const DEFAULT_LAYOUT: HomeLayout = {
     { id: "mini-now-playing" },
     { id: "brand" },
     { id: "channel-grid" },
-    { id: "ratings-column" },
+    { id: "settings-button" },
     // appearance-settings-popover y pair-modal se renderizan siempre en
     // Home.tsx sin depender del layout — ver comentario en Home.tsx.
   ],
@@ -40,7 +40,7 @@ export const MINIMAL_LAYOUT: HomeLayout = {
 };
 
 /**
- * cinema-layout — pensado para sesión de película: sin ratings ni popover
+ * cinema-layout — pensado para sesión de película: sin botón de ajustes
  * (no se interactúa con la grilla), solo fondo + reloj + grilla + ahora suena.
  */
 export const CINEMA_LAYOUT: HomeLayout = {
@@ -55,7 +55,7 @@ export const CINEMA_LAYOUT: HomeLayout = {
 
 /**
  * focus-layout — sin brand (no necesitás ver "Cátodo") ni mini-now-playing,
- * pero sí ratings y popover para configurar.
+ * pero sí el botón de ajustes para configurar.
  */
 export const FOCUS_LAYOUT: HomeLayout = {
   layoutId: "focus-layout",
@@ -63,12 +63,12 @@ export const FOCUS_LAYOUT: HomeLayout = {
     { id: "wallpaper-background" },
     { id: "clock" },
     { id: "channel-grid" },
-    { id: "ratings-column" },
+    { id: "settings-button" },
   ],
 };
 
 /**
- * clean-layout — el "default" sin ratings ni popover ni pair-modal.
+ * clean-layout — el "default" sin botón de ajustes ni pair-modal.
  * Modo kiosk desatendido: solo fondo + reloj + brand + grilla.
  */
 export const CLEAN_LAYOUT: HomeLayout = {

@@ -67,7 +67,6 @@ export default function ChannelSettings() {
   const [catalog, setCatalog] = useState<PluginInfo[]>([]);
   const [channels, setChannels] = useState<ChannelInfo[]>([]);
   const [urls, setUrls] = useState<Record<string, string>>({});
-  const [iptv, setIptv] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -95,7 +94,6 @@ export default function ChannelSettings() {
         }
       }
       setUrls(nextUrls);
-      setIptv(String(cfg.iptv_playlist ?? ""));
       setError(null);
     } catch (cause) {
       setError(errorMessage(cause));
@@ -194,7 +192,8 @@ export default function ChannelSettings() {
     <div>
       <div style={{ padding: "4px 8px", fontSize: 11, color: "var(--text-dim)" }}>
         Instalá canales del catálogo, habilitá o deshabilitá los existentes y
-        ajustá su URL, playlist u orden.
+        ajustá su URL u orden. La lista del canal IPTV se carga en Ajustes →
+        IPTV.
       </div>
       {hasDrm && (
         <div
@@ -331,30 +330,6 @@ export default function ChannelSettings() {
                   onClick={() =>
                     run(`url-${row.id}`, () =>
                       api.setConfig({ [urlKey(row.id)]: urls[row.id] ?? "" }),
-                    )
-                  }
-                >
-                  Guardar
-                </button>
-              </div>
-            )}
-
-            {row.id === "iptv" && (
-              <div style={{ display: "flex", gap: 6 }}>
-                <input
-                  aria-label="Playlist IPTV (M3U)"
-                  style={inputStyle}
-                  value={iptv}
-                  placeholder="/ruta/a/lista.m3u o https://…"
-                  onChange={(event) => setIptv(event.target.value)}
-                />
-                <button
-                  type="button"
-                  style={actionStyle}
-                  disabled={busy !== null}
-                  onClick={() =>
-                    run("iptv-playlist", () =>
-                      api.setConfig({ iptv_playlist: iptv }),
                     )
                   }
                 >

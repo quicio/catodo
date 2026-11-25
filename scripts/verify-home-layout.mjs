@@ -28,37 +28,28 @@ const EXPECTED = [
   "mini-now-playing",
   "brand",
   "channel-grid",
-  "ratings-column",
-  "appearance-settings-popover",  // overlay
-  "pair-modal",                    // overlay
+  "settings-button",
 ];
-const EXPECTED_OVERLAYS = new Set([
-  "appearance-settings-popover",
-  "pair-modal",
-]);
 
 console.log("DEFAULT_LAYOUT.layoutId:", layout.layoutId);
 console.log("components:", layout.components.length, "esperados:", EXPECTED.length);
 
 assert.equal(layout.layoutId, "default", "layoutId debe ser 'default'");
-assert.equal(layout.components.length, EXPECTED.length, "debe tener 8 componentes");
+assert.equal(layout.components.length, EXPECTED.length, "debe tener 6 componentes root");
 
 let ok = true;
 for (let i = 0; i < EXPECTED.length; i++) {
   const got = layout.components[i]?.id;
   const want = EXPECTED[i];
-  const isOverlay = layout.components[i]?.position === "overlay";
-  const shouldBeOverlay = EXPECTED_OVERLAYS.has(want);
   if (got !== want) {
     console.error(`  ✗ posición ${i}: esperado '${want}', obtuvo '${got}'`);
     ok = false;
-  } else if (isOverlay !== shouldBeOverlay) {
-    console.error(`  ✗ posición ${i}: '${want}' debería ${shouldBeOverlay ? "" : "NO "}ser overlay`);
-    ok = false;
   } else {
-    console.log(`  ✓ ${i + 1}. ${want}${isOverlay ? " (overlay)" : ""}`);
+    console.log(`  ✓ ${i + 1}. ${want}`);
   }
 }
 
+// appearance-settings-popover y pair-modal se renderizan siempre desde Home,
+// fuera del layout (ver comentario en layouts.ts / Home.tsx).
 assert(ok, "layout default no coincide con la spec");
 console.log("\n✓ DEFAULT_LAYOUT válido y equivalente al Home actual");

@@ -21,71 +21,34 @@ export function AppearanceSettingsPopover({
 
   return (
     <div
+      className="settings-panel"
       role="dialog"
       aria-label="Ajustes de Cátodo"
       onClick={(e) => e.stopPropagation()}
-      style={{
-        position: "fixed",
-        right: 88,
-        top: "50%",
-        transform: "translateY(-50%)",
-        background: "var(--surface)",
-        color: "var(--text)",
-        border: "1px solid var(--border)",
-        borderRadius: "var(--radius-lg)",
-        padding: 10,
-        width: "min(480px, 92vw)",
-        maxHeight: "min(70vh, 640px)",
-        fontFamily: "var(--font-mono)",
-        boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
-        display: "flex",
-        flexDirection: "column",
-        zIndex: 20,
-      }}
     >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "2px 8px 8px",
-          borderBottom: "1px solid var(--border)",
-        }}
-      >
-        <span style={{ fontSize: 11, letterSpacing: 2, color: "var(--text-dim)" }}>
-          AJUSTES
-        </span>
+      <div className="settings-header">
+        <span className="settings-title">AJUSTES</span>
         <button
           type="button"
+          className="settings-close"
           aria-label="Cerrar ajustes"
           onClick={toggleConfig}
-          style={{
-            width: 30,
-            height: 30,
-            display: "grid",
-            placeItems: "center",
-            background: "transparent",
-            color: "var(--text-dim)",
-            border: "none",
-            cursor: "pointer",
-          }}
         >
           <Icon name="x" size={16} strokeWidth={2} color="currentColor" />
         </button>
       </div>
-      <div style={{ overflowY: "auto", flex: 1 }}>
-        <AppearanceSettings
-          onPair={() => {
-            closePair();
-            openPair();
-          }}
-          layoutId={layoutId}
-          onLayoutChange={(id) => {
-            if (onLayoutChange) onLayoutChange(id);
-            api.setConfig({ home_layout_id: id }).catch(console.warn);
-          }}
-        />
-      </div>
+      <AppearanceSettings
+        homeState={homeState}
+        onPair={() => {
+          closePair();
+          openPair();
+        }}
+        layoutId={layoutId}
+        onLayoutChange={(id) => {
+          if (onLayoutChange) onLayoutChange(id);
+          api.setConfig({ home_layout_id: id }).catch(console.warn);
+        }}
+      />
     </div>
   );
 }

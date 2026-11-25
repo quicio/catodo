@@ -213,12 +213,12 @@ The frontend SHALL toggle the CRT scanlines/vignette based on `theme_crt_enabled
 
 ### Requirement: Home renders from a HomeLayout
 
-The Home view SHALL be composed from a `HomeLayout` (list of `HomeComponentConfig`s) resolved by a slot registry, rather than from a single hardcoded JSX tree. The default layout SHALL reproduce the existing Home composition (clock, brand, channel grid, ratings column, mini now-playing when Spotify plays, appearance-settings popover, pair modal, wallpaper background) without changing observable behavior.
+The Home view SHALL be composed from a `HomeLayout` (list of `HomeComponentConfig`s) resolved by a slot registry, rather than from a single hardcoded JSX tree. The default layout SHALL reproduce the existing Home composition (clock, brand, channel grid, settings button, mini now-playing when Spotify plays, appearance-settings popover, pair modal, wallpaper background) without changing observable behavior.
 
 #### Scenario: Default layout matches current Home
 
 - **WHEN** the app boots with no explicit layout passed to Home
-- **THEN** the default layout renders all current sections in the current positions (reloj top-left, brand centered, channel grid below, ratings + settings column right, pair modal via AppearanceSettings button)
+- **THEN** the default layout renders all current sections in the current positions (reloj top-left, brand centered, channel grid below, settings button right, pair modal via AppearanceSettings button)
 
 #### Scenario: Layout change reflects in Home
 

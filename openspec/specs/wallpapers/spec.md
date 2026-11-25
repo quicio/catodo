@@ -98,6 +98,20 @@ Concurrent downloads SHALL be capped (default 4) so a burst cannot saturate the 
 - **WHEN** 10 downloads are queued
 - **THEN** at most 4 run concurrently.
 
+### Requirement: Configuración de wallpaper en Ajustes
+
+El frontend SHALL exponer los controles de wallpaper en una pestaña `Fondo` del panel de Ajustes: preview del fondo activo, like/dislike, pedir más fondos y restaurar los descartados. El Home SHALL NOT renderizar una columna flotante de ratings; el único control flotante del Home SHALL ser el botón que abre Ajustes.
+
+#### Scenario: Abrir la pestaña Fondo
+
+- **WHEN** el usuario abre Ajustes y elige `Fondo`
+- **THEN** ve el wallpaper activo, puede marcarlo `up`/`down`, pedir más fondos y restaurar los descartados.
+
+#### Scenario: Home sin ratings flotantes
+
+- **WHEN** el Home se renderiza con el layout default
+- **THEN** no aparecen pulgares flotantes sobre el fondo; sólo queda el botón de ajustes.
+
 ### Requirement: Wallpaper change events
 
 When background downloads complete and the wallpaper set changes, the system SHALL publish `wallpapers_changed` with the new total so clients can refresh listings without polling.

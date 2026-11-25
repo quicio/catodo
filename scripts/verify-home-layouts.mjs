@@ -3,8 +3,12 @@
 // Uso: node scripts/verify-home-layouts.mjs
 import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
-const src = readFileSync("../frontend/src/components/home/layouts.ts", "utf8");
+const src = readFileSync(
+  fileURLToPath(new URL("../frontend/src/components/home/layouts.ts", import.meta.url)),
+  "utf8",
+);
 
 // Extrae todas las constantes HomeLayout (id + components[]).
 const layoutBlocks = [...src.matchAll(/export const (\w+_LAYOUT): HomeLayout = \{[\s\S]*?layoutId: "([^"]+)",[\s\S]*?components: \[([\s\S]*?)\],?\s*\};/g)];
@@ -36,10 +40,10 @@ const sigs = new Set(layouts.map((l) => JSON.stringify(l.components)));
 assert(sigs.size >= 2, "debe haber al menos 2 composiciones distintas");
 console.log(`✓ ${sigs.size} composiciones distintas (≥2 esperado)`);
 
-// Verifica que default es el original (8 componentes)
+// Verifica que default conserva los 6 slots root (los overlays viven en Home)
 const def = layouts.find((l) => l.id === "default");
-assert(def && def.components.length === 8, `default debe tener 8 componentes (tiene ${def?.components.length})`);
-console.log(`✓ default tiene 8 componentes (igual al Home anterior)`);
+assert(def && def.components.length === 6, `default debe tener 6 componentes root (tiene ${def?.components.length})`);
+console.log(`✓ default tiene 6 componentes root`);
 
 // Verifica overlays correctos (solo appearance-settings-popover y pair-modal)
 for (const l of layouts) {

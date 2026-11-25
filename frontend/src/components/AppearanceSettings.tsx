@@ -9,7 +9,7 @@
  * eventos `config_changed` que broadcastea el backend (vía WebSocket)
  * sincronizan a otros suscriptores (ej. NowPlaying del Spotify).
  */
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   api,
   type ModePreset,
@@ -32,30 +32,44 @@ import ChannelSettings from "./ChannelSettings";
 import ArcadeSettings from "./ArcadeSettings";
 import EmissionSettings from "./EmissionSettings";
 import ShortcutSettings from "./ShortcutSettings";
+import WallpaperSettings from "./WallpaperSettings";
+import IptvSettings from "./IptvSettings";
+import type { SharedHomeState } from "./home/types";
 
 type TabId =
   | "general"
   | "canales"
+  | "iptv"
   | "emision"
   | "atajos"
   | "modos"
   | "arcade"
   | "apariencia"
+  | "fondo"
   | "tipografia"
   | "efectos"
   | "dominio";
 
-const TABS: { id: TabId; label: string }[] = [
-  { id: "general", label: "General" },
-  { id: "canales", label: "Canales" },
-  { id: "emision", label: "Emisión" },
-  { id: "atajos", label: "Atajos" },
-  { id: "modos", label: "Modos" },
-  { id: "arcade", label: "Arcade" },
-  { id: "apariencia", label: "Apariencia" },
-  { id: "tipografia", label: "Tipografía" },
-  { id: "efectos", label: "Efectos" },
-  { id: "dominio", label: "Dominio" },
+const TAB_LABELS: Record<TabId, string> = {
+  general: "General",
+  canales: "Canales",
+  iptv: "IPTV",
+  emision: "Emisión",
+  atajos: "Atajos",
+  modos: "Modos",
+  arcade: "Arcade",
+  apariencia: "Apariencia",
+  fondo: "Fondo",
+  tipografia: "Tipografía",
+  efectos: "Efectos",
+  dominio: "Dominio",
+};
+
+const TAB_GROUPS: { label: string; tabs: TabId[] }[] = [
+  { label: "SISTEMA", tabs: ["general", "dominio"] },
+  { label: "CONTENIDO", tabs: ["canales", "iptv", "emision"] },
+  { label: "CONTROL", tabs: ["atajos", "modos", "arcade"] },
+  { label: "ESTILO", tabs: ["apariencia", "fondo", "tipografia", "efectos"] },
 ];
 
 const FONT_LABELS: Record<FontId, string> = {
@@ -177,56 +191,44 @@ function TriState({
   );
 }
 
-function TabBar({
+function SettingsNav({
   active,
   onChange,
 }: {
   active: TabId;
   onChange: (t: TabId) => void;
 }) {
+  const activeRef = useRef<HTMLButtonElement | null>(null);
+
+  // En ventanas angostas la nav pasa a horizontal y scrollea; aseguramos que
+  // la sección activa quede visible.
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [active]);
+
   return (
-    <div
-      style={{
-        display: "flex",
-        gap: 2,
-        padding: "4px 6px",
-        borderBottom: "1px solid var(--border)",
-        position: "sticky",
-        top: 0,
-        background: "var(--surface)",
-        zIndex: 1,
-        overflowX: "auto",
-        scrollbarWidth: "none",
-      }}
-    >
-      {TABS.map((t) => {
-        const isActive = t.id === active;
-        return (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => onChange(t.id)}
-            style={{
-              flex: "0 0 auto",
-              padding: "6px 8px",
-              fontSize: 10.5,
-              fontFamily: "var(--font-mono)",
-              letterSpacing: 1,
-              border: "none",
-              borderBottom: `2px solid ${isActive ? "var(--accent)" : "transparent"}`,
-              borderRadius: 0,
-              background: "transparent",
-              color: isActive ? "var(--text)" : "var(--text-dim)",
-              cursor: "pointer",
-              transition: "color 0.15s ease, border-color 0.15s ease",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {t.label}
-          </button>
-        );
-      })}
-    </div>
+    <nav className="settings-nav" aria-label="Secciones de ajustes">
+      {TAB_GROUPS.map((group) => (
+        <div className="settings-nav-group" key={group.label}>
+          <div className="settings-nav-label">{group.label}</div>
+          {group.tabs.map((id) => {
+            const isActive = id === active;
+            return (
+              <button
+                key={id}
+                type="button"
+                ref={isActive ? activeRef : undefined}
+                className="settings-nav-item"
+                aria-current={isActive ? "page" : undefined}
+                onClick={() => onChange(id)}
+              >
+                {TAB_LABELS[id]}
+              </button>
+            );
+          })}
+        </div>
+      ))}
+    </nav>
   );
 }
 
@@ -234,10 +236,12 @@ export default function AppearanceSettings({
   onPair,
   layoutId = "default",
   onLayoutChange,
+  homeState,
 }: {
   onPair: () => void;
   layoutId?: string;
   onLayoutChange?: (id: string) => void;
+  homeState: SharedHomeState;
 }) {
   const { theme, themes, setTheme, overrides, setOverride } = useTheme();
   const { scale, setScale } = useUiScale();
@@ -373,8 +377,9 @@ export default function AppearanceSettings({
   };
 
   return (
-    <div style={{ maxHeight: "70vh", overflowY: "auto" }}>
-      <TabBar active={tab} onChange={setTab} />
+    <div className="settings-body">
+      <SettingsNav active={tab} onChange={setTab} />
+      <div className="settings-content">
 
       {/* ==== GENERAL ==== */}
       {tab === "general" && (
@@ -468,6 +473,9 @@ export default function AppearanceSettings({
 
       {/* ==== CANALES ==== */}
       {tab === "canales" && <ChannelSettings />}
+
+      {/* ==== IPTV ==== */}
+      {tab === "iptv" && <IptvSettings />}
 
       {/* ==== EMISIÓN ==== */}
       {tab === "emision" && <EmissionSettings />}
@@ -682,6 +690,9 @@ export default function AppearanceSettings({
         </>
       )}
 
+      {/* ==== FONDO ==== */}
+      {tab === "fondo" && <WallpaperSettings homeState={homeState} />}
+
       {/* ==== TIPOGRAFÍA ==== */}
       {tab === "tipografia" && (
         <>
@@ -834,6 +845,7 @@ export default function AppearanceSettings({
         aria-label="Versión de Cátodo"
       >
         CÁTODO v{version || "…"}
+      </div>
       </div>
     </div>
   );

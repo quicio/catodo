@@ -125,6 +125,46 @@ export interface PluginInfo {
   installed_version?: string;
 }
 
+export interface IptvEntry {
+  id: string;
+  name: string;
+  logo?: string;
+  available?: boolean;
+  error?: string | null;
+}
+
+export interface IptvGroup {
+  name: string;
+  channels: IptvEntry[];
+}
+
+export interface IptvHealth {
+  checking: boolean;
+  checked: number;
+  total: number;
+  available: number;
+  unavailable: number;
+  checked_at?: number | null;
+}
+
+export interface IptvState {
+  id: string;
+  configured: boolean;
+  groups: IptvGroup[];
+  current: IptvEntry | null;
+  count: number;
+  error?: string | null;
+  health?: IptvHealth;
+}
+
+export interface IptvPlaylistResult {
+  ok: boolean;
+  source: string;
+  count: number;
+  groups: number;
+  bytes: number;
+}
+
 export const api = {
   health: () => request<{ status: string }>("/api/health"),
   version: () => request<{ version: string }>("/api/version"),
@@ -190,6 +230,15 @@ export const api = {
       method: "POST",
       body: JSON.stringify(patch),
     }),
+  iptvState: () => request<IptvState>("/api/channels/iptv/state"),
+  uploadIptvPlaylist: (content: string) =>
+    request<IptvPlaylistResult>("/api/iptv/playlist", {
+      method: "POST",
+      headers: { "Content-Type": "audio/x-mpegurl" },
+      body: content,
+    }),
+  clearIptvPlaylist: () =>
+    request<{ ok: boolean }>("/api/iptv/playlist", { method: "DELETE" }),
   open: (id: string) =>
     request<{ ok: boolean; current: string }>(`/api/channels/${id}/open`, {
       method: "POST",
