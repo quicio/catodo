@@ -158,7 +158,7 @@ Detalles de empaquetado, permisos TCC y limitaciones de macOS: ver
 
 ## macOS (Apple Silicon)
 
-Cátodo corre de forma nativa en macOS Apple Silicon con la misma experiencia que en Linux. El backend, YouTube, los canales de emisión, Arcade, IPTV, remote, screencast y los 10 temas funcionan sin cambios. Hay algunas diferencias que conviene conocer.
+Cátodo corre de forma nativa en macOS Apple Silicon con la misma experiencia que en Linux. El backend, YouTube, los canales de emisión, Arcade, IPTV, remote, screencast y los 11 temas funcionan sin cambios. Hay algunas diferencias que conviene conocer.
 
 ### Requisitos
 
@@ -287,7 +287,8 @@ o por API.
 
 - `kind: series` → agrupa por serie + temporada.
 - `kind: videos` → lista plana de videos (acepta `movies` legacy).
-- Nombre, carpeta, icono, color y orden configurables.
+- Nombre, carpeta, icono, color y orden configurables. El icono puede ser un
+  glifo genérico o el logo de marca (Netflix, Spotify, YouTube, etc.).
 - Progreso/resume aislado por canal.
 - No hay un canal Anime built-in: si querés Anime, creá un canal apuntando a
   `~/Anime`. `anime_dir` queda como clave legacy sin efecto.
@@ -478,13 +479,15 @@ reaccione en vivo sin recargar.
 
 ## Apariencia (temas y personalización)
 
-Cátodo tiene **10 temas** que cambian colores, tipografía, forma de los botones,
-densidad, efectos (CRT/glow) y **pack de iconos**. Se eligen desde el botón ⚙ del
-Home (sección **TEMAS**) y aplican al instante en la TV y el remote.
+Cátodo tiene **11 temas** que cambian colores, tipografía, forma de los botones,
+densidad, efectos (CRT/glow), **pack de iconos** y **estilo de iconos de canal**
+(glifos o logos de marca). Se eligen desde el botón ⚙ del Home (sección
+**APARIENCIA**) y aplican al instante en la TV y el remote.
 
 | Tema | Inspiración | Fuente | Iconos | Bordes | Densidad | Efectos |
 | ---- | ----------- | ------ | ------ | ------ | -------- | ------- |
 | Spotify Dark (default) | Spotify | Space Grotesk | Lucide | redondos | media | CRT |
+| Cátodo Original | look de fábrica | Space Grotesk | Lucide | redondos | media | CRT |
 | Retro CRT | terminales de fósforo | VT323 | Game Icons | cuadrados | media | CRT + glow |
 | Minimal Light | minimalismo | Inter | Feather | redondos | media | — |
 | Orbital Blue | launcher PS2/XMB | Orbitron | Phosphor | píldora | espaciosa | glow |
@@ -495,13 +498,18 @@ Home (sección **TEMAS**) y aplican al instante en la TV y el remote.
 | Cyber Neon | futurismo | Orbitron | Tabler | redondos | compacta | glow |
 | Paper Mono | e-ink | Inter | Radix | cuadrados | media | — |
 
+**Cátodo Original** usa los logos de marca de los canales (Spotify, YouTube,
+Netflix, Crunchyroll, Max, etc.) tomados de Simple Icons, con el glifo semántico
+como respaldo cuando el servicio no tiene logo (Disney+, Pluto, etc.).
+
 ### Personalizaciones
 
 En la sección **PERSONALIZACIÓN** del mismo panel se puede sobreescribir cualquier
-dimensión sin cambiar de tema: fuente, pack de iconos, bordes, densidad, CRT y glow.
-Cada control tiene la opción **"Tema"** que quita el override y vuelve al valor del
-tema activo. Los overrides se guardan en `theme_overrides` (config.json) y sobreviven
-a cambios de tema y reinicios.
+dimensión sin cambiar de tema: fuente, pack de iconos, estilo de iconos de canal
+(glifos/marcas), bordes, densidad, CRT y glow. Cada control tiene la opción
+**"Tema"** que quita el override y vuelve al valor del tema activo. Los overrides
+se guardan en `theme_overrides` (config.json) y sobreviven a cambios de tema y
+reinicios.
 
 ### Temas custom
 

@@ -1,15 +1,8 @@
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { api, type LibraryInfo } from "../api/client";
-import { Icon, type IconName } from "../icons";
-
-const ICONS: IconName[] = [
-  "clapperboard",
-  "tv",
-  "monitor-play",
-  "play",
-  "gamepad",
-  "music",
-];
+import { BrandGlyph, BRAND_ICON_NAMES, ChannelIcon } from "../channelIcons";
+import { Icon, ICON_NAMES } from "../icons";
+import { useTheme } from "../theme";
 
 const DEFAULT_COLOR = "#ffcc00";
 
@@ -17,7 +10,7 @@ type Draft = {
   name: string;
   path: string;
   kind: "series" | "videos";
-  icon: IconName;
+  icon: string;
   color: string;
   order: number;
 };
@@ -82,11 +75,30 @@ function errorText(error: unknown): string {
 }
 
 export default function EmissionSettings() {
+  const { theme } = useTheme();
   const [libraries, setLibraries] = useState<LibraryInfo[]>([]);
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>(emptyDraft(10));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // Paleta rápida: tokens de canal del tema activo + color libre.
+  const colorPresets = [
+    theme.colors.accent,
+    theme.colors.chSpotify,
+    theme.colors.chYoutube,
+    theme.colors.chTv,
+    theme.colors.chAnime,
+    theme.colors.chCrunchyroll,
+    theme.colors.chArcade,
+    theme.colors.success,
+  ].filter((value, index, list) => !!value && list.indexOf(value) === index);
+
+  // `input[type=color]` sólo acepta #rrggbb; si el color guardado vino como
+  // token/rgba mostramos el default sin perder el valor original.
+  const colorInputValue = /^#[0-9a-f]{6}$/i.test(draft.color)
+    ? draft.color
+    : DEFAULT_COLOR;
 
   const load = useCallback(async () => {
     try {
@@ -121,9 +133,7 @@ export default function EmissionSettings() {
       name: library.name,
       path: library.path,
       kind: library.kind === "videos" ? "videos" : "series",
-      icon: ICONS.includes(library.icon as IconName)
-        ? (library.icon as IconName)
-        : "clapperboard",
+      icon: library.icon?.trim() || "clapperboard",
       color: library.color || DEFAULT_COLOR,
       order: library.order ?? 10,
     });
@@ -242,9 +252,64 @@ export default function EmissionSettings() {
             </div>
           </div>
           <div style={rowStyle}>
-            <span style={labelStyle}>ICONO</span>
+            <span style={labelStyle}>VISTA PREVIA</span>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "8px 10px",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-sm)",
+                background: `color-mix(in srgb, ${draft.color} 8%, transparent)`,
+              }}
+            >
+              <span
+                style={{
+                  width: 34,
+                  height: 34,
+                  display: "grid",
+                  placeItems: "center",
+                  borderRadius: "var(--radius-sm)",
+                  background: `color-mix(in srgb, ${draft.color} 18%, transparent)`,
+                  border: `1px solid color-mix(in srgb, ${draft.color} 45%, transparent)`,
+                }}
+              >
+                <ChannelIcon
+                  channelId={editing && editing !== "new" ? editing : undefined}
+                  icon={draft.icon}
+                  size={18}
+                  color={draft.color}
+                />
+              </span>
+              <span
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {draft.name.trim() || "Nuevo canal"}
+              </span>
+              <span
+                style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: "50%",
+                  background: draft.color,
+                  border: "1px solid var(--border)",
+                }}
+              />
+            </div>
+          </div>
+          <div style={rowStyle}>
+            <span style={labelStyle}>ICONO GENÉRICO</span>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {ICONS.map((icon) => (
+              {ICON_NAMES.map((icon) => (
                 <button
                   key={icon}
                   type="button"
@@ -262,17 +327,71 @@ export default function EmissionSettings() {
               ))}
             </div>
           </div>
+          <div style={rowStyle}>
+            <span style={labelStyle}>LOGO DE MARCA</span>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {BRAND_ICON_NAMES.map((brand) => (
+                <button
+                  key={brand}
+                  type="button"
+                  aria-label={brand}
+                  title={brand}
+                  style={{
+                    ...buttonStyle,
+                    borderColor:
+                      draft.icon === brand ? "var(--accent-soft)" : "var(--border)",
+                  }}
+                  onClick={() =>
+                    setDraft((current) => ({ ...current, icon: brand }))
+                  }
+                >
+                  <BrandGlyph name={brand} size={16} color="currentColor" />
+                </button>
+              ))}
+            </div>
+            <span style={{ ...labelStyle, opacity: 0.55 }}>
+              Los logos se ven con “Iconos de canal: Marcas”.
+            </span>
+          </div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <label style={{ ...rowStyle, flex: 1 }}>
               <span style={labelStyle}>COLOR</span>
-              <input
-                type="color"
-                value={draft.color}
-                style={{ ...inputStyle, padding: 2, height: 30 }}
-                onChange={(event) =>
-                  setDraft((current) => ({ ...current, color: event.target.value }))
-                }
-              />
+              <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>
+                {colorPresets.map((color) => {
+                  const active = draft.color.toLowerCase() === color.toLowerCase();
+                  return (
+                    <button
+                      key={color}
+                      type="button"
+                      aria-label={`Color ${color}`}
+                      title={color}
+                      onClick={() =>
+                        setDraft((current) => ({ ...current, color }))
+                      }
+                      style={{
+                        width: 22,
+                        height: 22,
+                        padding: 0,
+                        borderRadius: "50%",
+                        background: color,
+                        border: active
+                          ? "2px solid var(--text)"
+                          : "1px solid var(--border)",
+                        cursor: "pointer",
+                      }}
+                    />
+                  );
+                })}
+                <input
+                  type="color"
+                  title="Color libre"
+                  value={colorInputValue}
+                  style={{ ...inputStyle, padding: 2, height: 30, width: 44, flex: "0 0 44px" }}
+                  onChange={(event) =>
+                    setDraft((current) => ({ ...current, color: event.target.value }))
+                  }
+                />
+              </div>
             </label>
             <label style={{ ...rowStyle, width: 100 }}>
               <span style={labelStyle}>ORDEN</span>
@@ -341,12 +460,9 @@ export default function EmissionSettings() {
               borderBottom: "1px solid var(--border)",
             }}
           >
-            <Icon
-              name={
-                ICONS.includes(library.icon as IconName)
-                  ? (library.icon as IconName)
-                  : "clapperboard"
-              }
+            <ChannelIcon
+              channelId={library.id}
+              icon={library.icon}
               size={16}
               color={library.color || "var(--text-dim)"}
             />

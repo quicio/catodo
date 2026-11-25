@@ -46,6 +46,12 @@ export type IconPackId =
   | "tabler"
   | "radix";
 
+/**
+ * Estilo de los iconos de identidad de canal: glifos semánticos del pack
+ * activo o los logos de marca (Simple Icons) con fallback al glifo.
+ */
+export type ChannelIconsId = "glyph" | "brand";
+
 export interface Theme {
   id: string;
   name: string;
@@ -56,6 +62,7 @@ export interface Theme {
   density: DensityId;
   effects: { crt: boolean; glow: boolean };
   icons: IconPackId;
+  channelIcons: ChannelIconsId;
 }
 
 /** Overrides granulares del usuario; un campo ausente = "seguir al theme". */
@@ -64,6 +71,7 @@ export interface ThemeOverrides {
   radius?: ShapeId;
   density?: DensityId;
   iconPack?: IconPackId;
+  channelIcons?: ChannelIconsId;
   crt?: boolean;
   glow?: boolean;
 }
@@ -147,6 +155,7 @@ const FALLBACK: Theme = {
   density: "comfortable",
   effects: { crt: true, glow: false },
   icons: "lucide",
+  channelIcons: "glyph",
 };
 
 const FONT_IDS = Object.keys(FONT_STACKS) as FontId[];
@@ -156,6 +165,7 @@ const PACK_IDS: IconPackId[] = [
 ];
 const SHAPE_IDS = Object.keys(RADIUS_PRESETS) as ShapeId[];
 const DENSITY_IDS = Object.keys(DENSITY_PRESETS) as DensityId[];
+const CHANNEL_ICONS_IDS: ChannelIconsId[] = ["glyph", "brand"];
 
 function pick<T extends string>(v: unknown, allowed: readonly T[], fallback: T): T {
   return allowed.includes(v as T) ? (v as T) : fallback;
@@ -190,6 +200,7 @@ export function sanitizeTheme(t: unknown): Theme {
       glow: typeof rawFx.glow === "boolean" ? rawFx.glow : FALLBACK.effects.glow,
     },
     icons: pick(obj.icons, PACK_IDS, FALLBACK.icons),
+    channelIcons: pick(obj.channelIcons, CHANNEL_ICONS_IDS, FALLBACK.channelIcons),
   };
 }
 
@@ -201,6 +212,9 @@ export function sanitizeOverrides(raw: unknown): ThemeOverrides {
   if (SHAPE_IDS.includes(o.radius as ShapeId)) out.radius = o.radius as ShapeId;
   if (DENSITY_IDS.includes(o.density as DensityId)) out.density = o.density as DensityId;
   if (PACK_IDS.includes(o.iconPack as IconPackId)) out.iconPack = o.iconPack as IconPackId;
+  if (CHANNEL_ICONS_IDS.includes(o.channelIcons as ChannelIconsId)) {
+    out.channelIcons = o.channelIcons as ChannelIconsId;
+  }
   if (typeof o.crt === "boolean") out.crt = o.crt;
   if (typeof o.glow === "boolean") out.glow = o.glow;
   return out;
@@ -223,6 +237,7 @@ export function mergeTheme(theme: Theme, overrides: ThemeOverrides) {
     crt: overrides.crt ?? theme.effects.crt,
     glow: overrides.glow ?? theme.effects.glow,
     icons: overrides.iconPack ?? theme.icons,
+    channelIcons: overrides.channelIcons ?? theme.channelIcons,
   };
 }
 
@@ -248,6 +263,7 @@ export function applyTheme(theme: Theme | null, overrides: ThemeOverrides = {}) 
   root.dataset.crt = m.crt ? "on" : "off";
   root.dataset.glow = m.glow ? "on" : "off";
   root.dataset.icons = m.icons;
+  root.dataset.channelIcons = m.channelIcons;
 }
 
 // ---------------------------------------------------------------------------

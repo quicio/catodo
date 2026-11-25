@@ -161,7 +161,7 @@ After sending a command, the UI SHALL wait for the resulting event rather than i
 
 ### Requirement: Theme selector in UI
 
-The frontend SHALL expose a theme gallery in the Home settings panel listing the available themes (built-in + custom) with a visual preview per theme (palette swatches and typography sample). Selecting a theme SHALL persist it via `POST /api/config` and apply it immediately. The panel SHALL also expose the granular personalizations (font, icon pack, radius, density, effects) with a per-dimension "theme default" option.
+The frontend SHALL expose a theme gallery in the Home settings panel listing the available themes (built-in + custom) with a visual preview per theme (palette swatches and typography sample). Selecting a theme SHALL persist it via `POST /api/config` and apply it immediately. The panel SHALL also expose the granular personalizations (font, icon pack, channel icon style, radius, density, effects) with a per-dimension "theme default" option.
 
 #### Scenario: Select theme
 
@@ -183,9 +183,14 @@ The frontend SHALL expose a theme gallery in the Home settings panel listing the
 - **WHEN** the user picks a different icon pack in the personalization section
 - **THEN** every icon in the kiosk re-renders from that pack immediately and the override is persisted.
 
+#### Scenario: Switch channel icon style
+
+- **WHEN** the user picks "Marcas" or "Glifos" under "Iconos de canal"
+- **THEN** every channel identity re-renders immediately (logo or glyph) and the override is persisted.
+
 ### Requirement: Apply theme from config
 
-The frontend SHALL read the active theme and personalization overrides at boot (from `/api/config` or the `config_changed` event) and apply every dimension (colors, typography, shape, density, effects, icons) to `:root` and the icon registry. A `config_changed` event with key `theme`, `themes`, `theme_crt_enabled`, or `theme_overrides` SHALL re-apply the appearance without a reload.
+The frontend SHALL read the active theme and personalization overrides at boot (from `/api/config` or the `config_changed` event) and apply every dimension (colors, typography, shape, density, effects, icons, channel icons) to `:root` and the icon registries. A `config_changed` event with key `theme`, `themes`, `theme_crt_enabled`, or `theme_overrides` SHALL re-apply the appearance without a reload.
 
 #### Scenario: Boot applies theme
 

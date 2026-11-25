@@ -488,4 +488,52 @@ mod tests {
         assert!(!is_local_only_key("theme"));
         assert!(!is_local_only_key("home_layout_id"));
     }
+
+    #[test]
+    fn builtin_themes_define_every_dimension() {
+        let themes = builtin_themes()
+            .as_array()
+            .expect("themes.json es una lista");
+        assert_eq!(themes.len(), 11, "deben ser 11 temas built-in");
+        let ids: Vec<&str> = themes
+            .iter()
+            .filter_map(|theme| theme.get("id").and_then(Value::as_str))
+            .collect();
+        assert_eq!(
+            ids.iter().collect::<std::collections::HashSet<_>>().len(),
+            ids.len()
+        );
+        assert!(ids.contains(&"spotify-dark"), "falta el tema por defecto");
+        for theme in themes {
+            for (dimension, kind) in [
+                ("colors", "object"),
+                ("typography", "object"),
+                ("shape", "string"),
+                ("density", "string"),
+                ("effects", "object"),
+                ("icons", "string"),
+                ("channelIcons", "string"),
+            ] {
+                let value = theme
+                    .get(dimension)
+                    .unwrap_or_else(|| panic!("theme {theme:?} sin {dimension}"));
+                let matches_kind = match kind {
+                    "object" => value.is_object(),
+                    "string" => value.is_string(),
+                    _ => false,
+                };
+                assert!(matches_kind, "{dimension} de {theme:?} tiene tipo inválido");
+            }
+            let channel_icons = theme["channelIcons"].as_str().unwrap_or_default();
+            assert!(
+                matches!(channel_icons, "glyph" | "brand"),
+                "channelIcons inválido: {channel_icons}"
+            );
+        }
+        let original = themes
+            .iter()
+            .find(|theme| theme["id"] == "catodo-original")
+            .expect("falta catodo-original");
+        assert_eq!(original["channelIcons"], "brand");
+    }
 }

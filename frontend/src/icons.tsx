@@ -80,6 +80,29 @@ export type IconName =
   | "settings"
   | "smartphone";
 
+/** Lista canónica de iconos semánticos, en el orden que usan los pickers. */
+export const ICON_NAMES: IconName[] = [
+  "music",
+  "monitor-play",
+  "clapperboard",
+  "tv",
+  "play",
+  "pause",
+  "skip-back",
+  "skip-forward",
+  "gamepad",
+  "thumbs-up",
+  "thumbs-down",
+  "check",
+  "x",
+  "settings",
+  "smartphone",
+];
+
+export function isIconName(value: string | undefined): value is IconName {
+  return !!value && (ICON_NAMES as string[]).includes(value);
+}
+
 type MorphMap = Record<IconName, IconNode>;
 type StaticMap = Record<IconName, IconType>;
 

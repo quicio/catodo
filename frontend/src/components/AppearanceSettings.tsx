@@ -20,6 +20,7 @@ import {
   FONT_STACKS,
   useTheme,
   useUiScale,
+  type ChannelIconsId,
   type DensityId,
   type FontId,
   type IconPackId,
@@ -726,6 +727,19 @@ export default function AppearanceSettings({
                 id: p,
                 label: PACKS[p].label,
               })),
+            ]}
+          />
+
+          <div style={{ padding: "6px 10px 2px", fontSize: 12, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
+            Iconos de canal
+          </div>
+          <Segmented<ChannelIconsId>
+            value={overrides.channelIcons ?? ""}
+            onChange={(v) => setOverride("channelIcons", v || undefined)}
+            options={[
+              { id: "", label: "Tema" },
+              { id: "glyph", label: "Glifos" },
+              { id: "brand", label: "Marcas" },
             ]}
           />
 

@@ -66,6 +66,7 @@ export interface ThemeOverridesInput {
   radius?: string;
   density?: string;
   iconPack?: string;
+  channelIcons?: string;
   crt?: boolean;
   glow?: boolean;
 }
@@ -80,6 +81,7 @@ export interface ThemeInfo {
   density: string;
   effects: { crt: boolean; glow: boolean };
   icons: string;
+  channelIcons?: string;
 }
 
 export interface ModePreset {

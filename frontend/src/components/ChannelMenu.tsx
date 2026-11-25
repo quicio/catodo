@@ -1,24 +1,6 @@
 import { useEffect, useRef, type CSSProperties } from "react";
 import type { ChannelInfo } from "../api/client";
-import { Icon, type IconName } from "../icons";
-
-const ICONS = new Set<string>([
-  "music",
-  "monitor-play",
-  "clapperboard",
-  "tv",
-  "play",
-  "pause",
-  "skip-back",
-  "skip-forward",
-  "gamepad",
-  "thumbs-up",
-  "thumbs-down",
-  "check",
-  "x",
-  "settings",
-  "smartphone",
-]);
+import { ChannelIcon } from "../channelIcons";
 
 export default function ChannelMenu({
   channels,
@@ -71,9 +53,6 @@ export default function ChannelMenu({
             <p className="channel-menu-empty">No hay canales disponibles.</p>
           )}
           {channels.map((channel, position) => {
-            const icon = ICONS.has(channel.icon)
-              ? (channel.icon as IconName)
-              : "clapperboard";
             const color = channel.color || "var(--accent)";
             const focused = position === index;
             const active = channel.id === current;
@@ -91,7 +70,13 @@ export default function ChannelMenu({
                 <span className="channel-menu-num">
                   {String(position + 1).padStart(2, "0")}
                 </span>
-                <Icon name={icon} size={18} color={color} />
+                <ChannelIcon
+                  channelId={channel.id}
+                  icon={channel.icon}
+                  channelType={channel.type}
+                  size={18}
+                  color={color}
+                />
                 <span className="channel-menu-name">{channel.name}</span>
                 {active && <span className="channel-menu-now">AHORA</span>}
               </button>

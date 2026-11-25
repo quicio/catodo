@@ -1,44 +1,49 @@
 # appearance Specification
 
 ## Purpose
-Sistema de apariencia de Cátodo: temas multidimensionales (color, tipografía, forma, densidad, efectos, iconos) con 10 temas predefinidos, personalizaciones granulares por el usuario y temas custom con herencia, aplicados en vivo en kiosk y remote.
+Sistema de apariencia de Cátodo: temas multidimensionales (color, tipografía, forma, densidad, efectos, iconos, iconos de canal) con 11 temas predefinidos, personalizaciones granulares por el usuario y temas custom con herencia, aplicados en vivo en kiosk y remote.
 ## Requirements
 ### Requirement: Modelo de tema multidimensional
 
-A theme SHALL define six dimensions: `colors` (palette tokens), `typography` (display and mono font families), `shape` (corner-radius preset), `density` (spacing and font-size scale), `effects` (CRT scanlines/vignette, glow) and `icons` (icon pack id). Colors, typography, shape, density and effects SHALL resolve to CSS custom properties on `:root` consumed via `var(--…)`; `icons` SHALL select a bundled icon pack rendered through the semantic icon registry, replacing hardcoded icon components.
+A theme SHALL define seven dimensions: `colors` (palette tokens), `typography` (display and mono font families), `shape` (corner-radius preset), `density` (spacing and font-size scale), `effects` (CRT scanlines/vignette, glow), `icons` (icon pack id) and `channelIcons` (channel identity style: `glyph` or `brand`). Colors, typography, shape, density and effects SHALL resolve to CSS custom properties on `:root` consumed via `var(--…)`; `icons` SHALL select a bundled icon pack rendered through the semantic icon registry, replacing hardcoded icon components; `channelIcons` SHALL select whether channel identity renders as semantic glyphs or as brand logos, falling back to the glyph when a logo does not exist.
 
 #### Scenario: Applying a theme defines all dimensions
 
 - **WHEN** a theme is applied
-- **THEN** CSS variables for colors, typography, shape, density and effects are defined on `:root`, and the icon pack is active in the icon registry
+- **THEN** CSS variables for colors, typography, shape, density and effects are defined on `:root`, the icon pack is active in the icon registry, and the channel-identity style is active
 
 #### Scenario: Theme with partial dimensions
 
 - **WHEN** a theme only defines some dimensions
 - **THEN** the missing dimensions inherit from its base theme (or the default theme) so every variable is still defined
 
-### Requirement: Diez temas predefinidos
+### Requirement: Once temas predefinidos
 
-The system SHALL ship exactly 10 built-in selectable themes spanning these inspirations: console launchers (Orbital Blue / PS2-XMB), Kodi (Estuary), TV operating systems (Smart TV Coral), video players (Cone Orange / VLC), vintage devices (Amber Vintage), retro interfaces (Retro CRT), futurism (Cyber Neon), minimalism (Minimal Light, Paper Mono) and the existing Spotify Dark. Each built-in theme SHALL define all six dimensions. The default theme when unset SHALL remain `spotify-dark`.
+The system SHALL ship exactly 11 built-in selectable themes spanning these inspirations: the factory look (Cátodo Original, brand channel logos), console launchers (Orbital Blue / PS2-XMB), Kodi (Estuary), TV operating systems (Smart TV Coral), video players (Cone Orange / VLC), vintage devices (Amber Vintage), retro interfaces (Retro CRT), futurism (Cyber Neon), minimalism (Minimal Light, Paper Mono) and the existing Spotify Dark. Each built-in theme SHALL define all seven dimensions. The default theme when unset SHALL remain `spotify-dark`.
 
-#### Scenario: Theme list shows 10 themes
+#### Scenario: Theme list shows 11 themes
 
 - **WHEN** the available themes are requested
-- **THEN** exactly 10 built-in themes are listed, each with id, name, color scheme and all six dimensions resolved
+- **THEN** exactly 11 built-in themes are listed, each with id, name, color scheme and all seven dimensions resolved
 
 #### Scenario: Distinct look per theme
 
 - **WHEN** switching between any two built-in themes
-- **THEN** at least one non-color dimension (typography, shape, density, effects or icons) also changes, so themes differ beyond their palette
+- **THEN** at least one non-color dimension (typography, shape, density, effects, icons or channel icons) also changes, so themes differ beyond their palette
 
 ### Requirement: Personalizaciones granulares
 
-The user SHALL be able to override typography (font family), shape (radius preset), density, icon pack and each effect (CRT, glow) independently of the active theme. Every override SHALL support a "theme default" state that removes the override and returns to the theme's value.
+The user SHALL be able to override typography (font family), shape (radius preset), density, icon pack, channel identity style (glyph or brand) and each effect (CRT, glow) independently of the active theme. Every override SHALL support a "theme default" state that removes the override and returns to the theme's value.
 
 #### Scenario: Override a single dimension
 
 - **WHEN** the user overrides only the icon pack
-- **THEN** every icon in the kiosk renders from the chosen pack while colors, typography, shape, density and effects still follow the active theme
+- **THEN** every icon in the kiosk renders from the chosen pack while colors, typography, shape, density, channel icons and effects still follow the active theme
+
+#### Scenario: Brand logos without changing the theme
+
+- **WHEN** the user sets "Iconos de canal" to "Marcas"
+- **THEN** channels with a known brand render their logo while channels without one keep the semantic glyph, without changing the active theme
 
 #### Scenario: Reset to theme default
 
@@ -76,7 +81,7 @@ Custom themes defined in the `themes` config key MAY declare `base: <theme-id>` 
 #### Scenario: Legacy color-only theme
 
 - **WHEN** a custom theme defines the 16 color tokens with no other dimensions
-- **THEN** it is accepted and inherits typography, shape, density, effects and icons from the default theme
+- **THEN** it is accepted and inherits typography, shape, density, effects, icons and channel icons from the default theme
 
 #### Scenario: Unknown base
 
@@ -85,7 +90,7 @@ Custom themes defined in the `themes` config key MAY declare `base: <theme-id>` 
 
 ### Requirement: Validación de temas
 
-Color tokens SHALL be valid CSS colors (`#hex`, `rgb(a)`, `hsl(a)`); typography values SHALL reference bundled font families; shape and density SHALL be valid preset ids; `icons` SHALL be a bundled icon pack id. Invalid custom themes SHALL be rejected without breaking the active theme or the rest of the theme list.
+Color tokens SHALL be valid CSS colors (`#hex`, `rgb(a)`, `hsl(a)`); typography values SHALL reference bundled font families; shape and density SHALL be valid preset ids; `icons` SHALL be a bundled icon pack id; `channelIcons` SHALL be either `glyph` or `brand`. Invalid custom themes SHALL be rejected without breaking the active theme or the rest of the theme list.
 
 #### Scenario: Invalid color rejected
 
@@ -101,6 +106,35 @@ Color tokens SHALL be valid CSS colors (`#hex`, `rgb(a)`, `hsl(a)`); typography 
 
 - **WHEN** a custom theme sets `icons` to an unknown icon pack id
 - **THEN** that theme is excluded from the available list and a warning is logged
+
+#### Scenario: Invalid channel icon style rejected
+
+- **WHEN** a custom theme sets `channelIcons` to a value other than `glyph` or `brand`
+- **THEN** the value falls back to the default (`glyph`) without breaking the active theme
+
+### Requirement: Registro de iconos de canal
+
+Channel identity icons SHALL resolve through a dedicated registry. A channel's `icon` MAY be a semantic glyph name or a brand name, and built-in channels MAY map their id to a brand. Components SHALL NOT import brand icon libraries directly.
+
+#### Scenario: Brand mode renders logos
+
+- **WHEN** the channel-identity style is `brand` and the channel has a known brand
+- **THEN** the channel renders its logo in the Home grid, the channel menu and Emisión settings
+
+#### Scenario: Missing logo falls back
+
+- **WHEN** the channel-identity style is `brand` and the channel has no bundled logo (e.g. Disney+, Pluto)
+- **THEN** the channel renders a semantic glyph instead of an empty icon
+
+#### Scenario: Glyph mode ignores brand names
+
+- **WHEN** an emission channel stores a brand name as its `icon` and the style is `glyph`
+- **THEN** the channel renders the brand's semantic equivalent (e.g. `play` for a streaming service)
+
+#### Scenario: Brand logos reuse a bundled set
+
+- **WHEN** the registry renders a brand logo
+- **THEN** it uses the already-bundled `react-icons` Simple Icons set, adding no new runtime dependency
 
 ### Requirement: Registro semántico de iconos
 
@@ -128,7 +162,7 @@ The backend SHALL serve every theme (built-in and custom) fully resolved — inh
 #### Scenario: Clients receive resolved themes
 
 - **WHEN** a client requests `GET /api/config`
-- **THEN** every theme in `themes` contains all six dimensions with concrete values
+- **THEN** every theme in `themes` contains all seven dimensions with concrete values
 
 ### Requirement: Persistencia y aplicación en vivo
 

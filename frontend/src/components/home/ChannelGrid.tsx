@@ -1,34 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ChannelInfo } from "../../api/client";
-import { Icon, type IconName } from "../../icons";
+import { ChannelIcon } from "../../channelIcons";
 import type { HomeSlotProps } from "./types";
-
-const CHANNEL_ICONS: Record<string, IconName> = {
-  spotify: "music",
-  youtube: "monitor-play",
-  anime: "clapperboard",
-  tv: "tv",
-  crunchyroll: "play",
-  arcade: "gamepad",
-};
-
-const VALID_ICONS = new Set<string>([
-  "music",
-  "monitor-play",
-  "clapperboard",
-  "tv",
-  "play",
-  "pause",
-  "skip-back",
-  "skip-forward",
-  "gamepad",
-  "thumbs-up",
-  "thumbs-down",
-  "check",
-  "x",
-  "settings",
-  "smartphone",
-]);
 
 const COLORS: Record<string, string> = {
   spotify: "var(--ch-spotify)",
@@ -94,9 +67,6 @@ export function ChannelGrid({ channels, onPick }: Pick<HomeSlotProps, "channels"
       <div className="home-grid">
         {visible.map((c: ChannelInfo, i) => {
           const order = start + i;
-          const iconName = (VALID_ICONS.has(c.icon)
-            ? c.icon
-            : CHANNEL_ICONS[c.id] || (c.type === "web" ? "monitor-play" : "tv")) as IconName;
           const color = c.color || COLORS[c.id] || "var(--text)";
           const isHover = hovered === c.id;
           const tint = (percent: number) =>
@@ -130,8 +100,10 @@ export function ChannelGrid({ channels, onPick }: Pick<HomeSlotProps, "channels"
                   boxShadow: `0 0 18px ${tint(28)}`,
                 }}
               >
-                <Icon
-                  name={iconName}
+                <ChannelIcon
+                  channelId={c.id}
+                  icon={c.icon}
+                  channelType={c.type}
                   morphTo={isHover ? "play" : undefined}
                   size={26}
                   strokeWidth={2}
