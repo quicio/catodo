@@ -22,7 +22,8 @@ use tower_http::trace::TraceLayer;
 use crate::config::KEYS;
 use crate::ServerState;
 use crate::{
-    arcade, cast, libraries, lyrics, modes, mouse, pair, plugins, tunnel, voice, wallpapers, ws,
+    arcade, cast, iptv_playlist, libraries, lyrics, modes, mouse, pair, plugins, tunnel, voice,
+    wallpapers, ws,
 };
 
 type ApiError = (StatusCode, Json<Value>);
@@ -89,6 +90,12 @@ pub fn router(state: ServerState) -> Router {
             get(arcade::frame_image::get)
                 .post(arcade::frame_image::upload)
                 .delete(arcade::frame_image::delete)
+                .layer(DefaultBodyLimit::max(10 * 1024 * 1024)),
+        )
+        .route(
+            "/api/iptv/playlist",
+            post(iptv_playlist::upload)
+                .delete(iptv_playlist::clear)
                 .layer(DefaultBodyLimit::max(10 * 1024 * 1024)),
         )
         .route("/api/libraries", get(libraries::list).post(libraries::add))
@@ -240,12 +247,18 @@ async fn channel_command(
         .filter(|(key, _)| key.as_str() != "command")
         .map(|(key, value)| (key.clone(), value.clone()))
         .collect();
-    state
-        .manager
-        .command(&channel_id, command, args)
-        .await
-        .map_err(|_| not_found(format!("unknown channel: {channel_id}")))?;
-    Ok(Json(json!({ "ok": true })))
+    let result = state.manager.command(&channel_id, command, args).await;
+    match result {
+        Ok(()) => Ok(Json(json!({ "ok": true }))),
+        Err(error) => {
+            let message = error.to_string();
+            if message.starts_with("unknown channel") {
+                Err(not_found(message))
+            } else {
+                Err(bad_request(message))
+            }
+        }
+    }
 }
 
 async fn channel_episodes(

@@ -37,3 +37,21 @@
 - [x] 6.1 E2E con playlist real (`iptv-org/iptv`, Chile): 211 canales / 23 grupos, zapping y stream real en fMP4 1080p (`video/mp4`) reproduciendo en la app.
 - [x] 6.2 README: documentar el canal IPTV, `iptv_playlist`, `iptv_headers` y el proxy ffmpeg (incluye el costo de transcode).
 - [x] 6.3 `./scripts/check.sh` verde y `openspec validate iptv-channel` sin errores.
+
+## 7. Gestión de listas desde Ajustes
+
+- [x] 7.1 Backend: `POST /api/iptv/playlist` para subir un `.m3u`/`.m3u8`, validarlo con `parse_m3u`, guardarlo en `<data_dir>/iptv/playlist.m3u` y actualizar `iptv_playlist`; `DELETE` para quitarla. Ambos local-only con límite de 10 MB.
+- [x] 7.2 Refrescar la caché del canal IPTV después de subir o quitar una lista.
+- [x] 7.3 Frontend: pestaña `IPTV` en Ajustes con estado (canales/grupos), subida de archivo, URL/ruta, recargar y quitar lista.
+- [x] 7.4 Mover el campo de playlist fuera de Ajustes → Canales para que la pestaña IPTV sea la única fuente de configuración.
+- [x] 7.5 Tests de integración: subida válida actualiza config/estado, limpieza deja la lista vacía y una lista sin canales devuelve 400.
+
+## 8. Verificación de disponibilidad
+
+- [x] 8.1 Backend: verificar canales con `ffprobe` (timeout 5 s, concurrencia 16) al abrir/recargar/`check`.
+- [x] 8.2 Estado con `available`/`error` por canal y resumen `health` (`checking`, `checked`, `available`, `unavailable`).
+- [x] 8.3 `next`/`prev` saltan caídos y `set_channel` los rechaza.
+- [x] 8.4 Frontend: ocultar caídos por defecto, toggle `CAÍDOS`, canales deshabilitados y botón `Verificar`.
+- [x] 8.5 Evento `iptv_health_changed` para refrescar la UI al terminar.
+- [x] 8.6 Tests: skip de caídos y health check con ffprobe falso.
+- [x] 8.7 Preflight on-demand al elegir un canal aún no verificado; rechazo con detalle y cache de codecs para evitar el probe de playback.

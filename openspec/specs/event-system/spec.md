@@ -5,7 +5,7 @@ Defines the domain event catalog pushed over the WebSocket, the publish guarante
 ## Requirements
 ### Requirement: Event catalog
 
-The broker SHALL carry these domain events, each a JSON object with an `event` key: `channel_changed`, `channel_closed`, `volume_changed`, `playing_changed`, `track_changed` (channel id + track metadata), `playback_status_changed` (channel id, status, position), `episode_changed` (channel id + episode), `wallpapers_changed` (total), `config_changed` (key, value).
+The broker SHALL carry these domain events, each a JSON object with an `event` key: `channel_changed`, `channel_closed`, `volume_changed`, `playing_changed`, `track_changed` (channel id + track metadata), `playback_status_changed` (channel id, status, position), `episode_changed` (channel id + episode), `wallpapers_changed` (total), `iptv_health_changed` (total, unavailable), `config_changed` (key, value).
 
 #### Scenario: Event shape
 

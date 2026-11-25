@@ -39,7 +39,7 @@ El sitio vive en `site/` y se publica con GitHub Pages desde `main`.
 - **Spotify** — Desktop Spotify controlado por MPRIS, con now-playing y letras sincronizadas.
 - **YouTube** — YouTube TV en un webview (plugin bundled, user-agent Android TV).
 - **Arcade** — Biblioteca local con player libretro embebido y marcos CRT.
-- **IPTV** — TV en vivo por M3U/M3U8 con zapping.
+- **IPTV** — TV en vivo por M3U/M3U8 con zapping. La lista se carga desde Ajustes → IPTV, subiendo un archivo o indicando una URL/ruta. Al abrir el canal se verifican los streams y los caídos se ocultan del listado y del zapping (toggle `CAÍDOS` para verlos).
 - **Screen Cast** — Recibe una sesión de proyección desde el remote.
 - **Canales de emisión** — Bibliotecas locales configurables (series/temporadas o videos planos), creadas desde Ajustes → Emisión. No hay un canal Anime implícito.
 - **TV, Crunchyroll, Max y proveedores** — Plugins del catálogo; se instalan desde Ajustes → Canales.

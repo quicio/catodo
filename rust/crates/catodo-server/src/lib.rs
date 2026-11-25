@@ -9,6 +9,7 @@ pub mod events;
 pub mod frames;
 pub mod idle;
 pub mod iptv;
+pub mod iptv_playlist;
 pub mod libraries;
 pub mod lyrics;
 pub mod manager;

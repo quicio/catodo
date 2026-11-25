@@ -72,6 +72,26 @@ async fn post_json(router: axum::Router, uri: &str, body: &str) -> axum::respons
     post_json_addr(router, uri, body, "127.0.0.1:5000", None).await
 }
 
+async fn post_body(
+    router: axum::Router,
+    uri: &str,
+    body: &str,
+    content_type: &str,
+) -> axum::response::Response {
+    router
+        .oneshot(with_client(
+            Request::builder()
+                .method("POST")
+                .uri(uri)
+                .header("content-type", content_type)
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+            "127.0.0.1:5000",
+        ))
+        .await
+        .unwrap()
+}
+
 async fn patch_json(router: axum::Router, uri: &str, body: &str) -> axum::response::Response {
     router
         .oneshot(with_client(
@@ -797,4 +817,55 @@ async fn external_cannot_list_or_revoke_devices() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn iptv_playlist_upload_sets_config_and_refreshes_state() {
+    let (app, _) = app().await;
+    let playlist = concat!(
+        "#EXTM3U\n",
+        "#EXTINF:-1 group-title=\"Noticias\",Canal Uno\n",
+        "http://example/uno.ts\n",
+        "#EXTINF:-1 group-title=\"Cine\",Canal Dos\n",
+        "http://example/dos.ts\n",
+    );
+
+    let response = post_body(
+        app.clone(),
+        "/api/iptv/playlist",
+        playlist,
+        "audio/x-mpegurl",
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = body_json(response).await;
+    assert_eq!(body["count"], 2);
+    assert_eq!(body["groups"], 2);
+    let source = body["source"].as_str().expect("source").to_string();
+    assert!(std::path::Path::new(&source).exists());
+
+    let cfg = body_json(get(app.clone(), "/api/config").await).await;
+    assert_eq!(cfg["iptv_playlist"], json!(source));
+
+    let state = body_json(get(app.clone(), "/api/channels/iptv/state").await).await;
+    assert_eq!(state["configured"], true);
+    assert_eq!(state["count"], 2);
+
+    let response = delete(app.clone(), "/api/iptv/playlist").await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let cfg = body_json(get(app, "/api/config").await).await;
+    assert_eq!(cfg["iptv_playlist"], json!(""));
+}
+
+#[tokio::test]
+async fn iptv_playlist_upload_rejects_a_list_without_channels() {
+    let (app, _) = app().await;
+    let response = post_body(
+        app,
+        "/api/iptv/playlist",
+        "#EXTM3U\n# solo comentarios\n",
+        "audio/x-mpegurl",
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }

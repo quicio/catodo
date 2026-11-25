@@ -187,6 +187,10 @@ export default function App() {
       if (event.event === "wallpapers_changed") {
         window.dispatchEvent(new CustomEvent("catodo:wallpapers_changed"));
       }
+      // Terminó la verificación de canales IPTV: refrescar listas y ajustes.
+      if (event.event === "iptv_health_changed") {
+        window.dispatchEvent(new CustomEvent("catodo:iptv_health_changed"));
+      }
       // Ciclo de vida de plugins (instalar/desinstalar/habilitar/orden):
       // recargar canales y avisar a Ajustes sin recargar la app.
       if (event.event === "plugins_changed") {

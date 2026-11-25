@@ -1,5 +1,6 @@
 //! IPTV channel: M3U/M3U8 playlist + live ffmpeg proxy.
 
+use std::collections::HashMap;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -7,6 +8,7 @@ use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use catodo_domain::ChannelInfo;
+use futures_util::stream::{self, StreamExt};
 use serde_json::{json, Map, Value};
 use tokio::process::{Child, Command};
 use tokio::sync::{Mutex, RwLock};
@@ -18,6 +20,9 @@ use crate::events::EventBroker;
 const PLAYLIST_TTL: Duration = Duration::from_secs(60);
 const OTHER_GROUP: &str = "Otros";
 const CHANNEL_ID: &str = "iptv";
+const HEALTH_TIMEOUT: Duration = Duration::from_secs(5);
+const HEALTH_CONCURRENCY: usize = 16;
+const HEALTH_TTL: Duration = Duration::from_secs(600);
 
 /// Una entrada de la playlist M3U.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -27,6 +32,28 @@ pub struct Entry {
     pub logo: String,
     pub group: String,
     pub url: String,
+}
+
+#[derive(Debug, Clone)]
+struct HealthEntry {
+    ok: bool,
+    error: Option<String>,
+    codecs: SourceCodecs,
+}
+
+#[derive(Default)]
+struct HealthState {
+    checking: bool,
+    checked: usize,
+    total: usize,
+    checked_at: Option<Instant>,
+    entries: HashMap<String, HealthEntry>,
+}
+
+impl HealthState {
+    fn is_available(&self, url: &str) -> bool {
+        self.entries.get(url).map(|entry| entry.ok).unwrap_or(true)
+    }
 }
 
 /// Parsea una playlist M3U/M3U8.
@@ -115,6 +142,37 @@ pub fn step_in_group<'a>(
     Some(list[next])
 }
 
+/// Siguiente/anterior dentro del mismo grupo (con wrap), saltando canales
+/// que la verificación marcó como no disponibles.
+fn step_available<'a, F>(
+    entries: &'a [Entry],
+    current: Option<&'a Entry>,
+    delta: isize,
+    available: F,
+) -> Option<&'a Entry>
+where
+    F: Fn(&Entry) -> bool,
+{
+    let group = current.map(|e| e.group.as_str())?;
+    let list: Vec<&Entry> = entries.iter().filter(|e| e.group == group).collect();
+    if list.is_empty() {
+        return None;
+    }
+    let len = list.len() as isize;
+    let start = current
+        .and_then(|c| list.iter().position(|e| e.id == c.id))
+        .map(|index| index as isize)
+        .unwrap_or(-delta);
+    let mut cursor = start;
+    for _ in 0..list.len() {
+        cursor = (cursor + delta).rem_euclid(len);
+        if available(list[cursor as usize]) {
+            return Some(list[cursor as usize]);
+        }
+    }
+    None
+}
+
 /// Resuelve un binario por PATH y, si no aparece, por las rutas habituales de
 /// Homebrew/MacPorts (la app abierta desde Finder no hereda el PATH del shell).
 fn resolve_binary(name: &str) -> String {
@@ -156,13 +214,18 @@ fn header_block(headers: &Map<String, Value>) -> Option<String> {
 
 /// Detecta si la fuente es HLS (se puede re-encapsular con `-c copy`).
 /// Codecs de la fuente, para decidir cuándo se puede copiar sin transcodificar.
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct SourceCodecs {
     video: Option<String>,
     audio: Option<String>,
 }
 
-async fn probe_codecs(ffprobe: &str, url: &str, headers: &Option<String>) -> SourceCodecs {
+async fn probe_source(
+    ffprobe: &str,
+    url: &str,
+    headers: &Option<String>,
+    timeout: Duration,
+) -> Result<SourceCodecs, String> {
     let mut cmd = Command::new(ffprobe);
     cmd.args([
         "-v",
@@ -176,18 +239,28 @@ async fn probe_codecs(ffprobe: &str, url: &str, headers: &Option<String>) -> Sou
         cmd.arg("-headers").arg(block);
     }
     cmd.arg(url);
-    cmd.stdout(Stdio::piped()).stderr(Stdio::null());
+    cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
     cmd.kill_on_drop(true);
-    let output = tokio::time::timeout(Duration::from_secs(6), cmd.output()).await;
-    let Ok(Ok(output)) = output else {
-        return SourceCodecs::default();
-    };
+    let output = tokio::time::timeout(timeout, cmd.output())
+        .await
+        .map_err(|_| "timeout al abrir el stream".to_string())?
+        .map_err(|error| format!("no se pudo ejecutar ffprobe: {error}"))?;
     if !output.status.success() {
-        return SourceCodecs::default();
+        let detail = String::from_utf8_lossy(&output.stderr);
+        let last = detail
+            .lines()
+            .last()
+            .unwrap_or("ffprobe falló")
+            .trim()
+            .to_string();
+        return Err(if last.is_empty() {
+            "ffprobe falló".to_string()
+        } else {
+            last
+        });
     }
-    let Ok(parsed) = serde_json::from_slice::<Value>(&output.stdout) else {
-        return SourceCodecs::default();
-    };
+    let parsed = serde_json::from_slice::<Value>(&output.stdout)
+        .map_err(|error| format!("respuesta inválida de ffprobe: {error}"))?;
     let mut codecs = SourceCodecs::default();
     for stream in parsed["streams"].as_array().into_iter().flatten() {
         let name = stream["codec_name"].as_str().map(str::to_string);
@@ -197,7 +270,16 @@ async fn probe_codecs(ffprobe: &str, url: &str, headers: &Option<String>) -> Sou
             _ => {}
         }
     }
-    codecs
+    if codecs.video.is_none() && codecs.audio.is_none() {
+        return Err("sin pistas de audio/video".to_string());
+    }
+    Ok(codecs)
+}
+
+async fn probe_codecs(ffprobe: &str, url: &str, headers: &Option<String>) -> SourceCodecs {
+    probe_source(ffprobe, url, headers, Duration::from_secs(6))
+        .await
+        .unwrap_or_default()
 }
 
 /// Argumentos de ffmpeg para servir un **fMP4 fragmentado** por stdout.
@@ -265,6 +347,7 @@ pub struct IptvChannel {
     /// Identifica el stream vigente: un watcher sólo reporta error si sigue vivo.
     stream_seq: Arc<AtomicU64>,
     last_error: Arc<RwLock<Option<String>>>,
+    health: Arc<RwLock<HealthState>>,
     ffmpeg: String,
     ffprobe: String,
 }
@@ -279,6 +362,7 @@ impl IptvChannel {
             child: Arc::new(Mutex::new(None)),
             stream_seq: Arc::new(AtomicU64::new(0)),
             last_error: Arc::new(RwLock::new(None)),
+            health: Arc::new(RwLock::new(HealthState::default())),
             ffmpeg: resolve_binary("ffmpeg"),
             ffprobe: resolve_binary("ffprobe"),
         }
@@ -303,6 +387,122 @@ impl IptvChannel {
     async fn headers(&self) -> Option<String> {
         let value = self.config.get("iptv_headers").await;
         value.as_object().and_then(header_block)
+    }
+
+    /// Asegura que un canal tenga veredicto antes de seleccionarlo. Si la
+    /// verificación global todavía no llegó a este canal, lo probea ahora y
+    /// guarda el resultado (incluidos los codecs para arrancar ffmpeg sin
+    /// esperar otro ffprobe).
+    async fn ensure_checked(&self, entry: &Entry) -> bool {
+        {
+            let health = self.health.read().await;
+            if let Some(status) = health.entries.get(&entry.url) {
+                return status.ok;
+            }
+        }
+        let headers = self.headers().await;
+        let result = probe_source(&self.ffprobe, &entry.url, &headers, HEALTH_TIMEOUT).await;
+        let (ok, status) = match result {
+            Ok(codecs) => (
+                true,
+                HealthEntry {
+                    ok: true,
+                    error: None,
+                    codecs,
+                },
+            ),
+            Err(error) => (
+                false,
+                HealthEntry {
+                    ok: false,
+                    error: Some(error),
+                    codecs: SourceCodecs::default(),
+                },
+            ),
+        };
+        self.health
+            .write()
+            .await
+            .entries
+            .insert(entry.url.clone(), status);
+        if !ok {
+            self.broker.publish(json!({
+                "event": "iptv_health_changed",
+                "total": self.health.read().await.total,
+                "unavailable": 1,
+            }));
+        }
+        ok
+    }
+
+    /// Verifica la lista en background: ffprobe con timeout corto y
+    /// concurrencia limitada. Mientras corre, los canales siguen elegibles;
+    /// al terminar se ocultan los que no responden.
+    async fn start_health_check(&self) {
+        let entries = self.load_entries(false).await;
+        if entries.is_empty() {
+            return;
+        }
+        {
+            let mut health = self.health.write().await;
+            if health.checking {
+                return;
+            }
+            health.checking = true;
+            health.checked = 0;
+            health.total = entries.len();
+        }
+
+        let ffprobe = self.ffprobe.clone();
+        let headers = self.headers().await;
+        let health = self.health.clone();
+        let broker = self.broker.clone();
+        tokio::spawn(async move {
+            let results = stream::iter(entries.into_iter().map(|entry| {
+                let ffprobe = ffprobe.clone();
+                let headers = headers.clone();
+                let health = health.clone();
+                async move {
+                    let result = probe_source(&ffprobe, &entry.url, &headers, HEALTH_TIMEOUT).await;
+                    health.write().await.checked += 1;
+                    (entry.url, result)
+                }
+            }))
+            .buffer_unordered(HEALTH_CONCURRENCY)
+            .collect::<Vec<_>>()
+            .await;
+
+            let mut guard = health.write().await;
+            guard.entries = results
+                .into_iter()
+                .map(|(url, result)| {
+                    let entry = match result {
+                        Ok(codecs) => HealthEntry {
+                            ok: true,
+                            error: None,
+                            codecs,
+                        },
+                        Err(error) => HealthEntry {
+                            ok: false,
+                            error: Some(error),
+                            codecs: SourceCodecs::default(),
+                        },
+                    };
+                    (url, entry)
+                })
+                .collect();
+            guard.checking = false;
+            guard.checked = guard.total;
+            guard.checked_at = Some(Instant::now());
+            let total = guard.total;
+            let unavailable = guard.entries.values().filter(|entry| !entry.ok).count();
+            drop(guard);
+            broker.publish(json!({
+                "event": "iptv_health_changed",
+                "total": total,
+                "unavailable": unavailable,
+            }));
+        });
     }
 
     async fn load_entries(&self, force: bool) -> Vec<Entry> {
@@ -355,7 +555,8 @@ impl IptvChannel {
     }
 
     async fn kill_child(&self) {
-        self.stream_seq.fetch_add(1, Ordering::SeqCst);
+        let seq = self.stream_seq.fetch_add(1, Ordering::SeqCst) + 1;
+        tracing::debug!(seq, "iptv kill_child");
         if let Some(mut child) = self.child.lock().await.take() {
             let _ = child.start_kill();
         }
@@ -366,6 +567,9 @@ impl IptvChannel {
         let Some(entry) = entries.into_iter().find(|e| e.id == id) else {
             anyhow::bail!("canal IPTV desconocido: {id}");
         };
+        if !self.ensure_checked(&entry).await {
+            anyhow::bail!("canal IPTV no disponible: {}", entry.name);
+        }
         self.kill_child().await;
         *self.last_error.write().await = None;
         *self.current.write().await = Some(entry);
@@ -374,12 +578,27 @@ impl IptvChannel {
 
     async fn step(&self, delta: isize) -> anyhow::Result<()> {
         let entries = self.load_entries(false).await;
-        let current = self.current.read().await.clone();
-        let next = step_in_group(&entries, current.as_ref(), delta).cloned();
-        if let Some(entry) = next {
-            self.kill_child().await;
-            *self.last_error.write().await = None;
-            *self.current.write().await = Some(entry);
+        let mut current = self.current.read().await.clone();
+        // Probamos como máximo unos pocos candidatos por zap: si la lista
+        // todavía se está verificando, no bloqueamos 395 probes seguidos.
+        for _ in 0..entries.len().min(8) {
+            let next = {
+                let health = self.health.read().await;
+                step_available(&entries, current.as_ref(), delta, |entry| {
+                    health.is_available(&entry.url)
+                })
+                .cloned()
+            };
+            let Some(candidate) = next else {
+                break;
+            };
+            if self.ensure_checked(&candidate).await {
+                self.kill_child().await;
+                *self.last_error.write().await = None;
+                *self.current.write().await = Some(candidate);
+                return Ok(());
+            }
+            current = Some(candidate);
         }
         Ok(())
     }
@@ -442,6 +661,16 @@ impl Channel for IptvChannel {
     async fn open(&self) -> anyhow::Result<()> {
         // Refresca la lista al entrar para que el estado esté al día.
         let _ = self.load_entries(false).await;
+        let checked = {
+            let health = self.health.read().await;
+            health
+                .checked_at
+                .map(|at| at.elapsed() < HEALTH_TTL)
+                .unwrap_or(false)
+        };
+        if !checked {
+            self.start_health_check().await;
+        }
         Ok(())
     }
 
@@ -454,23 +683,40 @@ impl Channel for IptvChannel {
 
     async fn state(&self) -> anyhow::Result<Value> {
         let entries = self.load_entries(false).await;
+        let health = self.health.read().await;
         let groups: Vec<Value> = group_entries(&entries)
             .into_iter()
             .map(|(name, channels)| {
                 json!({
                     "name": name,
-                    "channels": channels.iter().map(entry_json).collect::<Vec<_>>(),
+                    "channels": channels
+                        .iter()
+                        .map(|entry| {
+                            let status = health.entries.get(&entry.url);
+                            entry_json(
+                                entry,
+                                status.map(|item| item.ok).unwrap_or(true),
+                                status.and_then(|item| item.error.as_deref()),
+                            )
+                        })
+                        .collect::<Vec<_>>(),
                 })
             })
             .collect();
-        let current = self
-            .current
-            .read()
-            .await
-            .clone()
-            .map(|entry| entry_json(&entry));
+        let current = self.current.read().await.clone().map(|entry| {
+            let status = health.entries.get(&entry.url);
+            entry_json(
+                &entry,
+                status.map(|item| item.ok).unwrap_or(true),
+                status.and_then(|item| item.error.as_deref()),
+            )
+        });
         let configured = !self.playlist_source().await.is_empty();
         let error = self.last_error.read().await.clone();
+        let available = entries
+            .iter()
+            .filter(|entry| health.is_available(&entry.url))
+            .count();
         Ok(json!({
             "id": CHANNEL_ID,
             "configured": configured,
@@ -478,6 +724,14 @@ impl Channel for IptvChannel {
             "current": current,
             "count": entries.len(),
             "error": error,
+            "health": {
+                "checking": health.checking,
+                "checked": health.checked,
+                "total": entries.len(),
+                "available": available,
+                "unavailable": entries.len().saturating_sub(available),
+                "checked_at": health.checked_at.map(|at| at.elapsed().as_secs()),
+            },
         }))
     }
 
@@ -495,6 +749,11 @@ impl Channel for IptvChannel {
             "prev" | "previous" => self.step(-1).await,
             "refresh" => {
                 let _ = self.load_entries(true).await;
+                self.start_health_check().await;
+                Ok(())
+            }
+            "check" | "verify" => {
+                self.start_health_check().await;
                 Ok(())
             }
             other => {
@@ -507,8 +766,29 @@ impl Channel for IptvChannel {
     async fn live_stream(&self) -> Option<LiveStream> {
         let entry = self.current.read().await.clone()?;
         let headers = self.headers().await;
-        let codecs = probe_codecs(&self.ffprobe, &entry.url, &headers).await;
+        // La verificación ya ejecutó ffprobe sobre este canal: reutilizamos
+        // esos codecs para arrancar ffmpeg sin esperar otro probe (el navegador
+        // puede abortar el <video> si el response tarda demasiado).
+        let cached = {
+            let health = self.health.read().await;
+            health
+                .entries
+                .get(&entry.url)
+                .filter(|item| item.ok)
+                .map(|item| item.codecs.clone())
+        };
+        let codecs = match cached {
+            Some(codecs) => codecs,
+            None => probe_codecs(&self.ffprobe, &entry.url, &headers).await,
+        };
         let args = ffmpeg_args(&entry.url, &headers, &codecs);
+        tracing::debug!(
+            channel = %entry.name,
+            url = %entry.url,
+            video = ?codecs.video,
+            audio = ?codecs.audio,
+            "iptv live_stream"
+        );
         self.kill_child().await;
         let seq = self.stream_seq.load(Ordering::SeqCst);
         let mut command = Command::new(&self.ffmpeg);
@@ -520,6 +800,7 @@ impl Channel for IptvChannel {
             .kill_on_drop(true);
         match command.spawn() {
             Ok(mut child) => {
+                tracing::debug!(pid = child.id(), "iptv ffmpeg spawned");
                 let stdout = child.stdout.take();
                 let stderr = child.stderr.take();
                 *self.child.lock().await = Some(child);
@@ -547,12 +828,14 @@ impl Channel for IptvChannel {
     }
 }
 
-fn entry_json(entry: &Entry) -> Value {
+fn entry_json(entry: &Entry, available: bool, error: Option<&str>) -> Value {
     json!({
         "id": entry.id,
         "name": entry.name,
         "logo": entry.logo,
         "group": entry.group,
+        "available": available,
+        "error": error,
     })
 }
 
@@ -614,6 +897,76 @@ https://stream/tres.ts
         assert!(step_in_group(&entries, None, 1).is_none());
     }
 
+    #[test]
+    fn step_available_skips_unavailable_channels() {
+        let entries = parse_m3u(
+            "#EXTM3U\n\
+             #EXTINF:-1 group-title=\"X\",A\nhttp://a\n\
+             #EXTINF:-1 group-title=\"X\",B\nhttp://b\n\
+             #EXTINF:-1 group-title=\"X\",C\nhttp://c\n",
+        );
+        let first = &entries[0];
+        let next = step_available(&entries, Some(first), 1, |entry| entry.name != "B").unwrap();
+        assert_eq!(next.name, "C");
+        let prev = step_available(&entries, Some(first), -1, |entry| entry.name != "B").unwrap();
+        assert_eq!(prev.name, "C");
+    }
+
+    #[tokio::test]
+    async fn health_check_marks_unreachable_channels() {
+        let dir = std::env::temp_dir().join(format!("catodo-iptv-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let playlist = dir.join("lista.m3u");
+        std::fs::write(
+            &playlist,
+            "#EXTM3U\n\
+             #EXTINF:-1 group-title=\"Test\",Good\nhttp://good/stream.ts\n\
+             #EXTINF:-1 group-title=\"Test\",Bad\nhttp://bad/stream.ts\n",
+        )
+        .unwrap();
+
+        let ffprobe = dir.join("ffprobe-fake");
+        std::fs::write(
+            &ffprobe,
+            "#!/bin/sh\ncase \"$*\" in *bad*) echo 'bad stream' >&2; exit 1;; esac\necho '{\"streams\":[{\"codec_type\":\"video\",\"codec_name\":\"h264\"}]}'\n",
+        )
+        .unwrap();
+        let mut perms = std::fs::metadata(&ffprobe).unwrap().permissions();
+        std::os::unix::fs::PermissionsExt::set_mode(&mut perms, 0o755);
+        std::fs::set_permissions(&ffprobe, perms).unwrap();
+
+        let config = RuntimeConfig::new(&dir);
+        config
+            .set("iptv_playlist", json!(playlist.to_str().unwrap()))
+            .await
+            .unwrap();
+        let channel = IptvChannel::new(config, EventBroker::new())
+            .with_binaries("/bin/true", ffprobe.to_str().unwrap());
+        channel.start_health_check().await;
+
+        for _ in 0..50 {
+            if !channel.health.read().await.checking {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+
+        let state = channel.state().await.unwrap();
+        assert_eq!(state["health"]["unavailable"], 1);
+        let channels = state["groups"][0]["channels"].as_array().unwrap();
+        let bad = channels
+            .iter()
+            .find(|entry| entry["name"] == "Bad")
+            .unwrap();
+        assert_eq!(bad["available"], false);
+        assert!(bad["error"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("bad stream"));
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
     #[tokio::test]
     async fn streams_stdout_from_the_configured_binary() {
         let dir = std::env::temp_dir().join(format!("catodo-iptv-{}", uuid::Uuid::new_v4()));
@@ -628,7 +981,11 @@ https://stream/tres.ts
         let ffmpeg = dir.join("ffmpeg-fake");
         std::fs::write(&ffmpeg, "#!/bin/sh\nprintf 'FAKETS'\n").unwrap();
         let ffprobe = dir.join("ffprobe-fake");
-        std::fs::write(&ffprobe, "#!/bin/sh\necho mpegts\n").unwrap();
+        std::fs::write(
+            &ffprobe,
+            "#!/bin/sh\necho '{\"streams\":[{\"codec_type\":\"video\",\"codec_name\":\"h264\"}]}'\n",
+        )
+        .unwrap();
         for bin in [&ffmpeg, &ffprobe] {
             let mut perms = std::fs::metadata(bin).unwrap().permissions();
             std::os::unix::fs::PermissionsExt::set_mode(&mut perms, 0o755);
@@ -673,7 +1030,11 @@ https://stream/tres.ts
         let ffmpeg = dir.join("ffmpeg-fake");
         std::fs::write(&ffmpeg, "#!/bin/sh\nexit 3\n").unwrap();
         let ffprobe = dir.join("ffprobe-fake");
-        std::fs::write(&ffprobe, "#!/bin/sh\necho mpegts\n").unwrap();
+        std::fs::write(
+            &ffprobe,
+            "#!/bin/sh\necho '{\"streams\":[{\"codec_type\":\"video\",\"codec_name\":\"h264\"}]}'\n",
+        )
+        .unwrap();
         for bin in [&ffmpeg, &ffprobe] {
             let mut perms = std::fs::metadata(bin).unwrap().permissions();
             std::os::unix::fs::PermissionsExt::set_mode(&mut perms, 0o755);

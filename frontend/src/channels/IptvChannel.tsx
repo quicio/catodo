@@ -1,20 +1,48 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../icons";
 
 const CHANNEL = "iptv";
 const STREAM_URL = `/api/channels/${CHANNEL}/stream`;
 const REFRESH_MS = 15000;
 
+async function channelCommand(body: Record<string, unknown>): Promise<void> {
+  const response = await fetch(`/api/channels/${CHANNEL}/command`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (response.ok) return;
+  let detail = `HTTP ${response.status}`;
+  try {
+    const parsed = (await response.json()) as { detail?: string };
+    if (parsed?.detail) detail = parsed.detail;
+  } catch {
+    // Sin body JSON: conservar el status.
+  }
+  throw new Error(detail);
+}
+
 interface IptvEntry {
   id: string;
   name: string;
   logo: string;
   group: string;
+  available?: boolean;
+  error?: string | null;
 }
 
 interface IptvGroup {
   name: string;
   channels: IptvEntry[];
+}
+
+interface IptvHealth {
+  checking: boolean;
+  checked: number;
+  total: number;
+  available: number;
+  unavailable: number;
+  checked_at?: number | null;
 }
 
 interface IptvState {
@@ -23,6 +51,7 @@ interface IptvState {
   current: IptvEntry | null;
   count: number;
   error?: string | null;
+  health?: IptvHealth;
 }
 
 /**
@@ -40,6 +69,7 @@ export default function IptvChannel() {
   const [stalled, setStalled] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [expanded, setExpanded] = useState(false);
+  const [showUnavailable, setShowUnavailable] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const stallTimer = useRef<number | null>(null);
   const groupIdxRef = useRef(0);
@@ -59,6 +89,22 @@ export default function IptvChannel() {
     load();
     const id = setInterval(load, REFRESH_MS);
     return () => clearInterval(id);
+  }, [load]);
+
+  // Mientras el backend verifica canales, refrescamos más seguido para ver el
+  // progreso y ocultar los caídos apenas termina.
+  useEffect(() => {
+    if (!data?.health?.checking) return;
+    const id = setInterval(load, 2500);
+    return () => clearInterval(id);
+  }, [data?.health?.checking, load]);
+
+  // La verificación corre en background en el backend; al terminar refresca
+  // la lista para ocultar los canales caídos sin esperar al poll de 15 s.
+  useEffect(() => {
+    const onHealth = () => load();
+    window.addEventListener("catodo:iptv_health_changed", onHealth);
+    return () => window.removeEventListener("catodo:iptv_health_changed", onHealth);
   }, [load]);
 
   useEffect(() => {
@@ -101,43 +147,68 @@ export default function IptvChannel() {
     };
   }, [currentId, reloadKey]);
 
-  const groups = data?.groups ?? [];
+  const allGroups = data?.groups ?? [];
+  const groups = useMemo(() => {
+    if (showUnavailable) return allGroups;
+    return allGroups
+      .map((item) => ({
+        ...item,
+        channels: item.channels.filter((entry) => entry.available !== false),
+      }))
+      .filter((item) => item.channels.length > 0);
+  }, [allGroups, showUnavailable]);
   const group = groups[Math.min(groupIdx, Math.max(groups.length - 1, 0))];
   const current = data?.current ?? null;
+  const health = data?.health;
+
+  useEffect(() => {
+    if (groups.length > 0 && groupIdx >= groups.length) {
+      setGroupIdx(groups.length - 1);
+    }
+  }, [groups.length, groupIdx]);
 
   const select = useCallback(
     async (entry: IptvEntry) => {
+      if (entry.available === false) return;
+      if (entry.id === current?.id) return;
       setCmdError(null);
+      setStalled(false);
+      setBuffering(true);
       try {
-        await fetch(`/api/channels/${CHANNEL}/command`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ command: "set_channel", channel: entry.id }),
-        });
+        await channelCommand({ command: "set_channel", channel: entry.id });
         await load();
-      } catch {
-        setCmdError("no se pudo cambiar de canal");
+      } catch (cause) {
+        setBuffering(false);
+        await load();
+        setCmdError(cause instanceof Error ? cause.message : "no se pudo abrir el canal");
       }
     },
-    [load],
+    [current?.id, load],
   );
 
   const zap = useCallback(
     async (direction: "next" | "prev") => {
       setCmdError(null);
       try {
-        await fetch(`/api/channels/${CHANNEL}/command`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ command: direction }),
-        });
+        await channelCommand({ command: direction });
         await load();
-      } catch {
-        setCmdError("no se pudo cambiar de canal");
+      } catch (cause) {
+        await load();
+        setCmdError(cause instanceof Error ? cause.message : "no se pudo cambiar de canal");
       }
     },
     [load],
   );
+
+  const verify = useCallback(async () => {
+    setCmdError(null);
+    try {
+      await channelCommand({ command: "check" });
+      await load();
+    } catch (cause) {
+      setCmdError(cause instanceof Error ? cause.message : "no se pudo verificar la lista");
+    }
+  }, [load]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -157,7 +228,9 @@ export default function IptvChannel() {
         event.preventDefault();
         setExpanded((value) => !value);
       } else if (event.key === "Enter" && !current) {
-        const first = groups[groupIdxRef.current]?.channels[0];
+        const first = groups[groupIdxRef.current]?.channels.find(
+          (entry) => entry.available !== false,
+        );
         if (first) {
           event.preventDefault();
           select(first);
@@ -170,20 +243,48 @@ export default function IptvChannel() {
 
   return (
     <div style={containerStyle}>
-      <div style={headerStyle}>
+      <div style={{ ...headerStyle, flexWrap: "wrap" }}>
         <span style={labelStyle}>IPTV</span>
         <span style={dimStyle}>
-          {data ? `${data.count} canales` : "cargando…"}
+          {data
+            ? `${health?.available ?? data.count} de ${data.count} canales`
+            : "cargando…"}
+          {health?.checking
+            ? ` · verificando ${health.checked}/${health.total}`
+            : health && health.unavailable > 0
+              ? ` · ${health.unavailable} caídos`
+              : ""}
           {current ? ` · ${current.name}` : ""}
         </span>
-        <button
-          type="button"
-          onClick={() => setExpanded((value) => !value)}
-          style={expandButtonStyle}
-          title={expanded ? "Volver a la lista (F)" : "Ampliar el canal (F)"}
-        >
-          {expanded ? "REDUCIR" : "AMPLIAR"}
-        </button>
+        <div style={headerActionsStyle}>
+          <button
+            type="button"
+            onClick={verify}
+            disabled={health?.checking}
+            style={{ ...headerButtonStyle, opacity: health?.checking ? 0.55 : 1 }}
+            title="Verificar qué canales responden"
+          >
+            {health?.checking ? "VERIFICANDO…" : "VERIFICAR"}
+          </button>
+          {(health?.unavailable ?? 0) > 0 || showUnavailable ? (
+            <button
+              type="button"
+              onClick={() => setShowUnavailable((value) => !value)}
+              style={headerButtonStyle}
+              title="Mostrar u ocultar los canales que no respondieron"
+            >
+              {showUnavailable ? "OCULTAR CAÍDOS" : `CAÍDOS (${health?.unavailable ?? 0})`}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setExpanded((value) => !value)}
+            style={headerButtonStyle}
+            title={expanded ? "Volver a la lista (F)" : "Ampliar el canal (F)"}
+          >
+            {expanded ? "REDUCIR" : "AMPLIAR"}
+          </button>
+        </div>
       </div>
 
       <div style={{ display: "flex", gap: 24, flex: 1, minHeight: 0 }}>
@@ -204,14 +305,20 @@ export default function IptvChannel() {
                 }}
               >
                 {item.name}
-                <span style={countStyle}>{item.channels.length}</span>
+                <span style={countStyle}>
+                  {showUnavailable
+                    ? `${item.channels.filter((entry) => entry.available !== false).length}/${item.channels.length}`
+                    : item.channels.length}
+                </span>
               </button>
             );
           })}
           {groups.length === 0 && (
             <div style={dimStyle}>
               {data?.configured
-                ? "La playlist no tiene canales."
+                ? data.count > 0
+                  ? "No hay canales disponibles. Verificá de nuevo o mostrá los caídos."
+                  : "La playlist no tiene canales."
                 : "Configurá `iptv_playlist` con un .m3u local o una URL."}
             </div>
           )}
@@ -222,17 +329,26 @@ export default function IptvChannel() {
         <div style={listStyle}>
           {group?.channels.map((entry) => {
             const active = current?.id === entry.id;
+            const unavailable = entry.available === false;
             return (
               <button
                 key={entry.id}
                 type="button"
                 onClick={() => select(entry)}
+                disabled={unavailable}
+                title={unavailable ? entry.error ?? "canal no disponible" : entry.name}
                 style={{
                   ...channelButtonStyle,
-                  borderColor: active ? "var(--accent)" : "var(--border)",
+                  borderColor: unavailable
+                    ? "color-mix(in srgb, var(--danger) 40%, transparent)"
+                    : active
+                      ? "var(--accent)"
+                      : "var(--border)",
                   background: active
                     ? "color-mix(in srgb, var(--accent) 18%, transparent)"
                     : "color-mix(in srgb, var(--text) 6%, transparent)",
+                  opacity: unavailable ? 0.45 : 1,
+                  cursor: unavailable ? "not-allowed" : "pointer",
                 }}
               >
                 {entry.logo ? (
@@ -248,6 +364,7 @@ export default function IptvChannel() {
                   <span style={{ width: 32, textAlign: "center", opacity: 0.4 }}>▣</span>
                 )}
                 <span style={{ textAlign: "left", flex: 1 }}>{entry.name}</span>
+                {unavailable && <span style={unavailableBadgeStyle}>CAÍDO</span>}
               </button>
             );
           })}
@@ -259,25 +376,32 @@ export default function IptvChannel() {
             <video
               ref={videoRef}
               key={`${current.id}-${reloadKey}`}
-              src={STREAM_URL}
+              src={`${STREAM_URL}?channel=${encodeURIComponent(current.id)}&v=${reloadKey}`}
               autoPlay
               playsInline
               controls={false}
               style={{ width: "100%", height: "100%", objectFit: "contain", background: "#000" }}
               onLoadedMetadata={(event) => {
+                setCmdError(null);
                 // Radios y streams sin pista de video: negro no es un error.
                 if (event.currentTarget.videoWidth === 0) setAudioOnly(true);
               }}
               onLoadedData={() => {
                 setBuffering(false);
+                setCmdError(null);
                 clearStall();
               }}
               onPlaying={() => {
                 setBuffering(false);
+                setCmdError(null);
                 clearStall();
               }}
               onWaiting={() => setBuffering(true)}
-              onError={() => {
+              onError={(event) => {
+                // Al cambiar de canal, el <video> viejo se desmonta y su
+                // stream abortado dispara un error tardío. Si ya estamos en
+                // otro elemento, ese error no aplica al canal actual.
+                if (event.currentTarget !== videoRef.current) return;
                 setBuffering(false);
                 setCmdError("señal no disponible");
               }}
@@ -361,17 +485,35 @@ const labelStyle: React.CSSProperties = {
   letterSpacing: 3,
 };
 
-const expandButtonStyle: React.CSSProperties = {
+const headerActionsStyle: React.CSSProperties = {
   marginLeft: "auto",
-  padding: "5px 12px",
+  display: "flex",
+  alignItems: "center",
+  flexWrap: "wrap",
+  gap: 6,
+};
+
+const headerButtonStyle: React.CSSProperties = {
+  padding: "5px 10px",
   background: "transparent",
   border: "1px solid var(--border)",
   borderRadius: "var(--radius-sm)",
   color: "var(--text-dim)",
   cursor: "pointer",
   fontFamily: "var(--font-mono)",
-  fontSize: 11,
-  letterSpacing: 1.5,
+  fontSize: 10.5,
+  letterSpacing: 1.2,
+};
+
+const unavailableBadgeStyle: React.CSSProperties = {
+  flex: "0 0 auto",
+  padding: "2px 6px",
+  borderRadius: 999,
+  border: "1px solid color-mix(in srgb, var(--danger) 45%, transparent)",
+  color: "var(--danger)",
+  fontFamily: "var(--font-mono)",
+  fontSize: 9,
+  letterSpacing: 1,
 };
 
 const dimStyle: React.CSSProperties = {
