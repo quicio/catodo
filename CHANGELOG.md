@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.16.0](https://github.com/quicio/catodo/compare/v0.15.0...v0.16.0) (2026-11-25)
+
+
+### Features
+
+* **appearance:** logos de marca por canal y editor de Emisión ampliado ([a16d374](https://github.com/quicio/catodo/commit/a16d374f5acf0ed82e679f73dfa51fbcf9237f03))
+* **emission:** modos Películas/Colecciones y selector de carpeta ([750a33e](https://github.com/quicio/catodo/commit/750a33e40438728f84c3e39b1822425e898f48ba))
+* **iptv:** verificar streams y administrar la playlist ([8aa7690](https://github.com/quicio/catodo/commit/8aa76905ad7b5402f4e1cafad0b4a7c7f698c942))
+* **settings:** drawer con navegación agrupada y pestañas IPTV y Fondo ([05d65f3](https://github.com/quicio/catodo/commit/05d65f374f29dcf32b8c2d990aefd320b6f169ae))
+
+
+### Bug Fixes
+
+* **dev:** arrancar aunque cargo o node no estén en PATH ([087a1e8](https://github.com/quicio/catodo/commit/087a1e85d4db98334d4908bf91d5ecfda73160ed))
+
 ## [0.15.0](https://github.com/quicio/catodo/compare/v0.14.0...v0.15.0) (2026-11-20)
 
 
