@@ -6,13 +6,27 @@ import { useTheme } from "../theme";
 
 const DEFAULT_COLOR = "#ffcc00";
 
+type LibraryKind = "series" | "movies" | "collections";
+
 type Draft = {
   name: string;
   path: string;
-  kind: "series" | "videos";
+  kind: LibraryKind;
   icon: string;
   color: string;
   order: number;
+};
+
+const KIND_LABELS: Record<LibraryKind, string> = {
+  series: "SERIES",
+  movies: "PELÍCULAS",
+  collections: "COLECCIONES",
+};
+
+const KIND_HINTS: Record<LibraryKind, string> = {
+  series: "Carpeta → series → temporadas (o episodios sueltos).",
+  movies: "Carpeta con películas; se listan planas, sin agrupar.",
+  collections: "Carpeta → colecciones → series → temporadas o episodios.",
 };
 
 const emptyDraft = (order: number): Draft => ({
@@ -132,13 +146,33 @@ export default function EmissionSettings() {
     setDraft({
       name: library.name,
       path: library.path,
-      kind: library.kind === "videos" ? "videos" : "series",
+      kind:
+        library.kind === "movies"
+          ? "movies"
+          : library.kind === "collections"
+            ? "collections"
+            : "series",
       icon: library.icon?.trim() || "clapperboard",
       color: library.color || DEFAULT_COLOR,
       order: library.order ?? 10,
     });
     setError(null);
   };
+
+  const pickDirectory = async () => {
+    const picker = window.catodo?.pickDirectory;
+    if (!picker) {
+      setError("El selector de carpetas sólo está disponible en la app de escritorio.");
+      return;
+    }
+    try {
+      const chosen = await picker();
+      if (chosen) setDraft((current) => ({ ...current, path: chosen }));
+    } catch (cause) {
+      setError(errorText(cause));
+    }
+  };
+  const canPickDirectory = typeof window.catodo?.pickDirectory === "function";
 
   const save = async () => {
     if (!draft.name.trim() || !draft.path.trim()) {
@@ -223,19 +257,38 @@ export default function EmissionSettings() {
           </div>
           <div style={rowStyle}>
             <span style={labelStyle}>CARPETA (local-only)</span>
-            <input
-              style={inputStyle}
-              value={draft.path}
-              placeholder="/media/Saint Seiya"
-              onChange={(event) =>
-                setDraft((current) => ({ ...current, path: event.target.value }))
-              }
-            />
+            <div style={{ display: "flex", gap: 6 }}>
+              <input
+                style={{ ...inputStyle, flex: 1, minWidth: 0 }}
+                value={draft.path}
+                placeholder="/media/Saint Seiya"
+                onChange={(event) =>
+                  setDraft((current) => ({ ...current, path: event.target.value }))
+                }
+              />
+              <button
+                type="button"
+                style={{
+                  ...buttonStyle,
+                  opacity: canPickDirectory ? 1 : 0.5,
+                  cursor: canPickDirectory ? "pointer" : "not-allowed",
+                }}
+                disabled={!canPickDirectory}
+                title={
+                  canPickDirectory
+                    ? "Elegir carpeta"
+                    : "El selector de carpetas requiere la app de escritorio"
+                }
+                onClick={pickDirectory}
+              >
+                ELEGIR…
+              </button>
+            </div>
           </div>
           <div style={rowStyle}>
             <span style={labelStyle}>MODO</span>
-            <div style={{ display: "flex", gap: 6 }}>
-              {(["series", "videos"] as const).map((kind) => (
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {(Object.keys(KIND_LABELS) as LibraryKind[]).map((kind) => (
                 <button
                   key={kind}
                   type="button"
@@ -246,10 +299,11 @@ export default function EmissionSettings() {
                   }}
                   onClick={() => setDraft((current) => ({ ...current, kind }))}
                 >
-                  {kind === "series" ? "SERIES" : "VIDEOS"}
+                  {KIND_LABELS[kind]}
                 </button>
               ))}
             </div>
+            <span style={{ ...labelStyle, opacity: 0.55 }}>{KIND_HINTS[draft.kind]}</span>
           </div>
           <div style={rowStyle}>
             <span style={labelStyle}>VISTA PREVIA</span>
@@ -471,7 +525,7 @@ export default function EmissionSettings() {
                 {library.name}
               </div>
               <div style={{ fontSize: 9, fontFamily: "var(--font-mono)", color: "var(--text-dim)", opacity: 0.7, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {library.kind === "videos" ? "VIDEOS" : "SERIES"} · {library.path}
+                {KIND_LABELS[library.kind] ?? library.kind.toUpperCase()} · {library.path}
               </div>
             </div>
             <button type="button" style={buttonStyle} onClick={() => startEdit(library)}>

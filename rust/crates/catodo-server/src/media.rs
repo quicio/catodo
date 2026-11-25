@@ -22,6 +22,7 @@ const SCAN_TTL: Duration = Duration::from_secs(60);
 struct Episode {
     path: String,
     name: String,
+    collection: String,
     series: String,
     season: String,
     rel: String,
@@ -32,6 +33,7 @@ impl Episode {
         json!({
             "path": self.path,
             "name": self.name,
+            "collection": self.collection,
             "series": self.series,
             "season": self.season,
             "rel": self.rel,
@@ -333,21 +335,46 @@ fn walk(base: &Path, dir: &Path, kind: &str, episodes: &mut Vec<Episode>) {
             .file_stem()
             .map(|value| value.to_string_lossy().to_string())
             .unwrap_or_default();
-        let series = if parts.len() > 1 {
-            parts[0].clone()
-        } else if kind == "videos" {
-            "Videos".to_string()
-        } else {
-            "Sin serie".to_string()
-        };
-        let season = if kind == "series" && parts.len() > 2 {
-            parts[1].clone()
-        } else {
-            String::new()
+        // Estructura por modo:
+        //   series      → <Serie>/<Temporada?>/<episodio>
+        //   movies      → lista plana (las carpetas no agrupan)
+        //   collections → <Colección>/<Serie>/<Temporada?>/<episodio>
+        let (collection, series, season) = match kind {
+            "movies" => (String::new(), "Películas".to_string(), String::new()),
+            "collections" => {
+                let collection = parts.first().cloned().unwrap_or_default();
+                let series = if parts.len() > 2 {
+                    parts[1].clone()
+                } else if collection.is_empty() {
+                    "Sin serie".to_string()
+                } else {
+                    collection.clone()
+                };
+                let season = if parts.len() > 3 {
+                    parts[2].clone()
+                } else {
+                    String::new()
+                };
+                (collection, series, season)
+            }
+            _ => {
+                let series = if parts.len() > 1 {
+                    parts[0].clone()
+                } else {
+                    "Sin serie".to_string()
+                };
+                let season = if parts.len() > 2 {
+                    parts[1].clone()
+                } else {
+                    String::new()
+                };
+                (String::new(), series, season)
+            }
         };
         episodes.push(Episode {
             path: path.to_string_lossy().to_string(),
             name,
+            collection,
             series,
             season,
             rel: rel.to_string_lossy().to_string(),
@@ -367,7 +394,8 @@ fn library_from_entry(entry: &Value, index: usize) -> Option<Library> {
         .unwrap_or(&id)
         .to_string();
     let kind = match entry.get("kind").and_then(Value::as_str) {
-        Some("videos" | "movies") => "videos",
+        Some("videos" | "movies") => "movies",
+        Some("collections" | "collection") => "collections",
         _ => "series",
     }
     .to_string();
@@ -462,14 +490,54 @@ mod tests {
     }
 
     #[test]
-    fn scan_videos_uses_flat_group() {
-        let base = workdir("videos");
+    fn scan_movies_lists_every_file_flat() {
+        let base = workdir("movies");
         std::fs::write(base.join("Movie.mp4"), b"x").unwrap();
+        let nested = base.join("Saga").join("Sequel.mkv");
+        std::fs::create_dir_all(nested.parent().unwrap()).unwrap();
+        std::fs::write(nested, b"x").unwrap();
 
-        let episodes = scan(&base, "videos");
-        assert_eq!(episodes.len(), 1);
-        assert_eq!(episodes[0].series, "Videos");
-        assert_eq!(episodes[0].season, "");
+        let episodes = scan(&base, "movies");
+        assert_eq!(episodes.len(), 2);
+        assert!(episodes.iter().all(|episode| episode.series == "Películas"));
+        assert!(episodes.iter().all(|episode| episode.season.is_empty()));
+        assert!(episodes.iter().all(|episode| episode.collection.is_empty()));
+    }
+
+    #[test]
+    fn scan_collections_groups_collection_series_and_season() {
+        let base = workdir("collections");
+        let season = base.join("Anime").join("Saint Seiya").join("Season 1");
+        std::fs::create_dir_all(&season).unwrap();
+        std::fs::write(season.join("Ep 1.mp4"), b"x").unwrap();
+        let loose = base.join("Anime").join("Saint Seiya").join("Ep 2.mkv");
+        std::fs::write(loose, b"x").unwrap();
+        let movie = base.join("Cine").join("Pelicula.mp4");
+        std::fs::create_dir_all(movie.parent().unwrap()).unwrap();
+        std::fs::write(movie, b"x").unwrap();
+
+        let episodes = scan(&base, "collections");
+        assert_eq!(episodes.len(), 3);
+
+        let saint_seiya: Vec<_> = episodes
+            .iter()
+            .filter(|episode| episode.series == "Saint Seiya")
+            .collect();
+        assert_eq!(saint_seiya.len(), 2);
+        assert!(saint_seiya
+            .iter()
+            .all(|episode| episode.collection == "Anime"));
+        assert!(saint_seiya
+            .iter()
+            .any(|episode| episode.season == "Season 1"));
+        assert!(saint_seiya.iter().any(|episode| episode.season.is_empty()));
+
+        let cine = episodes
+            .iter()
+            .find(|episode| episode.collection == "Cine")
+            .expect("colección Cine");
+        assert_eq!(cine.series, "Cine");
+        assert!(cine.season.is_empty());
     }
 
     #[test]
@@ -484,9 +552,23 @@ mod tests {
             "order": 12
         });
         let library = library_from_entry(&entry, 0).expect("library");
-        assert_eq!(library.kind, "videos");
+        assert_eq!(library.kind, "movies");
         assert_eq!(library.icon, "clapperboard");
         assert_eq!(library.color.as_deref(), Some("#00ffcc"));
         assert_eq!(library.order, 12);
+
+        let legacy = json!({"id": "old", "path": "/tmp/old", "kind": "videos"});
+        assert_eq!(
+            library_from_entry(&legacy, 0).expect("legacy").kind,
+            "movies"
+        );
+
+        let collections = json!({"id": "coll", "path": "/tmp/coll", "kind": "collections"});
+        assert_eq!(
+            library_from_entry(&collections, 0)
+                .expect("collections")
+                .kind,
+            "collections"
+        );
     }
 }

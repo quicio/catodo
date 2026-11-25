@@ -286,7 +286,9 @@ carpeta y se registra como canal propio. Se administra desde **Ajustes → Emisi
 o por API.
 
 - `kind: series` → agrupa por serie + temporada.
-- `kind: videos` → lista plana de videos (acepta `movies` legacy).
+- `kind: movies` → lista plana de películas (acepta `videos` legacy).
+- `kind: collections` → agrupa por colección → serie → temporada.
+- La carpeta se puede tipear o elegir con el selector nativo del sistema.
 - Nombre, carpeta, icono, color y orden configurables. El icono puede ser un
   glifo genérico o el logo de marca (Netflix, Spotify, YouTube, etc.).
 - Progreso/resume aislado por canal.

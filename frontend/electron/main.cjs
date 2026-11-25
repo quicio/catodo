@@ -608,6 +608,22 @@ async function confirmQuit(win) {
   }
 }
 
+ipcMain.handle("pick-directory", async (event, options) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const dialogOptions = {
+    title: typeof options?.title === "string" ? options.title : "Elegir carpeta",
+    properties: ["openDirectory", "createDirectory"],
+    ...(typeof options?.defaultPath === "string"
+      ? { defaultPath: options.defaultPath }
+      : {}),
+  };
+  const { canceled, filePaths } = win
+    ? await dialog.showOpenDialog(win, dialogOptions)
+    : await dialog.showOpenDialog(dialogOptions);
+  if (canceled || !filePaths || filePaths.length === 0) return null;
+  return filePaths[0];
+});
+
 ipcMain.on("request-quit", (event) => {
   confirmQuit(BrowserWindow.fromWebContents(event.sender));
 });

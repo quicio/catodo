@@ -59,8 +59,9 @@ En esta máquina (macOS arm64) se desarrolla el target Linux (`systemd/`,
   se ajusta con `channel_<id>_url` (local-only). El arranque registra sólo
   plugins instalados y habilitados.
 - Canales de emisión: `libraries` define canales de medios con nombre, carpeta,
-  modo `series`/`videos`, icono, color y orden (CRUD en Ajustes → Emisión,
-  local-only). No hay Anime builtin; `anime_dir`/`anime_progress` quedan
+  modo `series`/`movies`/`collections`, icono, color y orden (CRUD en
+  Ajustes → Emisión, local-only; la carpeta se elige con el diálogo nativo).
+  No hay Anime builtin; `anime_dir`/`anime_progress` quedan
   inertes. El menú (Tab) y Home usan los metadatos de cada canal.
 - Atajos: `Tab` menú vertical, `Alt+C` + número para salto
   arbitrario, y combos personalizados en Ajustes → Atajos. Persisten en

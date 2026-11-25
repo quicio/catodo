@@ -5,10 +5,62 @@ import Anime4KCanvas from "../webgl/Anime4KCanvas";
 interface Episode {
   path: string;
   name: string;
+  collection: string;
   series: string;
   season: string;
   rel: string;
   position_seconds?: number;
+}
+
+interface EpisodeGroup {
+  name: string;
+  episodes: Episode[];
+}
+
+interface SeriesGroup {
+  name: string;
+  seasons: EpisodeGroup[];
+}
+
+interface CollectionGroup {
+  name: string;
+  series: SeriesGroup[];
+}
+
+/** Agrupa episodios por temporada; los sueltos van con nombre vacío. */
+function groupBySeason(episodes: Episode[]): EpisodeGroup[] {
+  const seasons = new Map<string, Episode[]>();
+  for (const episode of episodes) {
+    const key = episode.season || "";
+    const list = seasons.get(key) ?? [];
+    list.push(episode);
+    seasons.set(key, list);
+  }
+  return [...seasons.entries()].map(([name, list]) => ({ name, episodes: list }));
+}
+
+/** Reagrupa los `series` del estado en colección → serie → temporadas. */
+function groupByCollection(groups: EpisodeGroup[]): CollectionGroup[] {
+  const collections = new Map<string, Map<string, Episode[]>>();
+  for (const group of groups) {
+    for (const episode of group.episodes) {
+      const collection = episode.collection || "Sin colección";
+      const series = episode.series || group.name;
+      const bySeries =
+        collections.get(collection) ?? new Map<string, Episode[]>();
+      collections.set(collection, bySeries);
+      const list = bySeries.get(series) ?? [];
+      list.push(episode);
+      bySeries.set(series, list);
+    }
+  }
+  return [...collections.entries()].map(([name, series]) => ({
+    name,
+    series: [...series.entries()].map(([seriesName, episodes]) => ({
+      name: seriesName,
+      seasons: groupBySeason(episodes),
+    })),
+  }));
 }
 
 interface MediaState {
@@ -218,7 +270,75 @@ export default function MediaChannel({ channelId, volume }: { channelId: string;
 
   const groups = Object.values(state.series);
   const isMovies = state.kind === "movies";
+  const isCollections = state.kind === "collections";
+  const collections = isCollections ? groupByCollection(groups) : [];
   const current = state.current;
+  const currentContext = isMovies
+    ? ""
+    : current.collection
+      ? `${current.collection} · ${current.series}`
+      : current.series;
+
+  const episodeButton = (episode: Episode) => (
+    <button
+      key={episode.rel}
+      onClick={() => pickEpisode(episode.rel)}
+      style={{
+        display: "block",
+        width: "100%",
+        textAlign: "left",
+        padding: "8px 10px",
+        borderRadius: "var(--radius-md)",
+        background:
+          episode.rel === current.rel ? "rgba(255,255,255,0.15)" : "transparent",
+        border: "none",
+        color: "var(--text)",
+        fontSize: 13,
+        cursor: "pointer",
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+      }}
+    >
+      {episode.name}
+    </button>
+  );
+
+  const seasonBlock = (season: EpisodeGroup) => (
+    <div key={season.name || "__loose"}>
+      {season.name && (
+        <div
+          style={{
+            padding: "8px 12px 2px",
+            fontSize: 11,
+            textTransform: "uppercase",
+            letterSpacing: 1,
+            opacity: 0.4,
+          }}
+        >
+          {season.name}
+        </div>
+      )}
+      {season.episodes.map(episodeButton)}
+    </div>
+  );
+
+  const seriesBlock = (series: SeriesGroup) => (
+    <div key={series.name}>
+      <div
+        style={{
+          padding: "10px 8px 4px",
+          fontSize: 12,
+          textTransform: "uppercase",
+          letterSpacing: 1,
+          opacity: 0.5,
+        }}
+      >
+        {series.name}
+      </div>
+      {series.seasons.map(seasonBlock)}
+    </div>
+  );
 
   return (
     <div style={{ position: "absolute", inset: 0, background: "#000", color: "var(--text)" }}>
@@ -301,7 +421,8 @@ export default function MediaChannel({ channelId, volume }: { channelId: string;
         >
           <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
             <Icon name="clapperboard" size={16} strokeWidth={2} color="currentColor" />
-            {current.series} · {current.name}
+            {currentContext ? `${currentContext} · ` : ""}
+            {current.name}
           </span>
         </button>
         <span style={{ fontSize: 13, opacity: 0.7 }}>{current.season}</span>
@@ -334,71 +455,36 @@ export default function MediaChannel({ channelId, volume }: { channelId: string;
               fontWeight: 600,
             }}
           >
-            {isMovies ? "Películas" : "Episodios"} ({state.count})
+            {isMovies ? "Películas" : isCollections ? "Colecciones" : "Episodios"} ({state.count})
           </div>
           <div style={{ flex: 1, overflowY: "auto", padding: 8 }}>
             {isMovies
-              ? groups.flatMap((s) => s.episodes).map((ep) => (
-                  <button
-                    key={ep.rel}
-                    onClick={() => pickEpisode(ep.rel)}
-                    style={{
-                      display: "block",
-                      width: "100%",
-                      textAlign: "left",
-                      padding: "8px 10px",
-                      borderRadius: "var(--radius-md)",
-                      background: ep.rel === current.rel ? "rgba(255,255,255,0.15)" : "transparent",
-                      border: "none",
-                      color: "var(--text)",
-                      fontSize: 13,
-                      cursor: "pointer",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {ep.name}
-                  </button>
-                ))
-              : groups.map((s) => (
-                  <div key={s.name}>
-                    <div
-                      style={{
-                        padding: "10px 8px 4px",
-                        fontSize: 12,
-                        textTransform: "uppercase",
-                        letterSpacing: 1,
-                        opacity: 0.5,
-                      }}
-                    >
-                      {s.name}
-                    </div>
-                    {s.episodes.map((ep) => (
-                      <button
-                        key={ep.rel}
-                        onClick={() => pickEpisode(ep.rel)}
+              ? groups.flatMap((group) => group.episodes).map(episodeButton)
+              : isCollections
+                ? collections.map((collection) => (
+                    <div key={collection.name}>
+                      <div
                         style={{
-                          display: "block",
-                          width: "100%",
-                          textAlign: "left",
-                          padding: "8px 10px",
-                          borderRadius: "var(--radius-md)",
-                          background: ep.rel === current.rel ? "rgba(255,255,255,0.15)" : "transparent",
-                          border: "none",
-                          color: "var(--text)",
-                          fontSize: 13,
-                          cursor: "pointer",
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
+                          padding: "14px 8px 4px",
+                          fontSize: 12,
+                          fontWeight: 600,
+                          textTransform: "uppercase",
+                          letterSpacing: 1.6,
+                          color: "var(--accent)",
+                          opacity: 0.9,
                         }}
                       >
-                        {ep.name}
-                      </button>
-                    ))}
-                  </div>
-                ))}
+                        {collection.name}
+                      </div>
+                      {collection.series.map(seriesBlock)}
+                    </div>
+                  ))
+                : groups.map((group) =>
+                    seriesBlock({
+                      name: group.name,
+                      seasons: groupBySeason(group.episodes),
+                    }),
+                  )}
           </div>
         </div>
       )}

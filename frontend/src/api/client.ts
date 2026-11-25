@@ -101,7 +101,7 @@ export interface LibraryInfo {
   id: string;
   name: string;
   path: string;
-  kind: "series" | "videos";
+  kind: "series" | "movies" | "collections";
   icon?: string;
   color?: string | null;
   order?: number;
@@ -178,7 +178,7 @@ export const api = {
   addLibrary: (body: {
     name: string;
     path: string;
-    kind: "series" | "videos";
+    kind: "series" | "movies" | "collections";
     icon?: string;
     color?: string | null;
     order?: number;
@@ -192,7 +192,7 @@ export const api = {
     body: Partial<{
       name: string;
       path: string;
-      kind: "series" | "videos";
+      kind: "series" | "movies" | "collections";
       icon: string;
       color: string | null;
       order: number;

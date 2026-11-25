@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("catodo", {
   openLogin: (url) => ipcRenderer.invoke("open-login", url),
+  pickDirectory: (options) => ipcRenderer.invoke("pick-directory", options),
   mediaKey: (key) => ipcRenderer.send("media-key", key),
   insertText: (text) => ipcRenderer.send("insert-text", text),
   setActiveChannel: (channelId) => ipcRenderer.send("set-active-channel", channelId),

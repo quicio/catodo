@@ -22,7 +22,8 @@ fn configured_libraries(state: &ServerState) -> Vec<Value> {
 
 fn normalized_kind(value: Option<&str>) -> &'static str {
     match value {
-        Some("videos" | "movies") => "videos",
+        Some("videos" | "movies") => "movies",
+        Some("collections" | "collection") => "collections",
         _ => "series",
     }
 }

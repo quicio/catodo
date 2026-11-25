@@ -1,21 +1,47 @@
 # anime-channel Specification
 
 ## Purpose
-Documents the Anime channel as built: it scans a local video directory, exposes episodes grouped by series, and streams the selected episode file over HTTP.
+Documents the local media channels as built (legacy Anime and configured `libraries`): they scan a video directory, group episodes by series, collection or movies, and stream the selected file over HTTP.
 ## Requirements
 ### Requirement: Library scan
 
-The channel SHALL recursively scan the configured anime directory (runtime key `anime_dir`, default `~/Anime`) for files with video extensions (`.mp4`, `.mkv`, `.avi`, `.webm`, `.mov`). Each episode SHALL record its absolute path, display name, series (top-level directory or "Sin serie"), season (second-level directory when present), and path relative to the base.
+The channel SHALL recursively scan the configured media directory (runtime key `anime_dir` for the legacy Anime channel, or each `libraries` entry) for files with video extensions (`.mp4`, `.mkv`, `.avi`, `.webm`, `.mov`). Each episode SHALL record its absolute path, display name, `collection`, `series`, `season`, and path relative to the base.
 
 #### Scenario: Episodes grouped by series
 
-- **WHEN** `GET /api/channels/anime/state` is called with a populated anime directory
+- **WHEN** `GET /api/channels/<id>/state` is called for a `series` library with a populated directory
 - **THEN** the response includes `count` and `series`, a map of series name to its episodes.
 
 #### Scenario: Empty library
 
-- **WHEN** the anime directory does not exist or has no video files
+- **WHEN** the directory does not exist or has no video files
 - **THEN** state reports `count: 0` and `current: null` without error.
+
+### Requirement: Emission library kinds
+
+The scan layout SHALL depend on the library `kind`: `series` groups by top-level series and season, `movies` is a flat list with `series: "Películas"`, and `collections` groups by collection, then series, then season. Legacy `videos` SHALL be an alias of `movies`, and unknown kinds SHALL fall back to `series`.
+
+#### Scenario: Kind layouts
+
+- **WHEN** a library scans `<base>/<Serie>/<Temporada?>/<episodio>`
+- **THEN** `series` records the first directory and `season` the second one when present, and `collection` is empty.
+- **WHEN** a library scans `<base>/<Colección>/<Serie>/<Temporada?>/<episodio>`
+- **THEN** `collection` records the first directory, `series` the second, and `season` the third when present.
+
+#### Scenario: Movies are a flat list
+
+- **WHEN** a `movies` library scans a directory with nested subfolders
+- **THEN** every video appears as an independent movie with `series: "Películas"` and no collection or season.
+
+#### Scenario: Collections keep the hierarchy
+
+- **WHEN** a `collections` library scans `<base>/Anime/Saint Seiya/Season 1/Ep 1.mp4`
+- **THEN** the episode records `collection: "Anime"`, `series: "Saint Seiya"` and `season: "Season 1"`.
+
+#### Scenario: Loose episodes inside a collection
+
+- **WHEN** a `collections` library scans `<base>/Anime/Saint Seiya/Ep 2.mkv`
+- **THEN** the episode records `collection: "Anime"`, `series: "Saint Seiya"` and an empty `season`.
 
 ### Requirement: Current episode selection
 
@@ -103,4 +129,23 @@ The frontend SHALL seek to the saved position when an episode with saved progres
 
 - **WHEN** the episode list renders an episode with saved progress below the watched threshold
 - **THEN** it shows a resume indicator; watched episodes show a watched indicator.
+
+### Requirement: Emission view by kind
+
+The frontend SHALL render the content list according to the library `kind`: a flat list for `movies`, collection → series → season for `collections`, and series → season for `series`. Seasons and loose episodes SHALL coexist, and the current episode SHALL stay highlighted.
+
+#### Scenario: Movies list has no groupings
+
+- **WHEN** a `movies` library is open and the list is shown
+- **THEN** all movies appear in a single flat list with no series or season headers.
+
+#### Scenario: Collections show three levels
+
+- **WHEN** a `collections` library is open and the list is shown
+- **THEN** episodes are grouped under collection headers, then series headers, then season headers when present.
+
+#### Scenario: Loose episodes sit beside seasons
+
+- **WHEN** a series has both `Season 1/` and loose episode files
+- **THEN** the loose episodes appear under the series without a season header and the season episodes under their season header.
 
