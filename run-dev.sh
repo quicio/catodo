@@ -32,7 +32,8 @@ Opciones:
 
 Variables:
   CATODO_DEV_PORT, CATODO_DEV_VITE_PORT, CATODO_DEV_REUSE,
-  CATODO_DEV_FORCE_NEW, CATODO_DEV_STATE_FILE
+  CATODO_DEV_FORCE_NEW, CATODO_DEV_STATE_FILE,
+  CATODO_DEV_BACKEND_TIMEOUT, CATODO_DEV_VITE_TIMEOUT
 USAGE
 }
 
@@ -265,10 +266,18 @@ if [ "$DRY_RUN" -eq 1 ]; then
     exit 0
 fi
 
+ensure_node || exit 1
+if [ "$REUSE_VITE" -ne 1 ] && [ ! -d "$FRONTEND_DIR/node_modules" ]; then
+    echo "ERROR: falta frontend/node_modules. Corré una vez: cd frontend && npm ci" >&2
+    exit 1
+fi
+
 trap cleanup INT TERM EXIT
 
 if [ "$REUSE_BACKEND" -ne 1 ]; then
+    ensure_cargo || exit 1
     echo "==> Iniciando backend Rust en :${BACKEND_PORT} (log ${BACKEND_LOG})"
+    : > "$BACKEND_LOG"
     (cd "$ROOT_DIR/rust" && \
         CATODO_HOST=127.0.0.1 \
         CATODO_PORT="$BACKEND_PORT" \
@@ -280,14 +289,35 @@ if [ "$REUSE_BACKEND" -ne 1 ]; then
     STARTED_BACKEND=1
     LIVE_BACKEND_PID="$BACKEND_PID"
 
-    for _ in {1..40}; do
+    # El primer arranque compila todo el workspace: puede tardar minutos.
+    BACKEND_TIMEOUT="${CATODO_DEV_BACKEND_TIMEOUT:-600}"
+    BACKEND_START=$SECONDS
+    BACKEND_LAST_REPORT=$SECONDS
+    BACKEND_READY=0
+    while :; do
         if catodo_healthy "$BACKEND_PORT"; then
+            BACKEND_READY=1
             break
+        fi
+        if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
+            break
+        fi
+        BACKEND_ELAPSED=$((SECONDS - BACKEND_START))
+        if [ "$BACKEND_ELAPSED" -ge "$BACKEND_TIMEOUT" ]; then
+            break
+        fi
+        if [ $((SECONDS - BACKEND_LAST_REPORT)) -ge 15 ]; then
+            echo "    Esperando al backend en :${BACKEND_PORT} (${BACKEND_ELAPSED}s; el primer build compila Rust)..."
+            BACKEND_LAST_REPORT=$SECONDS
         fi
         sleep 0.5
     done
-    if ! catodo_healthy "$BACKEND_PORT"; then
-        echo "ERROR: el backend no respondió en :${BACKEND_PORT}. Últimas líneas:" >&2
+    if [ "$BACKEND_READY" -ne 1 ]; then
+        if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
+            echo "ERROR: el backend terminó durante el arranque. Últimas líneas de ${BACKEND_LOG}:" >&2
+        else
+            echo "ERROR: el backend no respondió en :${BACKEND_PORT} tras ${BACKEND_TIMEOUT}s. Últimas líneas de ${BACKEND_LOG}:" >&2
+        fi
         tail -20 "$BACKEND_LOG" >&2 || true
         exit 1
     fi
@@ -295,23 +325,41 @@ fi
 
 if [ "$REUSE_VITE" -ne 1 ]; then
     echo "==> Iniciando Vite en ${VITE_URL} (log ${VITE_LOG})"
-    (cd "$FRONTEND_DIR" && \
-        CATODO_PORT="$BACKEND_PORT" \
-        CATODO_BACKEND_URL="$BACKEND_URL" \
-        CATODO_VITE_PORT="$VITE_PORT" \
-        npm run dev) >>"$VITE_LOG" 2>&1 &
+    : > "$VITE_LOG"
+    (
+        cd "$FRONTEND_DIR" || exit 1
+        export CATODO_PORT="$BACKEND_PORT"
+        export CATODO_BACKEND_URL="$BACKEND_URL"
+        export CATODO_VITE_PORT="$VITE_PORT"
+        if command -v npm >/dev/null 2>&1; then
+            npm run dev
+        else
+            ./node_modules/.bin/vite
+        fi
+    ) >>"$VITE_LOG" 2>&1 &
     VITE_PID=$!
     STARTED_VITE=1
     LIVE_VITE_PID="$VITE_PID"
 
-    for _ in {1..40}; do
+    VITE_TIMEOUT="${CATODO_DEV_VITE_TIMEOUT:-120}"
+    VITE_START=$SECONDS
+    VITE_READY=0
+    while [ $((SECONDS - VITE_START)) -lt "$VITE_TIMEOUT" ]; do
         if curl -sf -m 1 "$VITE_URL" >/dev/null 2>&1; then
+            VITE_READY=1
+            break
+        fi
+        if ! kill -0 "$VITE_PID" 2>/dev/null; then
             break
         fi
         sleep 0.5
     done
-    if ! curl -sf -m 1 "$VITE_URL" >/dev/null 2>&1; then
-        echo "ERROR: Vite no respondió en ${VITE_URL}. Últimas líneas:" >&2
+    if [ "$VITE_READY" -ne 1 ]; then
+        if ! kill -0 "$VITE_PID" 2>/dev/null; then
+            echo "ERROR: Vite terminó durante el arranque. Últimas líneas de ${VITE_LOG}:" >&2
+        else
+            echo "ERROR: Vite no respondió en ${VITE_URL} tras ${VITE_TIMEOUT}s. Últimas líneas de ${VITE_LOG}:" >&2
+        fi
         tail -20 "$VITE_LOG" >&2 || true
         exit 1
     fi
@@ -327,8 +375,12 @@ fi
 launch_electron() {
     local extra=("$@")
     (
-        cd "$FRONTEND_DIR"
-        CATODO_BACKEND_URL="$VITE_URL" npx electron "${extra[@]}" .
+        cd "$FRONTEND_DIR" || exit 1
+        if command -v npx >/dev/null 2>&1; then
+            CATODO_BACKEND_URL="$VITE_URL" npx electron "${extra[@]}" .
+        else
+            CATODO_BACKEND_URL="$VITE_URL" ./node_modules/.bin/electron "${extra[@]}" .
+        fi
     ) >>"$ELECTRON_LOG" 2>&1 &
     ELECTRON_PID=$!
 }

@@ -10,6 +10,35 @@
 set -uo pipefail
 
 # ---------------------------------------------------------------------------
+# ensure_cargo
+#   Garantiza que `cargo` esté en PATH. Los launchers pueden correr desde
+#   shells que no cargaron rustup (fish abierto antes de instalarlo, launchers
+#   gráficos, servicios). Si falta, sourcea ~/.cargo/env. Devuelve 1 con un
+#   mensaje claro si no hay forma de encontrarlo.
+# ---------------------------------------------------------------------------
+ensure_cargo() {
+    command -v cargo >/dev/null 2>&1 && return 0
+    if [ -f "$HOME/.cargo/env" ]; then
+        # shellcheck disable=SC1091
+        . "$HOME/.cargo/env"
+    fi
+    command -v cargo >/dev/null 2>&1 && return 0
+    echo "ERROR: no encontré 'cargo' en PATH. Instalá Rust con rustup (https://rustup.rs) o agregá \$HOME/.cargo/bin al PATH." >&2
+    return 1
+}
+
+# ---------------------------------------------------------------------------
+# ensure_node
+#   Verifica que `node` esté disponible (Vite y Electron corren sobre Node,
+#   incluso cuando se invocan los binarios de node_modules/.bin sin npm).
+# ---------------------------------------------------------------------------
+ensure_node() {
+    command -v node >/dev/null 2>&1 && return 0
+    echo "ERROR: no encontré 'node' en PATH. Instalá Node.js (en Arch: sudo pacman -S nodejs) o agregalo al PATH." >&2
+    return 1
+}
+
+# ---------------------------------------------------------------------------
 # current_pid [PORT]
 #   Devuelve el PID del proceso que escucha TCP en PORT (o $CATODO_PORT si
 #   no se pasa argumento). Vacío si nadie escucha.

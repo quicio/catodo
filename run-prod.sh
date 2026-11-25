@@ -38,6 +38,7 @@ start() {
     echo "Iniciando backend (Rust)..."
     if [ ! -x "$BACKEND_BIN" ]; then
         echo "    Compilando backend Rust..."
+        ensure_cargo || return 1
         (cd "$ROOT_DIR/rust" && cargo build --release -p catodo-server) || return 1
     fi
     mkdir -p "$DATA_DIR"
