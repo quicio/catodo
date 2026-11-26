@@ -42,7 +42,16 @@ else
   rm -rf "$tmpd"
 fi
 [ -d "$STAGE/opt/Catodo" ] || die "el .deb no tiene /opt/Catodo"
-[ -f "$STAGE/usr/share/applications/catodo-frontend.desktop" ] || die "el .deb no trae el .desktop"
+DESKTOP="$STAGE/usr/share/applications/catodo.desktop"
+if [ ! -f "$DESKTOP" ]; then
+  # Builds viejos usaban el nombre del ejecutable. Se normaliza acá para que
+  # rpm/Arch instalen el mismo archivo que el .deb y que el WM_CLASS.
+  LEGACY="$STAGE/usr/share/applications/catodo-frontend.desktop"
+  [ -f "$LEGACY" ] || die "el .deb no trae el .desktop"
+  mv "$LEGACY" "$DESKTOP"
+fi
+# Electron asocia la ventana por app_id/WM_CLASS = desktopName ("catodo").
+sed -i 's/^StartupWMClass=.*/StartupWMClass=catodo/' "$DESKTOP"
 
 # chrome-sandbox: el .deb lo deja 4755 cuando el kernel no permite user
 # namespaces. En un paquete no se instalan binarios setuid; se deja 0755 y se

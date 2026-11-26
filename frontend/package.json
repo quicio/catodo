@@ -2,6 +2,7 @@
   "name": "catodo-frontend",
   "private": true,
   "version": "0.16.1",
+  "desktopName": "catodo",
   "description": "Cátodo desktop shell",
   "author": {
     "name": "Cátodo Project",
@@ -69,6 +70,10 @@
       {
         "from": "backend-bundle",
         "to": "backend"
+      },
+      {
+        "from": "../catodo.png",
+        "to": "catodo.png"
       }
     ],
     "directories": {
@@ -80,7 +85,8 @@
         "deb"
       ],
       "icon": "../catodo.png",
-      "category": "AudioVideo"
+      "category": "AudioVideo",
+      "syncDesktopName": true
     },
     "mac": {
       "target": [

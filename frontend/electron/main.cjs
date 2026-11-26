@@ -247,8 +247,12 @@ process.on("exit", () => {
   }
 });
 
-// Icono de la aplicación
-const APP_ICON = path.join(__dirname, "..", "..", "catodo.png");
+// Icono de la aplicación. En la app empaquetada el PNG viaja como
+// extraResource (ver build.extraResources en package.json); en dev está en la
+// raíz del repo.
+const APP_ICON = app.isPackaged
+  ? path.join(process.resourcesPath, "catodo.png")
+  : path.join(__dirname, "..", "..", "catodo.png");
 
 const CHROME_UA =
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";

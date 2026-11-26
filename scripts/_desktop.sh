@@ -113,7 +113,7 @@ Exec=$(catodo_desktop_exec "$app")
 Icon=catodo
 Terminal=false
 Categories=AudioVideo;Player;
-StartupWMClass=Catodo
+StartupWMClass=catodo
 EOF
     chmod 644 "$prefix/share/applications/catodo.desktop"
 

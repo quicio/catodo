@@ -28,8 +28,8 @@ contents:
   - src: .packaging-root/opt/Catodo
     dst: /opt/Catodo
     type: tree
-  - src: .packaging-root/usr/share/applications/catodo-frontend.desktop
-    dst: /usr/share/applications/catodo-frontend.desktop
+  - src: .packaging-root/usr/share/applications/catodo.desktop
+    dst: /usr/share/applications/catodo.desktop
   - src: .packaging-root/usr/share/icons
     dst: /usr/share/icons
     type: tree
