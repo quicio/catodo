@@ -84,7 +84,7 @@
         "AppImage",
         "deb"
       ],
-      "icon": "../catodo.png",
+      "icon": "build/icons",
       "category": "AudioVideo",
       "syncDesktopName": true
     },

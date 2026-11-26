@@ -10,7 +10,7 @@
 #   <prefix>/opt/catodo/Catodo.AppImage
 #   <prefix>/bin/catodo                     (symlink)
 #   <prefix>/share/applications/catodo.desktop
-#   <prefix>/share/icons/hicolor/1024x1024/apps/catodo.png
+#   <prefix>/share/icons/hicolor/<size>x<size>/apps/catodo.png
 #
 # `Catodo` (mayúscula) es el nombre de las extracciones viejas hechas a mano;
 # se retiran a un .bak para que el menú no siga abriendo una versión anterior.
@@ -87,6 +87,33 @@ catodo_retire_legacy() {
     done
 }
 
+# Instala el icono en todos los tamaños declarados por hicolor.
+# `hicolor/index.theme` no declara 1024x1024: un PNG sólo ahí no lo encuentra
+# Qt/Noctalia ni KDE. Se generan los tamaños estándar desde un único PNG
+# (copiando si no hay herramienta de escalado).
+catodo_install_icon_sizes() {
+    local src="$1" prefix="$2" size dir
+    for size in 16 24 32 48 64 96 128 256 512; do
+        dir="$prefix/share/icons/hicolor/${size}x${size}/apps"
+        mkdir -p "$dir"
+        if command -v magick >/dev/null 2>&1; then
+            magick "$src" -resize "${size}x${size}" "$dir/catodo.png" 2>/dev/null \
+                || cp -f "$src" "$dir/catodo.png"
+        elif command -v convert >/dev/null 2>&1; then
+            convert "$src" -resize "${size}x${size}" "$dir/catodo.png" 2>/dev/null \
+                || cp -f "$src" "$dir/catodo.png"
+        elif command -v ffmpeg >/dev/null 2>&1; then
+            ffmpeg -loglevel error -y -i "$src" \
+                -vf "scale=${size}:${size}:flags=lanczos" -pix_fmt rgba "$dir/catodo.png" 2>/dev/null \
+                || cp -f "$src" "$dir/catodo.png"
+        else
+            cp -f "$src" "$dir/catodo.png"
+        fi
+    done
+    # Versiones viejas instalaban sólo en 1024 (no declarado por hicolor).
+    rm -f "$prefix/share/icons/hicolor/1024x1024/apps/catodo.png"
+}
+
 # catodo_install_appimage <appimage> [prefix] [icono]
 catodo_install_appimage() {
     local src="$1"
@@ -95,11 +122,10 @@ catodo_install_appimage() {
     local appdir="$prefix/opt/catodo"
     local bindir="$prefix/bin"
     local app="$appdir/Catodo.AppImage"
-    local icondir="$prefix/share/icons/hicolor/1024x1024/apps"
 
     catodo_retire_legacy "$prefix"
 
-    mkdir -p "$appdir" "$bindir" "$prefix/share/applications" "$icondir"
+    mkdir -p "$appdir" "$bindir" "$prefix/share/applications"
     cp -f "$src" "$app"
     chmod +x "$app"
     ln -sfn "$app" "$bindir/catodo"
@@ -117,11 +143,15 @@ StartupWMClass=catodo
 EOF
     chmod 644 "$prefix/share/applications/catodo.desktop"
 
-    if [ -n "$icon" ] && [ -f "$icon" ]; then
-        cp -f "$icon" "$icondir/catodo.png"
-    else
-        catodo_icon_from_appimage "$app" "$icondir/catodo.png" || true
+    local icon_src="$icon"
+    if [ -z "$icon_src" ] || [ ! -f "$icon_src" ]; then
+        icon_src="$(mktemp "${TMPDIR:-/tmp}/catodo-icon-src.XXXXXX.png")"
+        catodo_icon_from_appimage "$app" "$icon_src" || icon_src=""
     fi
+    if [ -n "$icon_src" ] && [ -f "$icon_src" ]; then
+        catodo_install_icon_sizes "$icon_src" "$prefix"
+    fi
+    [ -n "$icon_src" ] && [ "$icon_src" != "$icon" ] && rm -f "$icon_src"
 
     command -v update-desktop-database >/dev/null 2>&1 \
         && update-desktop-database "$prefix/share/applications" >/dev/null 2>&1 || true
@@ -144,8 +174,8 @@ catodo_uninstall_user() {
         removed=0
     fi
     rm -f "$prefix/bin/catodo" \
-          "$prefix/share/applications/catodo.desktop" \
-          "$prefix/share/icons/hicolor/1024x1024/apps/catodo.png"
+          "$prefix/share/applications/catodo.desktop"
+    rm -f "$prefix"/share/icons/hicolor/*/apps/catodo.png
     command -v update-desktop-database >/dev/null 2>&1 \
         && update-desktop-database "$prefix/share/applications" >/dev/null 2>&1 || true
     return "$removed"

@@ -172,7 +172,9 @@ start time del proceso contra el mtime de
 9. **Identidad de escritorio Linux = `catodo`**: `desktopName` en
    `frontend/package.json` define `app_id`/`WM_CLASS`; el `.desktop`
    (`catodo.desktop`) y `StartupWMClass` deben coincidir. Si se cambia uno, el
-   launcher muestra un icono genérico y la ventana no se agrupa.
+   launcher muestra un icono genérico y la ventana no se agrupa. Los iconos van
+   en `frontend/build/icons/` (tamaños 16–512, declarados por hicolor); se
+   regeneran con `./scripts/generate-icons.sh`.
 
 ## Cómo verificar sin ojos humanos
 
