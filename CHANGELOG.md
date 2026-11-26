@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.1](https://github.com/quicio/catodo/compare/v0.16.0...v0.16.1) (2026-11-26)
+
+
+### Bug Fixes
+
+* **install:** reintentar SHA256SUMS mientras el release se publica ([e46b3cb](https://github.com/quicio/catodo/commit/e46b3cbcbc280791156205bf65f868921a69be1a))
+
 ## [0.16.0](https://github.com/quicio/catodo/compare/v0.15.0...v0.16.0) (2026-11-25)
 
 
