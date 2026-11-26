@@ -387,6 +387,20 @@ trap cleanup EXIT
 CURL=(curl -fL --retry 3 --connect-timeout 15)
 [ -t 2 ] && CURL+=(--progress-bar)
 
+# El release se publica antes de que termine `release.yml`: los assets
+# (incluido SHA256SUMS.txt) aparecen unos minutos después. Reintentamos un poco
+# y, si sigue faltando, explicamos la ventana en vez de fallar con el curl crudo.
+fetch_sums() {
+    local attempt
+    for attempt in 1 2 3; do
+        if "${CURL[@]}" -sS -o "$WORK/SHA256SUMS.txt" "$SUMS_URL"; then
+            return 0
+        fi
+        [ "$attempt" -lt 3 ] && sleep 5
+    done
+    die "no pude descargar SHA256SUMS.txt de $TAG. Si el release recién se publicó, los artefactos pueden tardar unos minutos en estar listos: reintentá en un rato o fijá un tag anterior con --version vX.Y.Z."
+}
+
 verify_asset() {
     local name="$1"
     grep -F " $name" "$WORK/SHA256SUMS.txt" > "$WORK/expected.sha256" || true
@@ -431,20 +445,20 @@ if [ "$OS" = "Darwin" ]; then
         if ! brew install --cask quicio/tap/catodo; then
             warn "Homebrew falló (¿Brew 5+ sin confiar en el tap? probá: brew trust quicio/tap)"
             warn "bajo el .zip directamente"
-            "${CURL[@]}" -sS -o "$WORK/SHA256SUMS.txt" "$SUMS_URL" || die "falló la descarga de SHA256SUMS.txt"
+            fetch_sums
             fetch_asset "$ASSET_NAME"
             install_macos_zip "$WORK/$ASSET_NAME"
         fi
     else
         say "Descargando Cátodo $TAG ($ASSET_NAME)"
-        "${CURL[@]}" -sS -o "$WORK/SHA256SUMS.txt" "$SUMS_URL" || die "falló la descarga de SHA256SUMS.txt"
+        fetch_sums
         fetch_asset "$ASSET_NAME"
         say "Checksum OK"
         install_macos_zip "$WORK/$ASSET_NAME"
     fi
 else
     say "Descargando Cátodo $TAG ($ASSET_NAME)"
-    "${CURL[@]}" -sS -o "$WORK/SHA256SUMS.txt" "$SUMS_URL" || die "falló la descarga de SHA256SUMS.txt"
+    fetch_sums
     fetch_asset "$ASSET_NAME"
     say "Checksum OK"
 
