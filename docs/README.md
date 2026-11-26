@@ -64,6 +64,7 @@ abrir un change (no editar la spec directamente sin pasar por change).
 | [0010](adr/0010-checksums-de-cores.md) | Checksums y pin de cores | aceptada |
 | [0011](adr/0011-retiro-del-backend-python.md) | Retiro del backend Python; runtime, gate y packaging Rust + Node | aceptada |
 | [0012](adr/0012-configuracion-local-only.md) | Configuración sensible local-only; remote sin administración | aceptada |
+| [0013](adr/0013-release-atomico-draft.md) | Release atómico: draft hasta tener todos los assets | aceptada |
 
 ## Flujo
 

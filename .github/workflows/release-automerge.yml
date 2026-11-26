@@ -70,4 +70,4 @@ jobs:
 
           echo "CI verde para PR #$pr (${pr_sha:0:7}); mergeando."
           gh pr merge "$pr" --repo "$REPO" --merge
-          echo "Listo. release-please va a crear el tag y release.yml los assets."
+          echo "Listo. release-please va a crear el tag y el draft; release.yml sube los assets y publica."

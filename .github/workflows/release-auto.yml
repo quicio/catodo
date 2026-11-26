@@ -2,13 +2,17 @@ name: release-auto
 
 # Fallback de publicación cuando release-please corre sin PAT.
 #
-# Con `RELEASE_PAT`, release-please crea el Release como un usuario y el evento
-# `release: published` dispara release.yml directamente; este workflow se salta.
-# Sin PAT, escucha la finalización de release-please (workflow_run) y llama a
-# release.yml como workflow reutilizable.
+# release-please crea siempre un Release *draft* con su tag (force-tag-creation).
+# Con `RELEASE_PAT`, el push del tag dispara release.yml, que sube los assets y
+# publica el draft. Sin PAT, los eventos de `GITHUB_TOKEN` no encadenan
+# workflows; este workflow escucha la finalización de release-please
+# (workflow_run) y llama a release.yml como workflow reutilizable.
 #
-# Si el release ya tiene assets, no hace nada: evita recompilar cuando
-# release-please solo abrió/actualizó el PR de release y no publicó nada.
+# Si no hay ningún draft pendiente, no hace nada: evita recompilar cuando
+# release-please solo abrió/actualizó el PR de release.
+#
+# `workflow_dispatch` con `force` reconstruye los assets del último release
+# publicado.
 
 on:
   workflow_run:
@@ -17,7 +21,7 @@ on:
   workflow_dispatch:
     inputs:
       force:
-        description: "Reconstruir los assets del último release aunque ya existan"
+        description: "Reconstruir los assets del último release publicado"
         type: boolean
         default: false
 
@@ -52,7 +56,7 @@ jobs:
             printf 'configured=false\n' >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Leer el último release y sus assets
+      - name: Leer el draft pendiente (o el último release con --force)
         id: check
         shell: bash
         env:
@@ -62,25 +66,33 @@ jobs:
           PAT_CONFIGURED: ${{ steps.pat.outputs.configured }}
         run: |
           set -euo pipefail
-          # Con PAT, release-please crea el Release como un usuario y el evento
-          # `release: published` dispara release.yml directamente. Evitamos
+          # Con PAT, el push del tag dispara release.yml directamente. Evitamos
           # duplicar el build; `--force` sigue permitiendo reconstruir a mano.
           if [ "$PAT_CONFIGURED" = "true" ] && [ "$FORCE" != "true" ]; then
-            echo "RELEASE_PAT configurado: release.yml se dispara por release published"
+            echo "RELEASE_PAT configurado: release.yml se dispara por el push del tag"
             printf 'pending=false\n' >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          tag=$(gh api "repos/$REPO/releases/latest" --jq .tag_name 2>/dev/null || true)
+
+          if [ "$FORCE" = "true" ]; then
+            tag=$(gh api "repos/$REPO/releases/latest" --jq .tag_name 2>/dev/null || true)
+          else
+            # release-please crea un draft + tag por release. Buscamos el más
+            # reciente que todavía no tenga assets subidos.
+            tag=$(gh api "repos/$REPO/releases?per_page=100" \
+              --jq '[.[] | select(.draft == true)] | sort_by(.created_at) | reverse | .[0].tag_name // empty' \
+              2>/dev/null || true)
+          fi
           if [ -z "$tag" ]; then
-            echo "todavía no hay releases; nada que hacer"
+            echo "no hay drafts pendientes; nada que hacer"
             printf 'pending=false\n' >> "$GITHUB_OUTPUT"
             exit 0
           fi
           assets=$(gh api "repos/$REPO/releases/tags/$tag" --jq '.assets | length')
-          echo "último release: $tag ($assets assets)"
+          echo "draft pendiente: $tag ($assets assets)"
           printf 'tag=%s\n' "$tag" >> "$GITHUB_OUTPUT"
           if [ "$assets" -gt 0 ] && [ "$FORCE" != "true" ]; then
-            echo "ya tiene artefactos publicados; se omite"
+            echo "ya tiene artefactos; se omite"
             printf 'pending=false\n' >> "$GITHUB_OUTPUT"
           else
             printf 'pending=true\n' >> "$GITHUB_OUTPUT"

@@ -772,7 +772,8 @@ El estado medido, los invariantes y la deuda viven en
 ```
 
 Los releases los publica release-please desde `main`; cada tag `vX.Y.Z` dispara
-los artefactos de macOS y Linux. El detalle está en
+los artefactos de macOS y Linux. release-please crea el release como draft y se
+publica recién cuando todos los assets están subidos. El detalle está en
 [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## Capturas

@@ -7,6 +7,10 @@ updated: 2026-11-11
 
 # ADR-0005 — Release reproducible con VERSION único, release-please y app única
 
+> **Nota (2026-11-25)**: la publicación pasó a ser atómica: release-please crea
+> un draft + tag y `release.yml` publica recién cuando están todos los assets
+> ([ADR-0013](0013-release-atomico-draft.md)).
+>
 > **Nota (2026-11-14)**: el release, `VERSION`, release-please y la app única
 > siguen vigentes. El sidecar Python/PyInstaller y `uv` fueron retirados
 > ([ADR-0011](0011-retiro-del-backend-python.md)); el sidecar es el binario Rust.

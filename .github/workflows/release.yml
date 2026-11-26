@@ -1,9 +1,10 @@
 name: release
 
 on:
-  # Cuando el Release lo crea un humano desde la UI.
-  release:
-    types: [published]
+  # release-please crea un release *draft* y el tag (force-tag-creation). El
+  # tag dispara el build; los assets se suben al draft y recién ahí se publica.
+  push:
+    tags: ["v*"]
   # Publicar/rebuildear un tag a mano.
   workflow_dispatch:
     inputs:
@@ -12,8 +13,7 @@ on:
         required: true
         type: string
   # release-auto.yml lo llama como workflow reutilizable cuando release-please
-  # corre sin PAT. Con RELEASE_PAT, el Release lo crea un usuario y este
-  # workflow se dispara directamente por `release: published`.
+  # corre sin PAT (los eventos de GITHUB_TOKEN no encadenan workflows).
   workflow_call:
     inputs:
       tag:
@@ -24,8 +24,12 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
 env:
-  RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   linux:
@@ -137,12 +141,31 @@ jobs:
         run: |
           version="${VERSION#v}"
           cp "release/Catodo-${version}-mac-arm64.zip" "release/Catodo-mac-arm64.zip"
-      - name: Upload to GitHub Release
+      - name: Upload assets and publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
           # Sólo archivos: `release/` también contiene el bundle backend-rust/.
           shopt -s nullglob
           assets=(release/*.zip release/*.AppImage release/*.deb release/*.rpm release/*.pkg.tar.zst release/*.tar.gz release/SHA256SUMS release/SHA256SUMS.txt)
-          gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
+          latest=()
+          case "$RELEASE_TAG" in
+            *-*) ;;
+            *) latest=(--latest) ;;
+          esac
+
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "El release $RELEASE_TAG ya existe; subiendo assets."
+            gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
+            if [ "$(gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft')" = "true" ]; then
+              echo "Publicando el draft $RELEASE_TAG con todos los assets."
+              gh release edit "$RELEASE_TAG" --draft=false "${latest[@]}"
+            fi
+          else
+            # Tag empujado a mano sin release: se crea publicado y atómico.
+            echo "No hay release para $RELEASE_TAG; creándolo con los assets."
+            gh release create "$RELEASE_TAG" "${assets[@]}" \
+              --title "$RELEASE_TAG" --generate-notes "${latest[@]}"
+          fi
 

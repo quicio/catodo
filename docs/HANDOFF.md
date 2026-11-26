@@ -79,10 +79,11 @@ Los releases hasta `v0.12.0` están publicados con artefactos macOS (versionado 
 alias estable `Catodo-mac-arm64.zip`), Linux (AppImage, deb, rpm,
 `pkg.tar.zst`, source tarball) y `SHA256SUMS`. `brew install --cask
 quicio/tap/catodo` se verificó en macOS arm64. Los artefactos incluyen Electron
-ECS con Widevine (ADR-0007). Con `RELEASE_PAT`, release-please crea el Release
-como usuario y `release: published` dispara `release.yml` sin aprobación manual
-de workflows. `release-automerge.yml` mergea el PR de release cuando `ci` pasa,
-así que publicar no requiere tocar GitHub (para frenarlo, se quita el label
+ECS con Widevine (ADR-0007). Con `RELEASE_PAT`, release-please crea un Release
+**draft** + tag y el push del tag dispara `release.yml`; los assets se suben al
+draft y recién ahí se publica (ADR-0013), sin ventanas de release vacío.
+`release-automerge.yml` mergea el PR de release cuando `ci` pasa, así que
+publicar no requiere tocar GitHub (para frenarlo, se quita el label
 `autorelease: pending`).
 
 Pendiente de validación externa (no bloquea el código): probar el one-liner
@@ -168,6 +169,10 @@ start time del proceso contra el mtime de
 8. **La administración es local-only**: el remote emparejado reproduce, cambia
    tema/layout/volumen y navega canales, pero no toca rutas, emuladores,
    bibliotecas, túnel, MQTT ni tokens (ADR-0012).
+9. **Identidad de escritorio Linux = `catodo`**: `desktopName` en
+   `frontend/package.json` define `app_id`/`WM_CLASS`; el `.desktop`
+   (`catodo.desktop`) y `StartupWMClass` deben coincidir. Si se cambia uno, el
+   launcher muestra un icono genérico y la ventana no se agrupa.
 
 ## Cómo verificar sin ojos humanos
 
@@ -190,7 +195,7 @@ navegador o Electron. Documentar cualquier atajo nuevo acá.
 | `ROADMAP.md` de raíz inexistente | el backlog real son los changes de openspec | `docs/ROADMAP.md` mapea a openspec |
 | tap Homebrew | `Casks/catodo.rb` en `quicio/homebrew-tap`; cask estático | Homebrew 5+ requiere `brew trust quicio/tap`; no usa token |
 | runners macOS en CI | se usa `macos-15` | no volver a `macos-14` |
-| release-please | habilitado con `RELEASE_PAT` | el Release lo crea un usuario y dispara `release.yml`; `release-auto.yml` queda como fallback sin PAT |
+| release-please | habilitado con `RELEASE_PAT` | crea un draft + tag; el push del tag dispara `release.yml`, que publica al final (ADR-0013); `release-auto.yml` queda como fallback sin PAT |
 | auto-merge del release | `release-automerge.yml` con `RELEASE_PAT` tras `ci` verde | sin PAT no mergea; `GITHUB_TOKEN` no dispararía release-please |
 | publish con `--clobber` | si el job falla a mitad quedan assets faltando | desde el fix sólo se suben archivos |
 | salida del kiosko | `⌘⇧Q` con confirmación + botón en Ajustes | no romper esos dos caminos |
