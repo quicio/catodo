@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.3](https://github.com/quicio/catodo/compare/v0.16.2...v0.16.3) (2026-11-26)
+
+
+### Bug Fixes
+
+* **linux:** publicar el icono en los tamaños que declara hicolor ([dd9bf27](https://github.com/quicio/catodo/commit/dd9bf276da4f86c67fc2d42e3fccd8a11e81859e))
+
 ## [0.16.2](https://github.com/quicio/catodo/compare/v0.16.1...v0.16.2) (2026-11-26)
 
 
