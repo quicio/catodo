@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.0](https://github.com/quicio/catodo/compare/v0.16.3...v0.17.0) (2026-11-26)
+
+
+### Features
+
+* **media:** remuxear MKV/AVI/MOV a MP4 compatible con caché ([40fd09d](https://github.com/quicio/catodo/commit/40fd09d96e4086ac7141df80f51443e49beccbc9))
+
 ## [0.16.3](https://github.com/quicio/catodo/compare/v0.16.2...v0.16.3) (2026-11-26)
 
 
