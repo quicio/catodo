@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.2](https://github.com/quicio/catodo/compare/v0.16.1...v0.16.2) (2026-11-26)
+
+
+### Bug Fixes
+
+* **linux:** asociar la ventana con el lanzador y empaquetar el icono ([d8e1588](https://github.com/quicio/catodo/commit/d8e1588d420bb0b6d19cb8c30e164543e30ffae6))
+
 ## [0.16.1](https://github.com/quicio/catodo/compare/v0.16.0...v0.16.1) (2026-11-26)
 
 
