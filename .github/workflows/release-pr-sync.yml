@@ -8,6 +8,12 @@ permissions:
   contents: write
   pull-requests: write
 
+# Varios eventos (labeled/synchronize) pueden disparar dos syncs a la vez y
+# uno pierde el push contra el otro. Se serializan por PR.
+concurrency:
+  group: release-pr-sync-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
 jobs:
   sync-lockfiles:
     if: >
@@ -43,4 +49,14 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add frontend/package-lock.json rust/Cargo.lock clients/tray/Cargo.lock
           git commit -m "chore: sync lockfiles for release"
-          git push
+          # release-please puede haber avanzado la rama mientras corría el sync.
+          for attempt in 1 2 3; do
+            if git push; then
+              exit 0
+            fi
+            echo "push rechazado (intento $attempt); rebaseando sobre el remoto"
+            git pull --rebase --autostash || exit 1
+            sleep 3
+          done
+          echo "no pude pushear el sync de lockfiles" >&2
+          exit 1
