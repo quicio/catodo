@@ -175,7 +175,7 @@ where
 
 /// Resuelve un binario por PATH y, si no aparece, por las rutas habituales de
 /// Homebrew/MacPorts (la app abierta desde Finder no hereda el PATH del shell).
-fn resolve_binary(name: &str) -> String {
+pub(crate) fn resolve_binary(name: &str) -> String {
     const FALLBACK_DIRS: &[&str] = &[
         "/opt/homebrew/bin",
         "/usr/local/bin",

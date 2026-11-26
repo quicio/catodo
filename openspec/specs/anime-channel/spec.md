@@ -130,6 +130,40 @@ The frontend SHALL seek to the saved position when an episode with saved progres
 - **WHEN** the episode list renders an episode with saved progress below the watched threshold
 - **THEN** it shows a resume indicator; watched episodes show a watched indicator.
 
+### Requirement: Normalización de contenedor
+
+The channel SHALL remux local files in non-native containers (`.mkv`, `.avi`, `.mov`) to a cached MP4 under `<data_dir>/media-cache/`, copying H.264 8-bit video and AAC audio and transcoding when needed. The cache SHALL be keyed by source path, mtime and size, prepared atomically, and reused while the source is unchanged. If preparation fails, the original file SHALL be served.
+
+#### Scenario: MKV with AC3 audio
+
+- **WHEN** an episode is an `.mkv` with H.264 video and AC3 audio
+- **THEN** the stream endpoint serves a cached MP4 with copied H.264 video and AAC audio, and seek/resume keep working.
+
+#### Scenario: Prefer a compatible audio track
+
+- **WHEN** the first audio track is AC3 but the file has another AAC track
+- **THEN** the remux copies the AAC track instead of transcoding, so the first playback starts in seconds.
+
+#### Scenario: Native containers are untouched
+
+- **WHEN** an episode is `.mp4` or `.webm`
+- **THEN** the original file is served directly, without invoking ffmpeg.
+
+#### Scenario: Cache reuse
+
+- **WHEN** the same episode is requested again and the source did not change
+- **THEN** the existing cached MP4 is served without re-running ffmpeg.
+
+#### Scenario: Source changed
+
+- **WHEN** the source file's mtime or size changes
+- **THEN** a new cache entry is produced instead of reusing the stale one.
+
+#### Scenario: Remux failure
+
+- **WHEN** ffmpeg cannot prepare the file
+- **THEN** the channel logs the error and falls back to the original file.
+
 ### Requirement: Emission view by kind
 
 The frontend SHALL render the content list according to the library `kind`: a flat list for `movies`, collection → series → season for `collections`, and series → season for `series`. Seasons and loose episodes SHALL coexist, and the current episode SHALL stay highlighted.

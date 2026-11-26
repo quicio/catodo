@@ -291,6 +291,11 @@ o por API.
 - La carpeta se puede tipear o elegir con el selector nativo del sistema.
 - Nombre, carpeta, icono, color y orden configurables. El icono puede ser un
   glifo genérico o el logo de marca (Netflix, Spotify, YouTube, etc.).
+- Los `.mkv`, `.avi` y `.mov` se remuxean automáticamente a MP4 compatible
+  (video H.264 se copia; audio AC3 u otro se convierte a AAC) y se cachean en
+  `~/.local/share/catodo/media-cache/`. La primera reproducción tarda unos
+  segundos; después sale de caché y conserva seek/resume. Si preferís liberar
+  espacio, borrá `media-cache/`: se regenera al reproducir.
 - Progreso/resume aislado por canal.
 - No hay un canal Anime built-in: si querés Anime, creá un canal apuntando a
   `~/Anime`. `anime_dir` queda como clave legacy sin efecto.
@@ -761,6 +766,7 @@ frontend/   React + Vite + Electron (no Tauri)
 Data stored outside the repo at `~/.local/share/catodo/`:
 - `config.json` — runtime overrides (URLs, directories)
 - `wallpapers/` — downloaded wallpapers and artist photos
+- `media-cache/` — copias MP4 remuxeada de capítulos en contenedores no nativos
 
 ## Estado
 
